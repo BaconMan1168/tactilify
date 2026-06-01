@@ -29,7 +29,6 @@ Set up the Next.js 16 project, environment config, all dependencies, and the ima
 - [ ] PDF uploads are converted to an image via `pdfjs-dist` before preview
 - [ ] `file-type` validates file on the server — invalid types show a `sonner` toast error
 - [ ] Page passes axe scan with zero critical errors
-- [ ] App deploys to Vercel without errors
 
 ---
 
