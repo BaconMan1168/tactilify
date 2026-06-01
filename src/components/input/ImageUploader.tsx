@@ -1,7 +1,6 @@
 'use client'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
 import type { UploadedImage } from '@/types/diagram'
 
@@ -9,6 +8,7 @@ interface ImageUploaderProps {
   onUpload: (image: UploadedImage) => void
   isProcessing: boolean
   onProcessingChange: (v: boolean) => void
+  onCameraRequest: () => void
 }
 
 const ACCEPT = {
@@ -22,25 +22,17 @@ export function ImageUploader({
   onUpload,
   isProcessing,
   onProcessingChange,
+  onCameraRequest,
 }: ImageUploaderProps) {
-  const [dragError, setDragError] = useState(false)
-
   const processFile = useCallback(
     async (file: File) => {
       onProcessingChange(true)
       const formData = new FormData()
       formData.append('file', file)
-
       try {
-        const res = await fetch('/api/preprocess', {
-          method: 'POST',
-          body: formData,
-        })
+        const res = await fetch('/api/preprocess', { method: 'POST', body: formData })
         const data = await res.json()
-        if (!res.ok) {
-          toast.error(data.error ?? 'Upload failed.')
-          return
-        }
+        if (!res.ok) { toast.error(data.error ?? 'Upload failed.'); return }
         onUpload(data as UploadedImage)
       } catch {
         toast.error('Network error. Please try again.')
@@ -53,125 +45,72 @@ export function ImageUploader({
 
   const onDrop = useCallback(
     (accepted: File[], rejected: { file: File }[]) => {
-      setDragError(false)
-      if (rejected.length > 0) {
-        toast.error('Unsupported file type. Use JPEG, PNG, WebP, or PDF.')
-        setDragError(true)
-        return
-      }
+      if (rejected.length > 0) { toast.error('Unsupported type. Use JPEG, PNG, WebP, or PDF.'); return }
       if (accepted[0]) processFile(accepted[0])
     },
     [processFile],
   )
 
-  const { getRootProps, getInputProps, isDragActive, isDragReject } =
-    useDropzone({
-      onDrop,
-      accept: ACCEPT,
-      maxFiles: 1,
-      disabled: isProcessing,
-    })
+  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
+    onDrop,
+    accept: ACCEPT,
+    maxFiles: 1,
+    disabled: isProcessing,
+  })
 
-  const isErrorState = isDragReject || dragError
+  const isError = isDragReject
 
   return (
     <div
-      {...getRootProps()}
-      role="button"
-      aria-label="Upload diagram. Drag and drop or click to browse. Accepts JPEG, PNG, WebP, and PDF."
-      aria-disabled={isProcessing}
-      className={[
-        'relative flex flex-col items-center justify-center gap-4',
-        'min-h-[240px] w-full rounded-lg border px-6 py-10',
-        'cursor-pointer transition-colors duration-150 outline-none',
-        'focus-visible:ring-2 focus-visible:ring-[var(--color-primary-focus)]',
-        isDragActive && !isErrorState
-          ? 'border-[var(--color-primary)] bg-[var(--color-surface-2)]'
-          : isErrorState
-            ? 'border-red-500 bg-red-500/5'
-            : 'border-dashed border-[var(--color-hairline-strong)] bg-[var(--color-surface-1)] hover:border-[var(--color-hairline-tertiary)] hover:bg-[var(--color-surface-2)]',
-        isProcessing ? 'pointer-events-none opacity-60' : '',
-      ].join(' ')}
+      className="w-[260px] shrink-0 rounded-[10px] p-[14px]"
+      style={{
+        background: 'rgba(15,16,17,0.92)',
+        border: '1px solid #23252a',
+        backdropFilter: 'blur(10px)',
+      }}
     >
-      <input {...getInputProps()} />
-
-      <AnimatePresence mode="wait">
+      {/* Drop zone */}
+      <div
+        {...getRootProps()}
+        role="button"
+        aria-label="Upload diagram — drag and drop or click to browse. Accepts JPEG, PNG, WebP, PDF."
+        aria-disabled={isProcessing}
+        className={[
+          'rounded-[7px] px-3 py-4 text-center cursor-pointer transition-colors duration-150 outline-none mb-[9px]',
+          'focus-visible:ring-2 focus-visible:ring-[#5e6ad2]',
+          isProcessing ? 'pointer-events-none opacity-60' : '',
+          isDragActive && !isError
+            ? 'border border-dashed border-[#5e6ad2] bg-[rgba(94,106,210,0.06)]'
+            : isError
+              ? 'border border-dashed border-red-500 bg-[rgba(239,68,68,0.05)]'
+              : 'border border-dashed border-[#34343a] hover:border-[#3e3e44]',
+        ].join(' ')}
+      >
+        <input {...getInputProps()} />
         {isProcessing ? (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center gap-3"
-          >
-            <svg
-              aria-hidden="true"
-              className="h-8 w-8 animate-spin text-[var(--color-primary)]"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-            <p className="text-sm text-[var(--color-ink-subtle)]">Processing…</p>
-          </motion.div>
+          <p className="text-[11px] text-[#62666d]">Processing…</p>
+        ) : isDragActive ? (
+          <p className="text-[11px] text-[#5e6ad2]">Drop to process</p>
         ) : (
-          <motion.div
-            key="idle"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center gap-3 text-center"
-          >
-            <svg
-              aria-hidden="true"
-              className={[
-                'h-10 w-10',
-                isDragActive && !isErrorState
-                  ? 'text-[var(--color-primary)]'
-                  : isErrorState
-                    ? 'text-red-400'
-                    : 'text-[var(--color-ink-subtle)]',
-              ].join(' ')}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5" />
-              <path d="M12 3v12" />
-              <path d="M8 7l4-4 4 4" />
-            </svg>
-            <div>
-              <p className="text-[15px] font-medium text-[var(--color-ink)]">
-                {isDragActive ? 'Drop to process' : 'Drag a diagram here'}
-              </p>
-              <p className="mt-1 text-[13px] text-[var(--color-ink-subtle)]">
-                or{' '}
-                <span className="text-[var(--color-primary)] underline underline-offset-2">
-                  click to browse
-                </span>
-              </p>
-            </div>
-            <p className="text-[11px] tracking-wide text-[var(--color-ink-tertiary)] uppercase">
-              JPEG · PNG · WebP · PDF
+          <>
+            <p className="text-[11px] text-[#62666d]">
+              Drop file or{' '}
+              <span className="text-[#5e6ad2]">browse</span>
             </p>
-          </motion.div>
+            <p className="text-[9px] text-[#3e3e44] mt-0.5">JPEG · PNG · WebP · PDF</p>
+          </>
         )}
-      </AnimatePresence>
+      </div>
+
+      {/* Camera toggle */}
+      <button
+        onClick={onCameraRequest}
+        disabled={isProcessing}
+        aria-label="Switch to camera input"
+        className="w-full text-center text-[11px] text-[#8a8f98] bg-transparent border-none cursor-pointer hover:text-[#f7f8f8] transition-colors disabled:opacity-40"
+      >
+        Use camera instead
+      </button>
     </div>
   )
 }
