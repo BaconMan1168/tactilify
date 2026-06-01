@@ -25,6 +25,9 @@ A student or teacher uploads or photographs a STEM diagram. The app uses Claude 
 - **Always** handle loading, error, and empty states in every UI component
 - **Always** include `aria-label`, `role`, and keyboard navigation on interactive elements
 - **Always** check `docs/05_current_phase.md` to confirm which phase is active before starting work
+- **Always** use shadcn/ui for UI primitives (buttons, cards, dialogs, tabs, inputs) — never build these from scratch
+- **Always** use Motion (Framer Motion) for React component animations; use GSAP for SVG path animations and multi-step diagram map sequences
+- **Always** invoke the `frontend-design` skill before building any new page, section, or complex component — use `docs/06_design.md` as the source of truth for colors, spacing, typography, and tokens
 
 ## When a phase is complete
 Update `docs/05_current_phase.md` to reflect the next phase. Mark the completed phase's definition of done as ✅.

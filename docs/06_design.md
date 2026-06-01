@@ -495,6 +495,18 @@ Linear's depth is carried by surface ladder + hairline borders. The brand resist
 - Product UI screenshots maintain aspect ratio and never crop.
 - Customer logos in the marquee may collapse from 6-up to 3-up below 768px.
 
+## Frontend implementation
+
+This design system is implemented using:
+- **shadcn/ui** — all interactive primitives (buttons, cards, dialogs, tabs, inputs). Map the tokens above to shadcn's CSS variable layer.
+- **Motion (Framer Motion)** — React component transitions: panel entrances, tab switches, loading states, output reveals.
+- **GSAP** — SVG path animations, diagram element highlighting, multi-step diagram map sequencing.
+- **frontend-design skill** — invoke before building any new page, section, or complex component to enforce these tokens consistently.
+
+See `docs/03_tech_stack.md` for library versions and install commands.
+
+---
+
 ## Known Gaps
 
 - The four-step surface ladder values are extracted directly from Linear's `--color-bg-level-3`, `--color-line-tint`, etc. CSS variables; they are Linear's canonical surface spec.
