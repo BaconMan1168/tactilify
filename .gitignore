@@ -141,3 +141,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Brainstorming / visual companion
+.superpowers/
+
+# Agent skills (installed locally, not committed)
+.agents/
