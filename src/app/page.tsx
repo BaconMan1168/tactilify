@@ -39,28 +39,31 @@ export default function HomePage() {
       >
         {/* Hero text — top left, vertically centred in the flex-1 space */}
         <motion.div
-          className="flex-1 flex flex-col justify-center max-w-lg"
+          className="flex-1 flex flex-col justify-center max-w-3xl"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          <p className="text-[11px] font-medium tracking-[1.2px] uppercase text-[#5e6ad2] mb-3.5">
+          <p className="text-[13px] font-medium tracking-[2px] uppercase text-[#5e6ad2] mb-5">
             Tactilify
           </p>
           <h1
-            className="font-semibold text-[#f7f8f8] leading-[0.95]"
-            style={{ fontSize: 'clamp(36px, 7vw, 56px)', letterSpacing: '-2.5px' }}
+            className="font-semibold text-[#f7f8f8]"
+            style={{ fontSize: 'clamp(56px, 9vw, 88px)', letterSpacing: '-3.5px', lineHeight: 1.05 }}
           >
             Make any<br />diagram<br />accessible
           </h1>
-          <p className="text-[15px] text-[#8a8f98] mt-4 max-w-[340px] leading-relaxed" style={{ letterSpacing: '-0.1px' }}>
+          <p
+            className="text-[17px] text-[#8a8f98] mt-7 max-w-[480px] leading-relaxed"
+            style={{ letterSpacing: '-0.1px' }}
+          >
             Upload or photograph a STEM diagram. Get audio, high-contrast, tactile, and navigable outputs.
           </p>
         </motion.div>
 
-        {/* Bottom-right: upload card + preview card */}
+        {/* Bottom-right: upload card, then preview below it */}
         <motion.div
-          className="flex items-end justify-end gap-3"
+          className="flex flex-col items-end gap-3"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}
@@ -74,7 +77,6 @@ export default function HomePage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 12 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                className="w-[300px]"
               >
                 <CameraCapture
                   onCapture={handleImage}
@@ -101,16 +103,16 @@ export default function HomePage() {
             )}
           </AnimatePresence>
 
-          {/* Preview card — slides in when image is ready */}
+          {/* Preview card — appears below input card when image is ready */}
           <AnimatePresence>
             {image && (
               <motion.div
                 key={image.id}
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 160, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden shrink-0 flex flex-col rounded-[10px]"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden w-[400px] shrink-0 rounded-[10px]"
                 style={{
                   background: 'rgba(15,16,17,0.92)',
                   border: '1px solid #23252a',
@@ -119,45 +121,44 @@ export default function HomePage() {
                 aria-label="Diagram preview"
                 aria-live="polite"
               >
-                {/* Thumbnail */}
-                <div
-                  className="flex items-center justify-center mx-2 mt-2 rounded-md overflow-hidden"
-                  style={{ minHeight: 80, background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`data:${image.mimeType};base64,${image.base64}`}
-                    alt="Uploaded diagram"
-                    className="w-full h-full object-cover"
-                    style={{ maxHeight: 90 }}
-                  />
-                </div>
-
-                {/* Meta */}
-                <div className="px-2 py-[7px] flex-1">
-                  <p className="text-[10px] text-[#f7f8f8] truncate">diagram.{image.mimeType.split('/')[1]}</p>
-                  <p className="text-[9px] text-[#62666d] mt-0.5 font-mono">{image.id.slice(0, 8)}</p>
-                </div>
-
-                {/* Confirm / dismiss */}
-                <div className="px-2 pb-2 flex gap-1.5">
-                  <button
-                    onClick={() => setImage(null)}
-                    aria-label="Remove image"
-                    className="flex-1 text-[10px] text-[#8a8f98] bg-[#18191a] border border-[#23252a] rounded-[6px] py-1.5 hover:text-[#f7f8f8] transition-colors"
+                <div className="flex gap-3 p-3">
+                  {/* Thumbnail */}
+                  <div
+                    className="flex-shrink-0 w-[100px] h-[80px] rounded-md overflow-hidden"
+                    style={{ background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
                   >
-                    Remove
-                  </button>
-                  <button
-                    aria-label="Confirm and analyze diagram"
-                    className="flex-1 text-[10px] text-white rounded-[6px] py-1.5 font-medium hover:bg-[#828fff] transition-colors whitespace-nowrap"
-                    style={{ background: '#5e6ad2' }}
-                    onClick={() => {
-                      /* Phase 2 will trigger analysis here */
-                    }}
-                  >
-                    Analyze
-                  </button>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`data:${image.mimeType};base64,${image.base64}`}
+                      alt="Uploaded diagram"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {/* Meta + actions */}
+                  <div className="flex flex-col justify-between flex-1 min-w-0">
+                    <div>
+                      <p className="text-[12px] text-[#f7f8f8] truncate">diagram.{image.mimeType.split('/')[1]}</p>
+                      <p className="text-[10px] text-[#62666d] mt-0.5 font-mono">{image.id.slice(0, 8)}</p>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => setImage(null)}
+                        aria-label="Remove image"
+                        className="flex-1 text-[12px] text-[#8a8f98] bg-[#18191a] border border-[#23252a] rounded-[6px] py-1.5 hover:text-[#f7f8f8] transition-colors"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        aria-label="Confirm and analyze diagram"
+                        className="flex-1 text-[12px] text-white rounded-[6px] py-1.5 font-medium hover:bg-[#828fff] transition-colors"
+                        style={{ background: '#5e6ad2' }}
+                        onClick={() => { /* Phase 2 */ }}
+                      >
+                        Analyze
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}

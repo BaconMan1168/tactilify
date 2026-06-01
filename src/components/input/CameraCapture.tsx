@@ -31,6 +31,14 @@ export function CameraCapture({
 
   useEffect(() => () => stopStream(), [stopStream])
 
+  // Assign srcObject once the video element exists in the DOM (after state → 'active')
+  useEffect(() => {
+    if (state === 'active' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+      videoRef.current.play().catch(() => {})
+    }
+  }, [state])
+
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraState('unavailable')
@@ -39,14 +47,11 @@ export function CameraCapture({
     setCameraState('requesting')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 } },
+        // ideal: lets browser pick rear camera on mobile, falls back to front on MacBook
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      setCameraState('active')
+      setCameraState('active') // renders <video>; useEffect above sets srcObject
     } catch (err) {
       const name = err instanceof Error ? err.name : ''
       setCameraState(name === 'NotAllowedError' ? 'denied' : 'unavailable')
@@ -57,6 +62,7 @@ export function CameraCapture({
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
+    if (video.videoWidth === 0) { toast.error('Camera not ready yet — please wait a moment.'); return }
 
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
@@ -97,7 +103,7 @@ export function CameraCapture({
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-[260px] shrink-0 rounded-[10px] overflow-hidden flex flex-col"
+        className="w-[400px] shrink-0 rounded-[10px] overflow-hidden flex flex-col"
         style={cardStyle}
       >
         <div className="relative overflow-hidden bg-black">
@@ -136,12 +142,12 @@ export function CameraCapture({
 
   return (
     <div
-      className="w-[260px] shrink-0 rounded-[10px] p-[14px] flex flex-col gap-[9px]"
+      className="w-[400px] shrink-0 rounded-[10px] p-[14px] flex flex-col gap-[9px]"
       style={cardStyle}
     >
       {/* Status area */}
       <div
-        className="rounded-[7px] px-3 py-4 text-center border border-dashed border-[#34343a]"
+        className="rounded-[7px] px-3 py-10 text-center border border-dashed border-[#34343a]"
         role={state === 'denied' || state === 'unavailable' ? 'alert' : undefined}
       >
         {state === 'denied' && (

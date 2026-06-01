@@ -9,7 +9,11 @@ export function AxeCore() {
         import('react'),
         import('react-dom'),
       ]).then(([{ default: axe }, React, ReactDOM]) => {
-        axe(React, ReactDOM, 1000)
+        try {
+          axe(React, ReactDOM, 1000)
+        } catch {
+          // @axe-core/react is incompatible with React 19 (read-only createElement getter)
+        }
       })
     }
   }, [])
