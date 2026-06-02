@@ -276,7 +276,10 @@ export default function HomePage() {
               </div>
 
               {/* Right — outputs */}
-              <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+              <div
+                className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto"
+                style={{ backdropFilter: 'blur(12px)', background: 'rgba(1,1,2,0.78)' }}
+              >
                 <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
                   Accessible outputs
                 </span>
@@ -297,6 +300,7 @@ export default function HomePage() {
                           fontWeight: 500,
                           padding: '6px 14px',
                           color: activeTab === tab.id ? '#f7f8f8' : '#62666d',
+                          cursor: 'pointer',
                         }}
                       >
                         {activeTab === tab.id && (
