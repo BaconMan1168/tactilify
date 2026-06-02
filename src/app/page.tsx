@@ -399,7 +399,7 @@ export default function HomePage() {
                 className="text-[17px] text-[#8a8f98] mt-7 max-w-[480px] leading-relaxed"
                 style={{ letterSpacing: '-0.1px' }}
               >
-                Upload or photograph a STEM diagram. Get audio, high-contrast, tactile, and navigable outputs.
+                Upload or photograph a STEM diagram. Get audio narration, tactile braille, and a navigable diagram map.
               </p>
             </motion.div>
 
