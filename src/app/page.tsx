@@ -146,12 +146,12 @@ export default function HomePage() {
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
             >
               <div
-                className="w-[280px] rounded-[10px] p-3"
+                className="w-full max-w-[520px] rounded-[12px] p-6"
                 style={{ background: 'rgba(15,16,17,0.92)', border: '1px solid #34343a', backdropFilter: 'blur(10px)' }}
               >
                 {/* Scan wrap */}
                 <div
-                  className="h-[72px] rounded-md mb-3 relative overflow-hidden"
+                  className="h-[140px] rounded-lg mb-5 relative overflow-hidden"
                   style={{ background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
                 >
                   {image && (
@@ -164,20 +164,20 @@ export default function HomePage() {
                     />
                   )}
                   <div
-                    className="scan-line absolute left-0 right-0 h-[1.5px]"
+                    className="scan-line absolute left-0 right-0 h-[2px]"
                     style={{
                       background: 'linear-gradient(to right, transparent, #5e6ad2 30%, #828fff 50%, #5e6ad2 70%, transparent)',
-                      boxShadow: '0 0 8px #5e6ad2',
+                      boxShadow: '0 0 10px #5e6ad2',
                     }}
                   />
                 </div>
 
                 {/* Progress bar */}
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] text-[#8a8f98]">Processing</span>
-                  <span className="text-[10px] font-semibold text-[#5e6ad2]">{Math.round(progress)}%</span>
+                <div className="flex justify-between mb-2">
+                  <span className="text-[15px] text-[#8a8f98]">Processing</span>
+                  <span className="text-[15px] font-semibold text-[#5e6ad2]">{Math.round(progress)}%</span>
                 </div>
-                <div className="h-[2px] bg-[#23252a] rounded-full overflow-hidden mb-3">
+                <div className="h-[8px] bg-[#23252a] rounded-full overflow-hidden mb-5">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -189,17 +189,17 @@ export default function HomePage() {
                 </div>
 
                 {/* Steps */}
-                <div className="flex flex-col gap-[5px]">
+                <div className="flex flex-col gap-3">
                   {STEP_LABELS.map((label, i) => {
                     const done = progress >= STEP_THRESHOLDS[i]
                     const active = !done && i === activeStep
                     return (
-                      <div key={i} className="flex items-center gap-[7px]">
+                      <div key={i} className="flex items-center gap-3">
                         <div
-                          className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${active ? 'dot-pulse' : ''}`}
+                          className={`w-[10px] h-[10px] rounded-full flex-shrink-0 ${active ? 'dot-pulse' : ''}`}
                           style={{ background: done ? '#27a644' : active ? '#5e6ad2' : '#23252a' }}
                         />
-                        <span className="text-[9px]" style={{ color: done ? '#27a644' : active ? '#f7f8f8' : '#3e3e44' }}>
+                        <span className="text-[15px]" style={{ color: done ? '#27a644' : active ? '#f7f8f8' : '#3e3e44' }}>
                           {label}
                         </span>
                       </div>
