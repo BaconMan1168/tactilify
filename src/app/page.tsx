@@ -6,6 +6,7 @@ import { CircuitBackground } from '@/components/ui/CircuitBackground'
 import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
+import { TactileSVG } from '@/components/output/TactileSVG'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 
@@ -343,24 +344,27 @@ export default function HomePage() {
                       <AudioPlayer steps={analysis.narration} />
                     </TabsContent>
 
-                    {/* Placeholder tabs for Phases 4–5 */}
-                    {(['tactile', 'diagram-map'] as const).map((id) => (
-                      <TabsContent key={id} value={id}>
-                        <div
-                          style={{
-                            background: '#0f1011',
-                            border: '1px solid #23252a',
-                            borderRadius: 12,
-                            padding: 24,
-                          }}
-                        >
-                          <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
-                            {OUTPUT_TABS.find((t) => t.id === id)?.label}
-                          </p>
-                          <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
-                        </div>
-                      </TabsContent>
-                    ))}
+                    {/* Tactile / braille SVG — Phase 4 */}
+                    <TabsContent value="tactile">
+                      <TactileSVG analysis={analysis} />
+                    </TabsContent>
+
+                    {/* Diagram map — Phase 5 placeholder */}
+                    <TabsContent value="diagram-map">
+                      <div
+                        style={{
+                          background: '#0f1011',
+                          border: '1px solid #23252a',
+                          borderRadius: 12,
+                          padding: 24,
+                        }}
+                      >
+                        <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
+                          Diagram map
+                        </p>
+                        <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
+                      </div>
+                    </TabsContent>
                   </Tabs>
                 </div>
               </div>
