@@ -222,15 +222,15 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.1 }}
           >
             {/* Nav bar */}
-            <div className="flex items-center justify-between px-6 py-3" style={{ borderBottom: '1px solid #23252a' }}>
-              <span className="text-[12px] font-semibold" style={{ letterSpacing: '-0.3px' }}>Tactilify</span>
-              <div className="flex items-center gap-[5px]">
-                <div className="w-[5px] h-[5px] rounded-full bg-[#27a644]" />
-                <span className="text-[9px] text-[#27a644]">Analysis complete</span>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #23252a' }}>
+              <span className="text-[18px] font-semibold" style={{ letterSpacing: '-0.3px' }}>Tactilify</span>
+              <div className="flex items-center gap-2">
+                <div className="w-[10px] h-[10px] rounded-full bg-[#27a644]" />
+                <span className="text-[14px] text-[#27a644]">Analysis complete</span>
               </div>
               <button
                 onClick={handleReset}
-                className="text-[10px] text-[#8a8f98] bg-[#0f1011] border border-[#23252a] rounded-[6px] px-3 py-1.5 hover:border-[#5e6ad2] hover:text-[#f7f8f8] transition-colors"
+                className="text-[14px] text-[#8a8f98] bg-[#0f1011] border border-[#23252a] rounded-[6px] px-4 py-2 hover:border-[#5e6ad2] hover:text-[#f7f8f8] transition-colors"
               >
                 New diagram
               </button>
@@ -239,8 +239,8 @@ export default function HomePage() {
             {/* Body */}
             <div id="main-content" className="flex flex-1 overflow-hidden">
               {/* Left — diagram */}
-              <div className="flex flex-col gap-3 p-5" style={{ width: '44%', borderRight: '1px solid #23252a' }}>
-                <span className="text-[9px] font-medium text-[#62666d] uppercase tracking-[0.4px]">Your diagram</span>
+              <div className="flex flex-col gap-4 p-6" style={{ width: '44%', borderRight: '1px solid #23252a' }}>
+                <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px]">Your diagram</span>
                 <motion.div
                   className="flex-1 rounded-lg overflow-hidden border min-h-0"
                   style={{ background: 'linear-gradient(135deg,#1a1d28,#0f1016)', borderColor: '#23252a' }}
@@ -258,31 +258,31 @@ export default function HomePage() {
                   )}
                 </motion.div>
                 <div>
-                  <p className="text-[10px] text-[#d0d6e0]">diagram.{image?.mimeType.split('/')[1]}</p>
-                  <p className="text-[9px] text-[#62666d] mt-0.5">
+                  <p className="text-[15px] text-[#d0d6e0]">diagram.{image?.mimeType.split('/')[1]}</p>
+                  <p className="text-[13px] text-[#62666d] mt-1">
                     {analysis.type} · {analysis.elements.length} component{analysis.elements.length !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
 
               {/* Right — outputs */}
-              <div className="flex-1 p-5 flex flex-col gap-2">
-                <span className="text-[9px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-1">
+              <div className="flex-1 p-6 flex flex-col gap-3">
+                <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-1">
                   Accessible outputs
                 </span>
                 {['Audio walkthrough', 'High-contrast SVG', 'Tactile / braille SVG', 'Navigable diagram map'].map(
                   (name, i) => (
                     <motion.div
                       key={name}
-                      className="flex items-center justify-between rounded-lg px-3 py-2.5"
+                      className="flex items-center justify-between rounded-lg px-4 py-4"
                       style={{ background: '#0f1011', border: '1px solid #23252a' }}
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.1 + i * 0.06 }}
                     >
-                      <span className="text-[10px] text-[#f7f8f8]">{name}</span>
+                      <span className="text-[16px] text-[#f7f8f8]">{name}</span>
                       <span
-                        className="text-[9px] rounded px-[7px] py-[2px]"
+                        className="text-[13px] rounded px-3 py-1"
                         style={{ color: '#27a644', background: 'rgba(39,166,68,.1)', border: '1px solid rgba(39,166,68,.2)' }}
                       >
                         Ready
@@ -291,7 +291,7 @@ export default function HomePage() {
                   ),
                 )}
                 <motion.button
-                  className="mt-1 w-full text-[11px] font-medium text-white rounded-lg py-2.5 hover:bg-[#828fff] transition-colors"
+                  className="mt-2 w-full text-[16px] font-medium text-white rounded-lg py-3.5 hover:bg-[#828fff] transition-colors"
                   style={{ background: '#5e6ad2' }}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
