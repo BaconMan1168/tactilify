@@ -139,38 +139,7 @@ Take the `narration` steps from `DiagramAnalysis` and speak them using the Web S
 
 ---
 
-## Phase 4 — High-contrast SVG renderer
-**Complexity:** Medium | **Risk:** Medium
-
-### Task
-Programmatically generate a high-contrast SVG from the `DiagramAnalysis` JSON using `xmlbuilder2`. Run output through `svgo` before display/download. Animate the panel reveal with Motion.
-
-### Steps
-- Query Context7 for `xmlbuilder2` and `svgo` docs before writing
-- Build `HighContrastRenderer` that takes `DiagramAnalysis` and returns an optimised SVG string
-- Use `xmlbuilder2` (not string concatenation) for all SVG construction
-- Implement layout logic per diagram type:
-  - **Circuit:** linear/series layout with standard schematic symbols as SVG paths
-  - **Graph/chart:** render bars or line from extracted data values, bold axes with large labels
-  - **Free-body:** box in center, arrows radiating with force labels
-- Run finished SVG through `svgo` to strip redundant attributes and minimise file size
-- Use accessible color palette: black on white, minimum 4.5:1 contrast ratio
-- Labels: minimum 14px equivalent, sans-serif, always include `<title>` and `<desc>` on the root `<svg>`
-- Render SVG inline in a results panel with a Motion fade-in on first render
-- Add "Download SVG" button; `sonner` toast on download success
-
-### Definition of done ✅
-- [ ] High-contrast SVG renders for all three diagram types using `xmlbuilder2`
-- [ ] SVG passes through `svgo` before display — no raw unoptimised output
-- [ ] SVG is visually legible at 100% and 200% zoom
-- [ ] Download button produces a valid, optimised `.svg` file
-- [ ] Root `<svg>` has `<title>` and `<desc>` elements
-- [ ] No color is the sole means of conveying any information
-- [ ] Panel animates in with Motion on first render
-
----
-
-## Phase 5 — Tactile / braille-print SVG
+## Phase 4 — Tactile / braille-print SVG
 **Complexity:** Medium-High | **Risk:** Medium
 
 ### Task
@@ -199,7 +168,7 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo`:
 
 ---
 
-## Phase 6 — Navigable diagram map
+## Phase 5 — Navigable diagram map
 **Complexity:** High | **Risk:** Medium-High
 
 ### Task
@@ -232,7 +201,7 @@ Build a keyboard and screen-reader navigable interface using `@react-aria/focus`
 
 ---
 
-## Phase 7 — Polish, animations & Vercel deploy
+## Phase 6 — Polish, animations & Vercel deploy
 **Complexity:** Low | **Risk:** Low
 
 ### Task
@@ -242,8 +211,8 @@ Full UI polish pass with Motion animations throughout, sample images for the dem
 - Query Context7 for `motion` docs for any new animation patterns
 - Add 3 sample diagram images (`/public/samples/`) with one-click "Try this example" buttons — these should work instantly without upload
 - Landing page: app name, tagline, brief how-to, and Motion staggered entrance animation on load
-- Results page: Motion stagger the four output panels appearing after analysis completes
-- Ensure all four output panels are in a clean two-column layout on desktop using shadcn `Card` components
+- Results page: Motion stagger the three output panels appearing after analysis completes
+- Ensure all three output panels are in a clean layout on desktop using shadcn `Card` components
 - Mobile layout: single column, all panels accessible, touch targets minimum 44×44px
 - Add `<meta>` tags, favicon, `og:image` for Vercel share preview
 - Final accessibility audit: axe scan + full keyboard walkthrough of all panels
@@ -253,7 +222,7 @@ Full UI polish pass with Motion animations throughout, sample images for the dem
 
 ### Definition of done ✅
 - [ ] Three sample diagrams work end-to-end on the production Vercel URL
-- [ ] All four output panels render correctly on desktop and mobile
+- [ ] All three output panels render correctly on desktop and mobile
 - [ ] Motion stagger animation plays when results appear
 - [ ] Zero critical or serious axe violations
 - [ ] App loads in under 3 seconds on a standard connection

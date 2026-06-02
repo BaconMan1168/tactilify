@@ -11,7 +11,6 @@ import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 
 const OUTPUT_TABS = [
   { id: 'audio', label: 'Audio walkthrough' },
-  { id: 'high-contrast', label: 'High-contrast SVG' },
   { id: 'tactile', label: 'Tactile / braille' },
   { id: 'diagram-map', label: 'Diagram map' },
 ] as const
@@ -344,8 +343,8 @@ export default function HomePage() {
                       <AudioPlayer steps={analysis.narration} />
                     </TabsContent>
 
-                    {/* Placeholder tabs for Phases 4–6 */}
-                    {(['high-contrast', 'tactile', 'diagram-map'] as const).map((id) => (
+                    {/* Placeholder tabs for Phases 4–5 */}
+                    {(['tactile', 'diagram-map'] as const).map((id) => (
                       <TabsContent key={id} value={id}>
                         <div
                           style={{

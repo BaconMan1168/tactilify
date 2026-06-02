@@ -38,7 +38,6 @@ tactilify/
 │   │   │
 │   │   ├── output/
 │   │   │   ├── AudioPlayer.tsx        # TTS narration: play/pause/stop, step list, Web Speech + OAI fallback
-│   │   │   ├── HighContrastSVG.tsx    # High-contrast SVG renderer + download button
 │   │   │   ├── TactileSVG.tsx         # Tactile/braille SVG renderer + download button
 │   │   │   └── DiagramMap.tsx         # Keyboard-navigable element-by-element diagram explorer
 │   │   │
@@ -54,10 +53,7 @@ tactilify/
 │   │   ├── braille.ts                 # ASCII → Unicode Grade 1 Braille encoder
 │   │   ├── prompts.ts                 # All Claude prompt templates (analysis, narration)
 │   │   └── svg/
-│   │       ├── circuitRenderer.ts     # SVG generation logic for circuit diagrams
-│   │       ├── graphRenderer.ts       # SVG generation logic for charts/graphs
-│   │       ├── freebodyRenderer.ts    # SVG generation logic for free-body diagrams
-│   │       └── tactileRenderer.ts     # Shared tactile/braille SVG post-processor
+│   │       └── tactileRenderer.ts     # Tactile/braille SVG generator
 │   │
 │   └── types/
 │       └── diagram.ts                 # All TypeScript types: DiagramAnalysis, DiagramElement, etc.
@@ -83,9 +79,7 @@ All AI calls go through `/api/` routes. The client never calls Anthropic or Open
 - `ui/` — reusable generic UI primitives
 
 ### lib/svg/
-Each diagram type has its own renderer module. They all export two functions:
-- `renderHighContrast(analysis: DiagramAnalysis): string` — returns SVG string
-- `renderTactile(analysis: DiagramAnalysis): string` — returns braille/outline SVG string
+- `tactileRenderer.ts` — exports `renderTactile(analysis: DiagramAnalysis): string`, returning the A4-sized braille/outline SVG string
 
 ### types/diagram.ts
 Single source of truth for all TypeScript types. Both the API route and client components import from here.

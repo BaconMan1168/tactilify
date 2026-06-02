@@ -1,6 +1,6 @@
 # 05 — Current Phase
 
-## ▶ Active phase: Phase 4 — High-contrast SVG renderer
+## ▶ Active phase: Phase 4 — Tactile / braille-print SVG
 
 **Status:** Not started
 
@@ -45,10 +45,9 @@ Take the `narration` steps from `DiagramAnalysis` and speak them using the Web S
 | Phase 1 — Scaffolding & image input | ✅ Done |
 | Phase 2 — Claude Vision extraction | ✅ Done |
 | Phase 3 — Audio walkthrough (TTS) | ✅ Done |
-| Phase 4 — High-contrast SVG renderer | 🔲 Not started |
-| Phase 5 — Tactile / braille SVG | 🔲 Not started |
-| Phase 6 — Navigable diagram map | 🔲 Not started |
-| Phase 7 — Polish, animations & deploy | 🔲 Not started |
+| Phase 4 — Tactile / braille SVG | 🔲 Not started |
+| Phase 5 — Navigable diagram map | 🔲 Not started |
+| Phase 6 — Polish, animations & deploy | 🔲 Not started |
 
 ---
 
