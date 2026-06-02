@@ -276,70 +276,94 @@ export default function HomePage() {
               </div>
 
               {/* Right — outputs */}
-              <div
-                className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto"
-                style={{ backdropFilter: 'blur(12px)', background: 'rgba(1,1,2,0.78)' }}
-              >
-                <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
-                  Accessible outputs
-                </span>
+              <div className="flex-1 flex flex-col relative overflow-hidden">
+                {/* Foggy glass background — blurred circuit lines as a static texture */}
+                <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+                  <div style={{ position: 'absolute', inset: 0, filter: 'blur(28px)', opacity: 0.85 }}>
+                    <svg
+                      viewBox="0 0 600 500"
+                      xmlns="http://www.w3.org/2000/svg"
+                      preserveAspectRatio="xMidYMid slice"
+                      style={{ width: '100%', height: '100%' }}
+                    >
+                      <path d="M0 110 H90 V60 H230 V110 H330 V80 H600" fill="none" stroke="#5e6ad2" strokeWidth="3" />
+                      <path d="M230 110 V200 H110 V300 H280 V250 H390 V330 H600" fill="none" stroke="#828fff" strokeWidth="2" />
+                      <path d="M110 300 V400 H270 V490" fill="none" stroke="#3a3f6b" strokeWidth="2.5" />
+                      <circle cx="90"  cy="110" r="7" fill="#5e6ad2" />
+                      <circle cx="230" cy="110" r="7" fill="#828fff" />
+                      <circle cx="330" cy="80"  r="7" fill="#5e6ad2" />
+                      <circle cx="110" cy="300" r="7" fill="#828fff" />
+                      <circle cx="280" cy="250" r="7" fill="#5e6ad2" />
+                      <circle cx="270" cy="490" r="7" fill="#828fff" />
+                    </svg>
+                  </div>
+                  {/* Dark fog layer — lets the blurred glow show through while keeping text readable */}
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(3,3,8,0.58)' }} />
+                </div>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-4">
-                  {/* Tab bar */}
-                  <TabsList
-                    className="w-full h-auto gap-0.5 rounded-[8px] p-[4px]"
-                    style={{ background: '#0f1011', border: '1px solid #23252a' }}
-                  >
-                    {OUTPUT_TABS.map((tab) => (
-                      <TabsTrigger
-                        key={tab.id}
-                        value={tab.id}
-                        className="relative flex-1 h-auto rounded-[6px] !bg-transparent !shadow-none"
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          padding: '6px 14px',
-                          color: activeTab === tab.id ? '#f7f8f8' : '#62666d',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {activeTab === tab.id && (
-                          <motion.div
-                            layoutId="tab-indicator"
-                            className="absolute inset-0 rounded-[6px]"
-                            style={{ background: '#18191a' }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                          />
-                        )}
-                        <span className="relative z-10">{tab.label}</span>
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                {/* Content */}
+                <div className="relative z-10 p-6 flex flex-col gap-4 overflow-y-auto flex-1">
+                  <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
+                    Accessible outputs
+                  </span>
 
-                  {/* Audio walkthrough */}
-                  <TabsContent value="audio">
-                    <AudioPlayer steps={analysis.narration} />
-                  </TabsContent>
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-4">
+                    {/* Tab bar */}
+                    <TabsList
+                      className="w-full h-auto gap-0.5 rounded-[8px] p-[4px]"
+                      style={{ background: '#0f1011', border: '1px solid #23252a' }}
+                    >
+                      {OUTPUT_TABS.map((tab) => (
+                        <TabsTrigger
+                          key={tab.id}
+                          value={tab.id}
+                          className="relative flex-1 h-auto rounded-[6px] !bg-transparent !shadow-none"
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            padding: '6px 14px',
+                            color: activeTab === tab.id ? '#f7f8f8' : '#62666d',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {activeTab === tab.id && (
+                            <motion.div
+                              layoutId="tab-indicator"
+                              className="absolute inset-0 rounded-[6px]"
+                              style={{ background: '#18191a' }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                            />
+                          )}
+                          <span className="relative z-10">{tab.label}</span>
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
 
-                  {/* Placeholder tabs for Phases 4–6 */}
-                  {(['high-contrast', 'tactile', 'diagram-map'] as const).map((id) => (
-                    <TabsContent key={id} value={id}>
-                      <div
-                        style={{
-                          background: '#0f1011',
-                          border: '1px solid #23252a',
-                          borderRadius: 12,
-                          padding: 24,
-                        }}
-                      >
-                        <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
-                          {OUTPUT_TABS.find((t) => t.id === id)?.label}
-                        </p>
-                        <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
-                      </div>
+                    {/* Audio walkthrough */}
+                    <TabsContent value="audio">
+                      <AudioPlayer steps={analysis.narration} />
                     </TabsContent>
-                  ))}
-                </Tabs>
+
+                    {/* Placeholder tabs for Phases 4–6 */}
+                    {(['high-contrast', 'tactile', 'diagram-map'] as const).map((id) => (
+                      <TabsContent key={id} value={id}>
+                        <div
+                          style={{
+                            background: '#0f1011',
+                            border: '1px solid #23252a',
+                            borderRadius: 12,
+                            padding: 24,
+                          }}
+                        >
+                          <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
+                            {OUTPUT_TABS.find((t) => t.id === id)?.label}
+                          </p>
+                          <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </div>
               </div>
             </div>
           </motion.div>
