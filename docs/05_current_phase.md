@@ -1,6 +1,6 @@
 # 05 — Current Phase
 
-## ▶ Active phase: Phase 1 — Project scaffolding & image input
+## ▶ Active phase: Phase 2 — Claude Vision: diagram classification & structured extraction
 
 **Status:** Not started
 
@@ -11,30 +11,80 @@ Before writing any code, read:
 
 ---
 
-## Phase 1 task summary
+## Phase 2 task summary
 
-Set up the Next.js 16 project, install all dependencies, and build the image input UI. No AI yet — just get an image into the app.
+Send the preprocessed image to Claude Vision via a Next.js API route. Claude classifies the diagram type and returns a validated, structured JSON object describing all components and relationships. Use `zod` for schema validation and `jsonrepair` to handle near-valid JSON from Claude.
 
 ### Checklist
-- [ ] Init Next.js 16 with TypeScript 6, Tailwind CSS 4, App Router
-- [ ] Run full install command from `docs/03_tech_stack.md`
-- [ ] Run `npx shadcn@latest init` and add base components via shadcn MCP
-- [ ] Configure `.env.local` and `.env.example`
-- [ ] Build `ImageUploader` component using `react-dropzone` (drag-and-drop + click-to-browse, accepts JPEG/PNG/WebP/PDF)
-- [ ] Build `CameraCapture` component (`getUserMedia` + capture button, saves frame as base64)
-- [ ] Wire up `/api/preprocess` route: `file-type` validation, `sharp` resize/normalize, `pdfjs-dist` PDF→image, `nanoid` upload ID
-- [ ] Display image preview after upload/capture with Motion fade-in
-- [ ] Basic accessible layout (skip-nav, semantic landmarks, visible focus indicators)
-- [ ] Wire up `@axe-core/react` in dev mode
+- [ ] Query Context7 for `@anthropic-ai/sdk` and `zod` docs before writing
+- [ ] Create `/api/analyze` POST route that accepts base64 image
+- [ ] Design the extraction prompt
+- [ ] Define Zod schemas in `src/types/diagram.ts` — these are the source of truth for `DiagramAnalysis` and all sub-types
+- [ ] In the API route: send image to Claude → run response through `jsonrepair` → validate with Zod schema → return typed JSON
+- [ ] Wrap Claude call in `p-retry` (3 attempts, exponential backoff) for transient failures
+- [ ] Handle the three diagram types with type-discriminated Zod schemas
+- [ ] Return structured JSON to the client; display raw JSON in a collapsible debug panel (dev only)
+- [ ] Loading state shows a `sonner` toast: "Analyzing your diagram…"
+- [ ] Error states surface as `sonner` toast errors with retry affordance
+
+### DiagramAnalysis Zod schema (source of truth)
+```ts
+// src/types/diagram.ts
+import { z } from 'zod'
+import { nanoid } from 'nanoid'
+
+export const DiagramTypeSchema = z.enum(['circuit', 'graph', 'free-body', 'unknown'])
+
+export const DiagramElementSchema = z.object({
+  id: z.string().default(() => nanoid()),
+  label: z.string(),                          // e.g. "9V Battery"
+  type: z.string(),                           // e.g. "battery", "resistor", "bar", "force-vector"
+  value: z.string().optional(),               // e.g. "9V", "100Ω", "32N"
+  position: z.object({                        // Normalised 0–1 position
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+  }).optional(),
+  brailleLabel: z.string().optional(),        // Populated by braille.ts in Phase 5
+})
+
+export const RelationshipSchema = z.object({
+  from: z.string(),                           // element id
+  to: z.string(),                             // element id
+  type: z.string(),                           // e.g. "connected-to", "greater-than", "acts-on"
+  label: z.string().optional(),
+})
+
+export const NarrationStepSchema = z.object({
+  order: z.number().int().positive(),
+  text: z.string(),                           // Full TTS sentence
+  elementId: z.string().optional(),           // Links step to a diagram element
+})
+
+export const DiagramAnalysisSchema = z.object({
+  type: DiagramTypeSchema,
+  title: z.string(),
+  summary: z.string(),
+  elements: z.array(DiagramElementSchema),
+  relationships: z.array(RelationshipSchema),
+  narration: z.array(NarrationStepSchema),
+})
+
+export type DiagramAnalysis = z.infer<typeof DiagramAnalysisSchema>
+export type DiagramElement = z.infer<typeof DiagramElementSchema>
+export type Relationship = z.infer<typeof RelationshipSchema>
+export type NarrationStep = z.infer<typeof NarrationStepSchema>
+```
 
 ### Definition of done
-Phase 1 is complete when:
-1. User can drag-and-drop or click to upload JPEG/PNG/WebP/PDF and see a preview ✅
-2. User can open camera, capture a frame, and see a preview ✅
-3. Both inputs produce a preprocessed base64 string (via `sharp`) + `nanoid` ID in React state ✅
-4. PDF uploads convert to image via `pdfjs-dist` before preview ✅
-5. Invalid file types surface as a `sonner` toast error ✅
-6. Page passes axe scan with zero critical errors ✅
+Phase 2 is complete when:
+1. `/api/analyze` returns valid, Zod-validated `DiagramAnalysis` JSON for a circuit diagram test image
+2. `/api/analyze` returns valid JSON for a bar chart test image
+3. `/api/analyze` returns valid JSON for a free-body diagram test image
+4. `jsonrepair` handles a deliberately malformed Claude response without crashing
+5. `p-retry` retries on transient 5xx errors; logs retry attempts
+6. Zod types are the single source of truth — no separate `interface` declarations
+7. `sonner` toast shows during loading and on error
+8. Error toast includes a retry button that re-fires the API call
 
 ---
 
@@ -42,8 +92,8 @@ Phase 1 is complete when:
 
 | Phase | Status |
 |---|---|
-| Phase 1 — Scaffolding & image input | 🔲 Not started |
-| Phase 2 — Claude Vision extraction | 🔲 Not started |
+| Phase 1 — Scaffolding & image input | ✅ Done |
+| Phase 2 — Claude Vision extraction | ▶ In progress |
 | Phase 3 — Audio walkthrough (TTS) | 🔲 Not started |
 | Phase 4 — High-contrast SVG renderer | 🔲 Not started |
 | Phase 5 — Tactile / braille SVG | 🔲 Not started |
