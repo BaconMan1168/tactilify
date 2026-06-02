@@ -64,108 +64,108 @@ export default function HomePage() {
           </p>
         </motion.div>
 
-        {/* Bottom-right: upload card, then preview below it */}
+        {/* Bottom-right: input card anchored, preview floats above it */}
         <motion.div
-          className="flex flex-col items-end gap-3"
+          className="flex items-end justify-end"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}
           aria-label="Diagram input"
         >
-          <AnimatePresence mode="wait">
-            {inputMode === 'camera' ? (
-              <motion.div
-                key="camera"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-              >
-                <CameraCapture
-                  onCapture={handleImage}
-                  isProcessing={isProcessing}
-                  onProcessingChange={setIsProcessing}
-                  onBack={() => setInputMode('upload')}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-              >
-                <ImageUploader
-                  onUpload={handleImage}
-                  isProcessing={isProcessing}
-                  onProcessingChange={setIsProcessing}
-                  onCameraRequest={() => setInputMode('camera')}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Preview card — appears below input card when image is ready */}
-          <AnimatePresence>
-            {image && (
-              <motion.div
-                key={image.id}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden w-[500px] shrink-0 rounded-[10px]"
-                style={{
-                  background: 'rgba(15,16,17,0.92)',
-                  border: '1px solid #23252a',
-                  backdropFilter: 'blur(10px)',
-                }}
-                aria-label="Diagram preview"
-                aria-live="polite"
-              >
-                <div className="flex gap-3 p-3">
-                  {/* Thumbnail */}
-                  <div
-                    className="flex-shrink-0 w-[100px] h-[80px] rounded-md overflow-hidden"
-                    style={{ background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`data:${image.mimeType};base64,${image.base64}`}
-                      alt="Uploaded diagram"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Meta + actions */}
-                  <div className="flex flex-col justify-between flex-1 min-w-0">
-                    <div>
-                      <p className="text-[12px] text-[#f7f8f8] truncate">diagram.{image.mimeType.split('/')[1]}</p>
-                      <p className="text-[10px] text-[#62666d] mt-0.5 font-mono">{image.id.slice(0, 8)}</p>
+          {/* Relative anchor — preview floats above this, input card sits inside */}
+          <div className="relative">
+            {/* Preview card — absolutely above the input card, doesn't shift layout */}
+            <AnimatePresence>
+              {image && (
+                <motion.div
+                  key={image.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute bottom-full right-0 mb-3 w-[500px] rounded-[10px]"
+                  style={{
+                    background: 'rgba(15,16,17,0.92)',
+                    border: '1px solid #23252a',
+                    backdropFilter: 'blur(10px)',
+                  }}
+                  aria-label="Diagram preview"
+                  aria-live="polite"
+                >
+                  <div className="flex gap-3 p-3">
+                    <div
+                      className="flex-shrink-0 w-[100px] h-[80px] rounded-md overflow-hidden"
+                      style={{ background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`data:${image.mimeType};base64,${image.base64}`}
+                        alt="Uploaded diagram"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => setImage(null)}
-                        aria-label="Remove image"
-                        className="flex-1 text-[12px] text-[#8a8f98] bg-[#18191a] border border-[#23252a] rounded-[6px] py-1.5 hover:text-[#f7f8f8] transition-colors"
-                      >
-                        Remove
-                      </button>
-                      <button
-                        aria-label="Confirm and analyze diagram"
-                        className="flex-1 text-[12px] text-white rounded-[6px] py-1.5 font-medium hover:bg-[#828fff] transition-colors"
-                        style={{ background: '#5e6ad2' }}
-                        onClick={() => { /* Phase 2 */ }}
-                      >
-                        Analyze
-                      </button>
+                    <div className="flex flex-col justify-between flex-1 min-w-0">
+                      <div>
+                        <p className="text-[12px] text-[#f7f8f8] truncate">diagram.{image.mimeType.split('/')[1]}</p>
+                        <p className="text-[10px] text-[#62666d] mt-0.5 font-mono">{image.id.slice(0, 8)}</p>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => setImage(null)}
+                          aria-label="Remove image"
+                          className="flex-1 text-[12px] text-[#8a8f98] bg-[#18191a] border border-[#23252a] rounded-[6px] py-1.5 hover:text-[#f7f8f8] transition-colors"
+                        >
+                          Remove
+                        </button>
+                        <button
+                          aria-label="Confirm and analyze diagram"
+                          className="flex-1 text-[12px] text-white rounded-[6px] py-1.5 font-medium hover:bg-[#828fff] transition-colors"
+                          style={{ background: '#5e6ad2' }}
+                          onClick={() => { /* Phase 2 */ }}
+                        >
+                          Analyze
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              {inputMode === 'camera' ? (
+                <motion.div
+                  key="camera"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                >
+                  <CameraCapture
+                    onCapture={handleImage}
+                    isProcessing={isProcessing}
+                    onProcessingChange={setIsProcessing}
+                    onBack={() => setInputMode('upload')}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="upload"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                >
+                  <ImageUploader
+                    onUpload={handleImage}
+                    isProcessing={isProcessing}
+                    onProcessingChange={setIsProcessing}
+                    onCameraRequest={() => setInputMode('camera')}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
       </main>
     </div>
