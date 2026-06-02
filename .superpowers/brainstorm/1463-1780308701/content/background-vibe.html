@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Background & Animation Vibe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; color: #f7f8f8; font-family: -apple-system, system-ui, sans-serif; padding: 32px 24px; min-height: 100vh; }
+
+  h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.6px; margin-bottom: 8px; }
+  .subtitle { font-size: 14px; color: #8a8f98; margin-bottom: 32px; line-height: 1.5; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .card {
+    border: 1px solid #23252a;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s;
+    background: #0f1011;
+  }
+  .card:hover { border-color: #5e6ad2; transform: translateY(-2px); }
+  .card.selected { border-color: #5e6ad2; box-shadow: 0 0 0 1px #5e6ad2; }
+
+  .preview {
+    height: 260px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-body { padding: 16px; border-top: 1px solid #23252a; }
+  .card-body h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 6px; }
+  .card-body p { font-size: 12px; color: #8a8f98; line-height: 1.5; }
+
+  /* ── OPTION A: Dot grid ── */
+  .dot-grid {
+    background-color: #010102;
+    background-image: radial-gradient(circle, #2a2d35 1px, transparent 1px);
+    background-size: 28px 28px;
+    animation: gridShift 12s ease-in-out infinite alternate;
+  }
+  @keyframes gridShift {
+    0%   { background-position: 0 0; opacity: 0.6; }
+    100% { background-position: 14px 14px; opacity: 1; }
+  }
+  .dot-grid .glow {
+    position: absolute;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(94,106,210,0.18) 0%, transparent 70%);
+    top: -60px; left: 50%;
+    transform: translateX(-50%);
+    animation: glowPulse 6s ease-in-out infinite alternate;
+  }
+  @keyframes glowPulse {
+    0%   { opacity: 0.4; transform: translateX(-50%) scale(0.9); }
+    100% { opacity: 1;   transform: translateX(-50%) scale(1.1); }
+  }
+
+  /* ── OPTION B: Aurora mesh ── */
+  .aurora {
+    background: #010102;
+  }
+  .aurora .layer1 {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 30% 80%, rgba(94,106,210,0.22) 0%, transparent 70%);
+    animation: aurora1 14s ease-in-out infinite alternate;
+  }
+  .aurora .layer2 {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 75% 20%, rgba(130,143,255,0.14) 0%, transparent 65%);
+    animation: aurora2 18s ease-in-out infinite alternate;
+  }
+  .aurora .layer3 {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 100% 40% at 50% 110%, rgba(94,106,210,0.1) 0%, transparent 60%);
+    animation: aurora3 10s ease-in-out infinite alternate;
+  }
+  @keyframes aurora1 {
+    0%   { transform: translate(0, 0) scale(1);     opacity: 0.7; }
+    100% { transform: translate(20px, -30px) scale(1.15); opacity: 1; }
+  }
+  @keyframes aurora2 {
+    0%   { transform: translate(0, 0) scale(1);      opacity: 0.5; }
+    100% { transform: translate(-30px, 20px) scale(1.2); opacity: 0.9; }
+  }
+  @keyframes aurora3 {
+    0%   { opacity: 0.3; }
+    100% { opacity: 0.8; }
+  }
+
+  /* ── OPTION C: Geometric lines ── */
+  .geo {
+    background: #010102;
+    overflow: hidden;
+  }
+  .geo svg {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+    opacity: 0.25;
+  }
+  .geo .line1 { animation: lineDrift1 20s linear infinite; }
+  .geo .line2 { animation: lineDrift2 26s linear infinite; }
+  .geo .line3 { animation: lineDrift3 16s linear infinite; }
+  .geo .circle1 { animation: circlePulse 8s ease-in-out infinite alternate; }
+  @keyframes lineDrift1 {
+    0%   { transform: translateX(-10px) rotate(0deg); }
+    100% { transform: translateX(10px) rotate(360deg); }
+  }
+  @keyframes lineDrift2 {
+    0%   { transform: translateY(-8px); }
+    100% { transform: translateY(8px); }
+  }
+  @keyframes lineDrift3 {
+    0%   { transform: translateX(8px) translateY(-5px); }
+    100% { transform: translateX(-8px) translateY(5px); }
+  }
+  @keyframes circlePulse {
+    0%   { r: 60; opacity: 0.3; }
+    100% { r: 80; opacity: 0.6; }
+  }
+  .geo .accent { animation: accentGlow 6s ease-in-out infinite alternate; }
+  @keyframes accentGlow {
+    0%   { opacity: 0.08; }
+    100% { opacity: 0.22; }
+  }
+
+  /* Shared UI chrome overlay */
+  .ui-chrome {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    gap: 12px;
+  }
+  .ui-eyebrow {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #5e6ad2;
+  }
+  .ui-headline {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.6px;
+    text-align: center;
+    line-height: 1.2;
+    color: #f7f8f8;
+  }
+  .ui-sub {
+    font-size: 11px;
+    color: #8a8f98;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .ui-drop {
+    width: 100%;
+    max-width: 220px;
+    border: 1.5px dashed #34343a;
+    border-radius: 8px;
+    padding: 14px 12px;
+    text-align: center;
+    font-size: 11px;
+    color: #62666d;
+    backdrop-filter: blur(4px);
+    background: rgba(15,16,17,0.5);
+  }
+  .ui-drop span { color: #5e6ad2; }
+  .ui-camera {
+    font-size: 11px;
+    color: #8a8f98;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .selected-indicator {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #5e6ad2;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 24px;
+    border-radius: 8px;
+    z-index: 100;
+  }
+  .selected-indicator.visible { display: block; }
+</style>
+</head>
+<body>
+
+<h2>What should the background feel like?</h2>
+<p class="subtitle">All three use the same centered layout (Option A) and upload-first input (Option C). The difference is purely the ambient background and entrance animation style. These are live CSS animations — watch them for a few seconds before deciding.</p>
+
+<div class="cards">
+
+  <!-- Option A: Dot grid -->
+  <div class="card" data-choice="a" onclick="select(this, 'a')">
+    <div class="preview">
+      <div class="dot-grid" style="position:absolute;inset:0;">
+        <div class="glow"></div>
+      </div>
+      <div class="ui-chrome">
+        <div class="ui-eyebrow">STEM Accessibility Engine</div>
+        <div class="ui-headline">Make any diagram<br>accessible</div>
+        <div class="ui-sub">Upload or photograph a STEM diagram</div>
+        <div class="ui-drop">Drop file or <span>browse</span><br><span style="color:#62666d;font-size:10px;">JPEG · PNG · WebP · PDF</span></div>
+        <button class="ui-camera">Use camera instead</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Dot grid + lavender glow</h3>
+      <p>Subtle animated dot matrix slowly shifts. A soft lavender radial glow pulses behind the headline. Very software-craft — Vercel/Linear territory. Understated but premium.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Aurora -->
+  <div class="card" data-choice="b" onclick="select(this, 'b')">
+    <div class="preview">
+      <div class="aurora" style="position:absolute;inset:0;">
+        <div class="layer1"></div>
+        <div class="layer2"></div>
+        <div class="layer3"></div>
+      </div>
+      <div class="ui-chrome">
+        <div class="ui-eyebrow">STEM Accessibility Engine</div>
+        <div class="ui-headline">Make any diagram<br>accessible</div>
+        <div class="ui-sub">Upload or photograph a STEM diagram</div>
+        <div class="ui-drop">Drop file or <span>browse</span><br><span style="color:#62666d;font-size:10px;">JPEG · PNG · WebP · PDF</span></div>
+        <button class="ui-camera">Use camera instead</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Aurora mesh</h3>
+      <p>Three slow-drifting lavender radial gradients that layer and blend on the near-black canvas. Warm, atmospheric, slightly otherworldly. High "WOW" on first load.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Geometric -->
+  <div class="card" data-choice="c" onclick="select(this, 'c')">
+    <div class="preview">
+      <div class="geo" style="position:absolute;inset:0;">
+        <svg viewBox="0 0 400 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Slow rotating lines -->
+          <line class="line1" x1="0" y1="80" x2="400" y2="180" stroke="#5e6ad2" stroke-width="0.8" transform-origin="200 130"/>
+          <line class="line2" x1="0" y1="160" x2="400" y2="60"  stroke="#5e6ad2" stroke-width="0.6" transform-origin="200 110"/>
+          <line class="line3" x1="100" y1="0"  x2="300" y2="260" stroke="#828fff" stroke-width="0.5" transform-origin="200 130"/>
+          <!-- Circles -->
+          <circle class="circle1" cx="200" cy="100" r="60" stroke="#5e6ad2" stroke-width="0.6" fill="none"/>
+          <circle cx="200" cy="100" r="110" stroke="#23252a" stroke-width="0.5" fill="none"/>
+          <circle cx="200" cy="100" r="160" stroke="#23252a" stroke-width="0.4" fill="none"/>
+          <!-- Accent fill -->
+          <circle class="accent" cx="200" cy="100" r="70" fill="#5e6ad2"/>
+        </svg>
+      </div>
+      <div class="ui-chrome">
+        <div class="ui-eyebrow">STEM Accessibility Engine</div>
+        <div class="ui-headline">Make any diagram<br>accessible</div>
+        <div class="ui-sub">Upload or photograph a STEM diagram</div>
+        <div class="ui-drop" style="background:rgba(1,1,2,0.7);">Drop file or <span>browse</span><br><span style="color:#62666d;font-size:10px;">JPEG · PNG · WebP · PDF</span></div>
+        <button class="ui-camera">Use camera instead</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Geometric / architectural</h3>
+      <p>Slowly rotating concentric circles and crossing lines — diagram-like, technical. Feels native to the STEM subject matter. Unique and conceptually on-brand.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="selected-indicator" id="indicator"></div>
+
+<script>
+  function select(el, choice) {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    const labels = { a: 'A — Dot grid', b: 'B — Aurora mesh', c: 'C — Geometric' };
+    const ind = document.getElementById('indicator');
+    ind.textContent = 'Selected: ' + labels[choice] + ' — tell me in the terminal';
+    ind.classList.add('visible');
+    // Record for companion
+    if (window.__companion_recordChoice) window.__companion_recordChoice(choice, el.querySelector('h3').textContent);
+  }
+</script>
+
+</body>
+</html>

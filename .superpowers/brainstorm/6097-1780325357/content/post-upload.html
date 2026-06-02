@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post-Upload State</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #010102;
+  color: #f7f8f8;
+  font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+  padding: 24px 20px 48px;
+}
+h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #8a8f98; margin-bottom: 24px; line-height: 1.5; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.card {
+  border: 1px solid #23252a;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  background: #0f1011;
+}
+.card:hover { border-color: #5e6ad2; }
+.card.selected { border-color: #5e6ad2; box-shadow: 0 0 0 1px #5e6ad2; }
+
+.preview {
+  height: 420px;
+  position: relative;
+  overflow: hidden;
+  background: #010102;
+}
+.label { padding: 14px 16px 16px; border-top: 1px solid #23252a; }
+.label h3 { font-size: 13px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 5px; }
+.label p  { font-size: 11px; color: #8a8f98; line-height: 1.55; }
+
+/* ── Shared circuit background ── */
+.circuit-bg { position: absolute; inset: 0; }
+.circuit-bg svg { width: 100%; height: 100%; }
+.trace  { stroke: #5e6ad2; stroke-width: 1.2; fill: none; stroke-dasharray: 600; stroke-dashoffset: 600; animation: draw 6s ease-in-out infinite alternate; }
+.trace2 { stroke: #828fff; stroke-width: 0.7; fill: none; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 9s ease-in-out 1s infinite alternate; }
+.trace3 { stroke: #3a3f6b; stroke-width: 1; fill: none; stroke-dasharray: 500; stroke-dashoffset: 500; animation: draw 7s ease-in-out 2s infinite alternate; }
+@keyframes draw {
+  0%   { stroke-dashoffset: 600; opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.5; }
+}
+.node  { fill: #5e6ad2; animation: nPulse 3s ease-in-out infinite alternate; }
+.node2 { fill: #828fff; animation: nPulse 4s ease-in-out 0.5s infinite alternate; }
+@keyframes nPulse { 0% { r: 3; opacity: 0.3; } 100% { r: 5; opacity: 1; } }
+
+/* Simulate button */
+.sim-btn {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  background: #5e6ad2; color: #fff;
+  border: none; border-radius: 7px;
+  padding: 7px 18px; font-size: 11px; font-weight: 500;
+  cursor: pointer; z-index: 20;
+  transition: background 0.2s;
+}
+.sim-btn:hover { background: #828fff; }
+
+/* ════════════════════════════
+   OPTION A — Circuit stays,
+   preview slides in below
+════════════════════════════ */
+.a-layout {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  transition: all 0.8s cubic-bezier(0.16,1,0.3,1);
+}
+.a-top { }
+.a-eyebrow { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5e6ad2; margin-bottom: 6px; }
+.a-title {
+  font-size: 20px; font-weight: 600; letter-spacing: -1px; line-height: 1.1;
+  transition: font-size 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.6s;
+}
+.a-sub { font-size: 10px; color: #8a8f98; margin-top: 5px; max-width: 140px; line-height: 1.4; transition: opacity 0.5s; }
+.a-bottom { display: flex; gap: 10px; align-items: flex-end; }
+.a-input {
+  flex: 1;
+  background: rgba(15,16,17,0.88);
+  border: 1px solid #23252a; border-radius: 10px; padding: 12px;
+  backdrop-filter: blur(8px);
+  transition: flex 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.5s;
+}
+.drop-zone {
+  border: 1.5px dashed #34343a; border-radius: 7px;
+  padding: 12px; text-align: center; font-size: 10px; color: #62666d; margin-bottom: 7px;
+}
+.drop-zone span { color: #5e6ad2; }
+.cam-btn { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; display: block; text-align: center; width: 100%; }
+
+/* Preview panel that slides in alongside */
+.a-preview-panel {
+  flex: 0;
+  overflow: hidden;
+  background: rgba(15,16,17,0.92);
+  border: 1px solid #23252a; border-radius: 10px;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  max-width: 0;
+  transition: flex 0.8s cubic-bezier(0.16,1,0.3,1),
+              max-width 0.8s cubic-bezier(0.16,1,0.3,1),
+              opacity 0.6s 0.3s;
+  display: flex; flex-direction: column;
+}
+.a-preview-panel.open {
+  flex: 1.2; max-width: 200px; opacity: 1;
+}
+.prev-img {
+  flex: 1;
+  background: linear-gradient(135deg, #1a1d24 0%, #0f1218 100%);
+  border-radius: 7px 7px 0 0;
+  display: flex; align-items: center; justify-content: center;
+  margin: 8px 8px 0;
+}
+.prev-img-inner {
+  width: 70%; height: 70%;
+  background: linear-gradient(135deg, #2a3060 0%, #1a1f3a 100%);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.prev-img-inner svg { opacity: 0.6; }
+.prev-label { padding: 8px; }
+.prev-label-text { font-size: 9px; color: #62666d; letter-spacing: 0.3px; margin-bottom: 3px; font-weight: 500; text-transform: uppercase; }
+.prev-name { font-size: 10px; color: #f7f8f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prev-meta { font-size: 9px; color: #8a8f98; }
+
+/* circuit dims on open */
+.circuit-bg { transition: opacity 1s; }
+
+
+/* ════════════════════════════
+   OPTION B — Circuit fades,
+   layout transforms to results
+════════════════════════════ */
+.b-circuit { position: absolute; inset: 0; transition: opacity 1.2s ease; }
+.b-layout {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+
+/* Upload state */
+.b-upload-state { display: flex; flex-direction: column; justify-content: space-between; height: 100%; transition: opacity 0.5s; }
+.b-eyebrow { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5e6ad2; margin-bottom: 6px; }
+.b-title { font-size: 20px; font-weight: 600; letter-spacing: -1px; line-height: 1.1; }
+.b-sub { font-size: 10px; color: #8a8f98; margin-top: 5px; max-width: 140px; line-height: 1.4; }
+.b-input-wrap { align-self: flex-end; width: 62%; background: rgba(15,16,17,0.88); border: 1px solid #23252a; border-radius: 10px; padding: 12px; backdrop-filter: blur(8px); }
+.b-drop { border: 1.5px dashed #34343a; border-radius: 7px; padding: 12px; text-align: center; font-size: 10px; color: #62666d; margin-bottom: 7px; }
+.b-drop span { color: #5e6ad2; }
+.b-cam { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; display: block; text-align: center; width: 100%; }
+
+/* Results state — hidden initially */
+.b-results-state {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.8s 0.6s;
+  background: #010102;
+}
+.b-results-state.open { opacity: 1; pointer-events: auto; }
+
+.b-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 10px; border-bottom: 1px solid #23252a;
+}
+.b-nav-logo { font-size: 11px; font-weight: 600; letter-spacing: -0.3px; }
+.b-nav-status { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #27a644; }
+.b-nav-dot { width: 5px; height: 5px; border-radius: 50%; background: #27a644; animation: statusBlink 2s ease-in-out infinite; }
+@keyframes statusBlink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.b-content { flex: 1; display: flex; gap: 10px; }
+.b-img-col { width: 45%; display: flex; flex-direction: column; gap: 8px; }
+.b-img-box {
+  flex: 1;
+  background: linear-gradient(135deg, #1a1d24 0%, #0f1218 100%);
+  border: 1px solid #23252a; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.6s ease both;
+}
+@keyframes fadeIn { from{opacity:0;transform:scale(0.97)} to{opacity:1;transform:scale(1)} }
+.b-img-inner {
+  width: 75%; height: 75%;
+  background: linear-gradient(135deg, #2a3060 0%, #1a1f3a 100%);
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+}
+.b-img-inner svg { opacity: 0.6; }
+.b-img-meta { font-size: 9px; color: #62666d; }
+.b-meta-name { font-size: 10px; color: #d0d6e0; margin-bottom: 2px; }
+
+.b-out-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.b-out-title { font-size: 9px; font-weight: 500; color: #62666d; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 2px; }
+.b-out-chip {
+  background: #0f1011; border: 1px solid #23252a; border-radius: 7px;
+  padding: 8px 10px; font-size: 10px; color: #8a8f98;
+  display: flex; align-items: center; gap: 6px;
+}
+.b-out-dot { width: 5px; height: 5px; border-radius: 50%; background: #23252a; flex-shrink: 0; }
+.b-analyze-btn {
+  background: #5e6ad2; color: #fff;
+  border: none; border-radius: 7px; padding: 9px;
+  font-size: 11px; font-weight: 500; cursor: pointer; margin-top: 2px;
+  width: 100%;
+}
+
+.b-upload-state.hidden { opacity: 0; pointer-events: none; }
+.b-circuit.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+
+<h2>What happens after upload?</h2>
+<p class="subtitle">Click "Simulate Upload" inside each panel to trigger the transition. Watch what each approach does to the circuit and the layout.</p>
+
+<div class="row">
+
+  <!-- OPTION A: Circuit stays, preview slides in -->
+  <div class="card" data-choice="a" onclick="selectCard(this,'a')">
+    <div class="preview" id="previewA">
+      <!-- circuit -->
+      <div class="circuit-bg" id="circuitA">
+        <svg viewBox="0 0 460 420" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <path class="trace"  d="M 0 90 H 70 V 50 H 190 V 90 H 260 V 70 H 460"/>
+          <path class="trace2" d="M 190 90 V 160 H 90 V 230 H 230 V 190 H 310 V 260 H 460"/>
+          <path class="trace3" d="M 90 230 V 310 H 210 V 380"/>
+          <circle class="node"  cx="70"  cy="90"  r="3"/>
+          <circle class="node2" cx="190" cy="90"  r="3"/>
+          <circle class="node"  cx="260" cy="70"  r="3"/>
+          <circle class="node2" cx="90"  cy="230" r="3"/>
+          <circle class="node"  cx="230" cy="190" r="3"/>
+          <circle class="node2" cx="210" cy="380" r="3"/>
+        </svg>
+      </div>
+
+      <div class="a-layout">
+        <div class="a-top">
+          <div class="a-eyebrow">Tactilify</div>
+          <div class="a-title" id="aTitleText">Make any<br>diagram<br>accessible</div>
+          <div class="a-sub" id="aSubText">Upload or photograph a STEM diagram</div>
+        </div>
+        <div class="a-bottom">
+          <div class="a-input" id="aInput">
+            <div class="drop-zone">Drop file or <span>browse</span><br><span style="font-size:9px;color:#62666d;">JPEG · PNG · WebP · PDF</span></div>
+            <button class="cam-btn">Use camera instead</button>
+          </div>
+          <!-- Preview panel slides in here -->
+          <div class="a-preview-panel" id="aPreviewPanel">
+            <div class="prev-img">
+              <div class="prev-img-inner">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <line x1="5" y1="20" x2="12" y2="20" stroke="#5e6ad2" stroke-width="1.5"/>
+                  <rect x="12" y="16" width="6" height="8" stroke="#5e6ad2" stroke-width="1.2" fill="none"/>
+                  <line x1="18" y1="20" x2="26" y2="20" stroke="#5e6ad2" stroke-width="1.5"/>
+                  <path d="M26 14 L26 26" stroke="#5e6ad2" stroke-width="1.2"/>
+                  <path d="M30 16 L30 24" stroke="#5e6ad2" stroke-width="1"/>
+                  <line x1="30" y1="20" x2="36" y2="20" stroke="#5e6ad2" stroke-width="1.5"/>
+                </svg>
+              </div>
+            </div>
+            <div class="prev-label">
+              <div class="prev-label-text">Preview</div>
+              <div class="prev-name">circuit-diagram.jpg</div>
+              <div class="prev-meta">1.2 MB · Ready</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="sim-btn" id="simBtnA" onclick="event.stopPropagation(); simulateA()">Simulate Upload</button>
+    </div>
+    <div class="label">
+      <h3>A — Circuit stays, preview slides in</h3>
+      <p>The circuit background keeps running. A preview panel animates in beside the upload card. The title shrinks slightly. The tool stays in "ready" mode — feels continuous, no hard break.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B: Circuit fades, layout transforms -->
+  <div class="card" data-choice="b" onclick="selectCard(this,'b')">
+    <div class="preview" id="previewB">
+      <!-- circuit -->
+      <div class="b-circuit" id="circuitB">
+        <svg viewBox="0 0 460 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;" preserveAspectRatio="xMidYMid slice">
+          <path class="trace"  d="M 0 90 H 70 V 50 H 190 V 90 H 260 V 70 H 460"/>
+          <path class="trace2" d="M 190 90 V 160 H 90 V 230 H 230 V 190 H 310 V 260 H 460"/>
+          <path class="trace3" d="M 90 230 V 310 H 210 V 380"/>
+          <circle class="node"  cx="70"  cy="90"  r="3"/>
+          <circle class="node2" cx="190" cy="90"  r="3"/>
+          <circle class="node"  cx="260" cy="70"  r="3"/>
+          <circle class="node2" cx="90"  cy="230" r="3"/>
+          <circle class="node"  cx="230" cy="190" r="3"/>
+          <circle class="node2" cx="210" cy="380" r="3"/>
+        </svg>
+      </div>
+
+      <!-- Upload state -->
+      <div class="b-upload-state" id="bUpload">
+        <div>
+          <div class="b-eyebrow">Tactilify</div>
+          <div class="b-title">Make any<br>diagram<br>accessible</div>
+          <div class="b-sub">Upload or photograph a STEM diagram</div>
+        </div>
+        <div class="b-input-wrap">
+          <div class="b-drop">Drop file or <span>browse</span><br><span style="font-size:9px;color:#62666d;">JPEG · PNG · WebP · PDF</span></div>
+          <button class="b-cam">Use camera instead</button>
+        </div>
+      </div>
+
+      <!-- Results state — fades in over the top -->
+      <div class="b-results-state" id="bResults">
+        <div class="b-nav">
+          <div class="b-nav-logo">Tactilify</div>
+          <div class="b-nav-status">
+            <div class="b-nav-dot"></div>
+            Image ready
+          </div>
+        </div>
+        <div class="b-content">
+          <div class="b-img-col">
+            <div class="b-img-box">
+              <div class="b-img-inner">
+                <svg width="50" height="50" viewBox="0 0 50 50" fill="none">
+                  <line x1="4"  y1="25" x2="13" y2="25" stroke="#5e6ad2" stroke-width="1.5"/>
+                  <rect x="13" y="20" width="8"  height="10" stroke="#5e6ad2" stroke-width="1.2" fill="none"/>
+                  <line x1="21" y1="25" x2="31" y2="25" stroke="#5e6ad2" stroke-width="1.5"/>
+                  <path d="M31 17 L31 33" stroke="#5e6ad2" stroke-width="1.2"/>
+                  <path d="M36 19 L36 31" stroke="#5e6ad2" stroke-width="1"/>
+                  <line x1="36" y1="25" x2="46" y2="25" stroke="#5e6ad2" stroke-width="1.5"/>
+                </svg>
+              </div>
+            </div>
+            <div>
+              <div class="b-meta-name">circuit-diagram.jpg</div>
+              <div class="b-img-meta">1.2 MB · Preprocessed</div>
+            </div>
+          </div>
+          <div class="b-out-col">
+            <div class="b-out-title">Accessible outputs</div>
+            <div class="b-out-chip"><div class="b-out-dot"></div>Audio walkthrough</div>
+            <div class="b-out-chip"><div class="b-out-dot"></div>High-contrast SVG</div>
+            <div class="b-out-chip"><div class="b-out-dot"></div>Tactile / braille SVG</div>
+            <div class="b-out-chip"><div class="b-out-dot"></div>Diagram map</div>
+            <button class="b-analyze-btn">Analyze diagram</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="sim-btn" id="simBtnB" onclick="event.stopPropagation(); simulateB()">Simulate Upload</button>
+    </div>
+    <div class="label">
+      <h3>B — Circuit fades, layout transforms</h3>
+      <p>After upload the circuit fades completely. The page cross-fades into a clean results layout: image preview left, output options right. Hard break between "landing" and "working" modes.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let aTriggered = false, bTriggered = false;
+
+function simulateA() {
+  if (aTriggered) { resetA(); return; }
+  aTriggered = true;
+  document.getElementById('simBtnA').textContent = 'Reset';
+  // Dim circuit slightly
+  document.getElementById('circuitA').style.opacity = '0.35';
+  // Open preview panel
+  document.getElementById('aPreviewPanel').classList.add('open');
+  // Shrink input
+  document.getElementById('aInput').style.flex = '0.7';
+}
+
+function resetA() {
+  aTriggered = false;
+  document.getElementById('simBtnA').textContent = 'Simulate Upload';
+  document.getElementById('circuitA').style.opacity = '1';
+  document.getElementById('aPreviewPanel').classList.remove('open');
+  document.getElementById('aInput').style.flex = '';
+}
+
+function simulateB() {
+  if (bTriggered) { resetB(); return; }
+  bTriggered = true;
+  document.getElementById('simBtnB').textContent = 'Reset';
+  document.getElementById('circuitB').classList.add('hidden');
+  document.getElementById('bUpload').classList.add('hidden');
+  document.getElementById('bResults').classList.add('open');
+}
+
+function resetB() {
+  bTriggered = false;
+  document.getElementById('simBtnB').textContent = 'Simulate Upload';
+  document.getElementById('circuitB').classList.remove('hidden');
+  document.getElementById('bUpload').classList.remove('hidden');
+  document.getElementById('bResults').classList.remove('open');
+}
+
+function selectCard(el, choice) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.__companion_recordChoice) window.__companion_recordChoice(choice, el.querySelector('h3').textContent);
+}
+</script>
+
+</body>
+</html>

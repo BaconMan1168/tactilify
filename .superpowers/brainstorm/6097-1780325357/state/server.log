@@ -1,0 +1,9 @@
+{"type":"server-started","port":51685,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:51685","screen_dir":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content","state_dir":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/state"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/background-vibe.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/background-vibe-v2.html"}
+{"source":"user-event","type":"click","text":"Tactilify\n          Make anydiagramaccessible\n          Upload or photograph a STEM diagram\n        \n        \n          Drop file or browseJPEG · PNG · WebP · PDF\n          Use camera instead\n        \n      \n      circuit traces draw on load\n    \n    \n      A — Live circuit diagram\n      SVG circuit traces slowly draw themselves on load — referencing the tool's core use case. Layout is asymmetric: headline top-left, upload card bottom-right. Traces re-draw on loop.","choice":"a","id":null,"timestamp":1780325817872}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/post-upload.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/full-flow.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/full-flow-v2.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/6097-1780325357/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

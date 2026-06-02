@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Full Flow</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #010102;
+  color: #f7f8f8;
+  font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+  padding: 24px 20px 48px;
+}
+h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #8a8f98; margin-bottom: 24px; line-height: 1.5; }
+
+/* Step labels */
+.steps {
+  display: flex; gap: 0; margin-bottom: 16px; border: 1px solid #23252a; border-radius: 8px; overflow: hidden;
+}
+.step {
+  flex: 1; padding: 8px 12px; font-size: 11px; color: #62666d; text-align: center;
+  border-right: 1px solid #23252a; transition: background 0.3s, color 0.3s;
+  cursor: default;
+}
+.step:last-child { border-right: none; }
+.step.active { background: #0f1011; color: #f7f8f8; }
+.step-num { font-weight: 600; color: #5e6ad2; margin-right: 4px; }
+
+/* Main stage */
+.stage {
+  height: 480px;
+  position: relative;
+  overflow: hidden;
+  background: #010102;
+  border: 1px solid #23252a;
+  border-radius: 12px;
+}
+
+/* Nav button row */
+.nav-row {
+  display: flex; gap: 8px; justify-content: center; margin-top: 14px;
+}
+.nav-btn {
+  background: #0f1011; border: 1px solid #23252a; color: #f7f8f8;
+  border-radius: 7px; padding: 8px 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.nav-btn:hover { border-color: #5e6ad2; background: #141516; }
+.nav-btn.primary { background: #5e6ad2; border-color: #5e6ad2; }
+.nav-btn.primary:hover { background: #828fff; border-color: #828fff; }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+
+/* ════════ SHARED CIRCUIT ════════ */
+.circuit-layer {
+  position: absolute; inset: 0;
+  transition: opacity 1.4s ease;
+}
+.circuit-layer svg { width: 100%; height: 100%; }
+
+.tr { fill: none; }
+.t1 { stroke: #5e6ad2; stroke-width: 1.2; stroke-dasharray: 700; stroke-dashoffset: 700; animation: draw1 7s ease-in-out infinite alternate; }
+.t2 { stroke: #828fff; stroke-width: 0.7; stroke-dasharray: 500; stroke-dashoffset: 500; animation: draw1 10s ease-in-out 1s infinite alternate; }
+.t3 { stroke: #3a3f6b; stroke-width: 1;   stroke-dasharray: 600; stroke-dashoffset: 600; animation: draw1 8s ease-in-out 2s infinite alternate; }
+
+/* Fast traces for loading state */
+.t1-fast { stroke: #5e6ad2; stroke-width: 1.5; stroke-dasharray: 700; stroke-dashoffset: 0; animation: pulse 1.2s ease-in-out infinite alternate; }
+.t2-fast { stroke: #828fff; stroke-width: 1;   stroke-dasharray: 500; stroke-dashoffset: 0; animation: pulse 0.9s ease-in-out 0.3s infinite alternate; }
+.t3-fast { stroke: #5e6ad2; stroke-width: 0.8; stroke-dasharray: 600; stroke-dashoffset: 0; animation: pulse 1.5s ease-in-out 0.6s infinite alternate; }
+
+@keyframes draw1 {
+  0%   { stroke-dashoffset: 700; opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.5; }
+}
+@keyframes pulse {
+  0%   { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+.nd  { fill: #5e6ad2; animation: np 3s ease-in-out infinite alternate; }
+.nd2 { fill: #828fff; animation: np 4s ease-in-out 0.5s infinite alternate; }
+@keyframes np { 0%{r:3;opacity:.3} 100%{r:5;opacity:1} }
+
+
+/* ════════ STATE 1: Upload → preview slides in ════════ */
+#state1 { position: absolute; inset: 0; }
+.s1-layout {
+  position: absolute; inset: 0; padding: 22px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.eyebrow { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5e6ad2; margin-bottom: 7px; }
+.big-title { font-size: 22px; font-weight: 600; letter-spacing: -1.2px; line-height: 1.05; }
+.sub { font-size: 10px; color: #8a8f98; margin-top: 6px; max-width: 140px; line-height: 1.5; }
+.s1-bottom { display: flex; gap: 10px; align-items: flex-end; }
+.upload-card {
+  flex: 1;
+  background: rgba(15,16,17,0.9); border: 1px solid #23252a;
+  border-radius: 10px; padding: 13px; backdrop-filter: blur(8px);
+  transition: flex 0.8s cubic-bezier(0.16,1,0.3,1);
+}
+.dz {
+  border: 1.5px dashed #34343a; border-radius: 7px;
+  padding: 14px; text-align: center; font-size: 10px; color: #62666d; margin-bottom: 8px;
+}
+.dz span { color: #5e6ad2; }
+.cam { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; display: block; text-align: center; width: 100%; }
+
+.preview-card {
+  flex: 0; max-width: 0; overflow: hidden; opacity: 0;
+  background: rgba(15,16,17,0.9); border: 1px solid #23252a;
+  border-radius: 10px; backdrop-filter: blur(8px);
+  transition: flex 0.8s cubic-bezier(0.16,1,0.3,1), max-width 0.8s cubic-bezier(0.16,1,0.3,1), opacity 0.6s 0.25s;
+  display: flex; flex-direction: column;
+}
+.preview-card.open { flex: 1.1; max-width: 200px; opacity: 1; }
+.prev-thumb {
+  flex: 1; margin: 8px 8px 0;
+  background: linear-gradient(135deg, #1a1d28 0%, #0f1016 100%);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+}
+.prev-thumb svg { opacity: 0.7; }
+.prev-meta { padding: 8px 8px 10px; }
+.prev-filename { font-size: 10px; color: #f7f8f8; margin-bottom: 2px; }
+.prev-size { font-size: 9px; color: #62666d; }
+.confirm-btn {
+  margin: 0 8px 8px; background: #5e6ad2; color: #fff;
+  border: none; border-radius: 6px; padding: 7px;
+  font-size: 10px; font-weight: 500; cursor: pointer; width: calc(100% - 16px);
+  transition: background 0.2s;
+}
+.confirm-btn:hover { background: #828fff; }
+
+
+/* ════════ STATE 2: Loading ════════ */
+#state2 { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.6s; }
+#state2.active { opacity: 1; pointer-events: auto; }
+
+.s2-layout {
+  position: absolute; inset: 0; padding: 22px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.s2-top .eyebrow { color: #8a8f98; }
+.s2-top .big-title { font-size: 16px; letter-spacing: -0.6px; color: #d0d6e0; }
+.s2-bottom { }
+
+/* scan line effect over the preview */
+.s2-preview-area {
+  align-self: flex-end;
+  width: 58%;
+  background: rgba(15,16,17,0.9); border: 1px solid #34343a;
+  border-radius: 10px; padding: 10px; backdrop-filter: blur(8px);
+  position: relative; overflow: hidden;
+}
+.s2-thumb {
+  height: 80px;
+  background: linear-gradient(135deg, #1a1d28 0%, #0f1016 100%);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px; position: relative; overflow: hidden;
+}
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(to right, transparent, #5e6ad2, transparent);
+  animation: scanDown 1.8s ease-in-out infinite;
+}
+@keyframes scanDown {
+  0%   { top: 0; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.progress-block { }
+.progress-label {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+}
+.progress-label-text { font-size: 10px; color: #8a8f98; }
+.progress-pct { font-size: 10px; color: #5e6ad2; font-weight: 500; }
+.progress-track {
+  height: 3px; background: #23252a; border-radius: 2px; overflow: hidden; margin-bottom: 6px;
+}
+.progress-fill {
+  height: 100%; background: #5e6ad2; border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+.progress-steps {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.p-step {
+  display: flex; align-items: center; gap: 6px; font-size: 9px; color: #62666d;
+  transition: color 0.4s;
+}
+.p-step.done { color: #27a644; }
+.p-step.active { color: #f7f8f8; }
+.p-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #23252a; flex-shrink: 0; transition: background 0.4s;
+}
+.p-step.done  .p-dot { background: #27a644; }
+.p-step.active .p-dot { background: #5e6ad2; animation: dotPulse 1s ease-in-out infinite alternate; }
+@keyframes dotPulse { 0%{transform:scale(1)} 100%{transform:scale(1.5)} }
+
+
+/* ════════ STATE 3: Results ════════ */
+#state3 { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: #010102; transition: opacity 1s 0.2s; }
+#state3.active { opacity: 1; pointer-events: auto; }
+
+.s3-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid #23252a;
+}
+.s3-logo { font-size: 12px; font-weight: 600; letter-spacing: -0.3px; }
+.s3-status { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #27a644; }
+.s3-dot { width: 5px; height: 5px; border-radius: 50%; background: #27a644; }
+.s3-new { font-size: 10px; color: #8a8f98; background: #0f1011; border: 1px solid #23252a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+.s3-body { display: flex; gap: 0; height: calc(100% - 45px); }
+
+.s3-left {
+  width: 42%; border-right: 1px solid #23252a; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.s3-label { font-size: 9px; font-weight: 500; color: #62666d; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
+.s3-thumb {
+  flex: 1;
+  background: linear-gradient(135deg, #1a1d28 0%, #0f1016 100%);
+  border: 1px solid #23252a; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  animation: revealUp 0.7s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes revealUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.s3-filename { font-size: 10px; color: #d0d6e0; }
+.s3-filemeta { font-size: 9px; color: #62666d; }
+
+.s3-right { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.s3-section-label { font-size: 9px; font-weight: 500; color: #62666d; letter-spacing: 0.4px; text-transform: uppercase; }
+.output-chip {
+  background: #0f1011; border: 1px solid #23252a; border-radius: 8px; padding: 10px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  animation: revealUp 0.6s cubic-bezier(0.16,1,0.3,1) both;
+}
+.output-chip:nth-child(2) { animation-delay: 0.05s; }
+.output-chip:nth-child(3) { animation-delay: 0.10s; }
+.output-chip:nth-child(4) { animation-delay: 0.15s; }
+.output-chip:nth-child(5) { animation-delay: 0.20s; }
+.chip-name { font-size: 10px; color: #f7f8f8; }
+.chip-status { font-size: 9px; color: #27a644; background: rgba(39,166,68,0.1); border: 1px solid rgba(39,166,68,0.2); border-radius: 4px; padding: 2px 7px; }
+.analyze-btn {
+  background: #5e6ad2; color: #fff; border: none; border-radius: 8px; padding: 10px;
+  font-size: 11px; font-weight: 500; cursor: pointer; margin-top: 2px;
+  animation: revealUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.25s both;
+}
+</style>
+</head>
+<body>
+
+<h2>The full flow — all 4 states</h2>
+<p class="subtitle">Click through each step to see the complete experience. The progress bar in step 3 runs automatically.</p>
+
+<div class="steps">
+  <div class="step active" id="step1"><span class="step-num">1</span> Landing + upload</div>
+  <div class="step" id="step2"><span class="step-num">2</span> Preview + confirm</div>
+  <div class="step" id="step3"><span class="step-num">3</span> Processing</div>
+  <div class="step" id="step4"><span class="step-num">4</span> Results</div>
+</div>
+
+<div class="stage">
+
+  <!-- circuit for state 1 & 2 -->
+  <div class="circuit-layer" id="circuitLayer">
+    <svg viewBox="0 0 560 480" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" id="circuitSvg">
+      <path class="tr t1" d="M 0 100 H 80 V 55 H 210 V 100 H 300 V 75 H 560"/>
+      <path class="tr t2" d="M 210 100 V 180 H 100 V 270 H 260 V 220 H 360 V 300 H 560"/>
+      <path class="tr t3" d="M 100 270 V 360 H 240 V 450"/>
+      <circle class="nd"  cx="80"  cy="100" r="3"/>
+      <circle class="nd2" cx="210" cy="100" r="3"/>
+      <circle class="nd"  cx="300" cy="75"  r="3"/>
+      <circle class="nd2" cx="100" cy="270" r="3"/>
+      <circle class="nd"  cx="260" cy="220" r="3"/>
+      <circle class="nd2" cx="240" cy="450" r="3"/>
+    </svg>
+  </div>
+
+  <!-- STATE 1: Landing -->
+  <div id="state1">
+    <div class="s1-layout">
+      <div>
+        <div class="eyebrow">Tactilify</div>
+        <div class="big-title">Make any<br>diagram<br>accessible</div>
+        <div class="sub">Upload or photograph a STEM diagram</div>
+      </div>
+      <div class="s1-bottom">
+        <div class="upload-card" id="uploadCard">
+          <div class="dz">Drop file or <span>browse</span><br><span style="font-size:9px;color:#62666d;">JPEG · PNG · WebP · PDF</span></div>
+          <button class="cam">Use camera instead</button>
+        </div>
+        <div class="preview-card" id="previewCard">
+          <div class="prev-thumb">
+            <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+              <line x1="2" y1="22" x2="11" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+              <rect x="11" y="17" width="8" height="10" stroke="#5e6ad2" stroke-width="1.2" fill="none"/>
+              <line x1="19" y1="22" x2="28" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+              <path d="M28 15 L28 29" stroke="#5e6ad2" stroke-width="1.2"/>
+              <path d="M33 17 L33 27" stroke="#5e6ad2" stroke-width="1"/>
+              <line x1="33" y1="22" x2="42" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="prev-meta">
+            <div class="prev-filename">circuit-diagram.jpg</div>
+            <div class="prev-size">1.2 MB · Preprocessed</div>
+          </div>
+          <button class="confirm-btn" onclick="goTo(3)">Looks right — analyze this</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATE 2: same as 1 but with preview open — handled via JS -->
+
+  <!-- STATE 3: Loading -->
+  <div id="state2">
+    <div class="s2-layout">
+      <div class="s2-top">
+        <div class="eyebrow">Tactilify</div>
+        <div class="big-title">Analyzing diagram...</div>
+      </div>
+      <div class="s2-preview-area" style="align-self:flex-end;width:58%">
+        <div class="s2-thumb">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+            <line x1="2" y1="22" x2="11" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+            <rect x="11" y="17" width="8" height="10" stroke="#5e6ad2" stroke-width="1.2" fill="none"/>
+            <line x1="19" y1="22" x2="28" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+            <path d="M28 15 L28 29" stroke="#5e6ad2" stroke-width="1.2"/>
+            <path d="M33 17 L33 27" stroke="#5e6ad2" stroke-width="1"/>
+            <line x1="33" y1="22" x2="42" y2="22" stroke="#5e6ad2" stroke-width="1.5"/>
+          </svg>
+          <div class="scan-line"></div>
+        </div>
+        <div class="progress-block">
+          <div class="progress-label">
+            <span class="progress-label-text">Processing</span>
+            <span class="progress-pct" id="pct">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-steps">
+            <div class="p-step" id="ps1"><div class="p-dot"></div>Classifying diagram type</div>
+            <div class="p-step" id="ps2"><div class="p-dot"></div>Extracting objects &amp; relationships</div>
+            <div class="p-step" id="ps3"><div class="p-dot"></div>Generating narration</div>
+            <div class="p-step" id="ps4"><div class="p-dot"></div>Building accessible outputs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATE 4: Results -->
+  <div id="state3">
+    <div class="s3-nav">
+      <div class="s3-logo">Tactilify</div>
+      <div class="s3-status"><div class="s3-dot"></div>Analysis complete</div>
+      <button class="s3-new" onclick="goTo(1)">New diagram</button>
+    </div>
+    <div class="s3-body">
+      <div class="s3-left">
+        <div class="s3-label">Your diagram</div>
+        <div class="s3-thumb">
+          <svg width="54" height="54" viewBox="0 0 54 54" fill="none">
+            <line x1="2" y1="27" x2="13" y2="27" stroke="#5e6ad2" stroke-width="1.5"/>
+            <rect x="13" y="21" width="10" height="12" stroke="#5e6ad2" stroke-width="1.2" fill="none"/>
+            <line x1="23" y1="27" x2="34" y2="27" stroke="#5e6ad2" stroke-width="1.5"/>
+            <path d="M34 19 L34 35" stroke="#5e6ad2" stroke-width="1.2"/>
+            <path d="M40 21 L40 33" stroke="#5e6ad2" stroke-width="1"/>
+            <line x1="40" y1="27" x2="52" y2="27" stroke="#5e6ad2" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="s3-filename">circuit-diagram.jpg</div>
+          <div class="s3-filemeta">Series circuit · 4 components</div>
+        </div>
+      </div>
+      <div class="s3-right">
+        <div class="s3-section-label">Accessible outputs</div>
+        <div class="output-chip"><span class="chip-name">Audio walkthrough</span><span class="chip-status">Ready</span></div>
+        <div class="output-chip"><span class="chip-name">High-contrast SVG</span><span class="chip-status">Ready</span></div>
+        <div class="output-chip"><span class="chip-name">Tactile / braille SVG</span><span class="chip-status">Ready</span></div>
+        <div class="output-chip"><span class="chip-name">Navigable diagram map</span><span class="chip-status">Ready</span></div>
+        <button class="analyze-btn">Explore outputs</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav-row">
+  <button class="nav-btn" id="prevBtn" onclick="prev()" disabled>Back</button>
+  <button class="nav-btn primary" id="nextBtn" onclick="next()">Simulate upload</button>
+</div>
+
+<script>
+let currentState = 1;
+let progressTimer = null;
+
+const stepLabels = ['', 'Simulate upload', 'Confirm diagram', 'Processing...', 'Done'];
+const stepBackLabels = ['','','Back','Back','Start over'];
+
+function setStep(n) {
+  document.querySelectorAll('.step').forEach((s,i) => s.classList.toggle('active', i+1 <= n));
+}
+
+function goTo(n) {
+  // hide all
+  document.getElementById('state1').style.opacity = n === 1 ? '1' : '0';
+  document.getElementById('state1').style.pointerEvents = n === 1 ? 'auto' : 'none';
+  document.getElementById('state2').classList.toggle('active', n === 3);
+  document.getElementById('state3').classList.toggle('active', n === 4);
+
+  // circuit
+  const circuit = document.getElementById('circuitLayer');
+  const svg = document.getElementById('circuitSvg');
+
+  if (n === 1) {
+    // reset preview
+    document.getElementById('previewCard').classList.remove('open');
+    document.getElementById('uploadCard').style.flex = '';
+    circuit.style.opacity = '1';
+    svg.querySelectorAll('.tr').forEach(t => {
+      t.className.baseVal = t.className.baseVal.replace(/-fast/g,'');
+    });
+    clearProgress();
+  }
+  if (n === 2) {
+    document.getElementById('previewCard').classList.add('open');
+    document.getElementById('uploadCard').style.flex = '0.7';
+    circuit.style.opacity = '0.3';
+  }
+  if (n === 3) {
+    circuit.style.opacity = '0.5';
+    // swap to fast traces
+    document.querySelectorAll('.t1,.t2,.t3').forEach(t => {
+      t.classList.add(t.classList.contains('t1') ? 't1-fast' : t.classList.contains('t2') ? 't2-fast' : 't3-fast');
+    });
+    startProgress();
+  }
+  if (n === 4) {
+    circuit.style.opacity = '0';
+    clearProgress();
+  }
+
+  currentState = n;
+  setStep(n);
+  document.getElementById('prevBtn').disabled = n === 1;
+  document.getElementById('nextBtn').disabled = n === 4;
+  document.getElementById('nextBtn').textContent = stepLabels[n] || 'Next';
+}
+
+function next() { if (currentState < 4) goTo(currentState + 1); }
+function prev() { if (currentState > 1) goTo(currentState - 1); }
+
+let progressPct = 0;
+const steps = ['ps1','ps2','ps3','ps4'];
+const stepThresholds = [20, 50, 78, 100];
+
+function startProgress() {
+  progressPct = 0;
+  clearProgress();
+  steps.forEach(s => { document.getElementById(s).className = 'p-step'; });
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('pct').textContent = '0%';
+
+  progressTimer = setInterval(() => {
+    progressPct = Math.min(100, progressPct + (Math.random() * 2.5 + 0.5));
+    document.getElementById('progressFill').style.width = progressPct + '%';
+    document.getElementById('pct').textContent = Math.round(progressPct) + '%';
+
+    steps.forEach((s, i) => {
+      const el = document.getElementById(s);
+      if (progressPct >= stepThresholds[i]) {
+        el.className = 'p-step done';
+      } else if (progressPct >= (stepThresholds[i-1] || 0)) {
+        el.className = 'p-step active';
+      }
+    });
+
+    if (progressPct >= 100) {
+      clearInterval(progressTimer);
+      setTimeout(() => goTo(4), 600);
+    }
+  }, 120);
+}
+
+function clearProgress() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+}
+</script>
+</body>
+</html>

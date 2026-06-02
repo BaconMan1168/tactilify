@@ -44,7 +44,10 @@ export default function HomePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          <p className="text-[13px] font-medium tracking-[2px] uppercase text-[#5e6ad2] mb-5">
+          <p
+            className="font-semibold text-[#5e6ad2] mb-5"
+            style={{ fontSize: '26px', letterSpacing: '-0.5px' }}
+          >
             Tactilify
           </p>
           <h1
@@ -112,7 +115,7 @@ export default function HomePage() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden w-[400px] shrink-0 rounded-[10px]"
+                className="overflow-hidden w-[500px] shrink-0 rounded-[10px]"
                 style={{
                   background: 'rgba(15,16,17,0.92)',
                   border: '1px solid #23252a',

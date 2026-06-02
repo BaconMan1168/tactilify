@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout & Animation — v2</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #010102;
+  color: #f7f8f8;
+  font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+  padding: 28px 20px 48px;
+  min-height: 100vh;
+}
+
+h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #8a8f98; margin-bottom: 28px; line-height: 1.5; max-width: 600px; }
+
+.row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+.card {
+  border: 1px solid #23252a;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.25s, transform 0.25s;
+  background: #0f1011;
+}
+.card:hover { border-color: #5e6ad2; transform: translateY(-3px); }
+.card.selected { border-color: #5e6ad2; box-shadow: 0 0 0 1px #5e6ad2; }
+
+.preview {
+  height: 320px;
+  position: relative;
+  overflow: hidden;
+  background: #010102;
+}
+
+.label { padding: 14px 16px 16px; border-top: 1px solid #23252a; }
+.label h3 { font-size: 13px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 5px; color: #f7f8f8; }
+.label p  { font-size: 11px; color: #8a8f98; line-height: 1.55; }
+
+/* ════════════════════════════════════════
+   OPTION A — Live circuit traces
+   SVG paths that draw themselves slowly,
+   glowing nodes pulse at junctions.
+   Layout: headline top-left, large.
+   Upload zone bottom-right, off-centre.
+════════════════════════════════════════ */
+.circuit-bg {
+  position: absolute; inset: 0;
+}
+.circuit-bg svg { width: 100%; height: 100%; }
+.trace {
+  stroke: #5e6ad2;
+  stroke-width: 1.2;
+  fill: none;
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: draw 6s ease-in-out infinite alternate;
+}
+.trace2 {
+  stroke: #828fff;
+  stroke-width: 0.7;
+  fill: none;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: draw 9s ease-in-out 1s infinite alternate;
+}
+.trace3 {
+  stroke: #3a3f6b;
+  stroke-width: 1;
+  fill: none;
+  stroke-dasharray: 500;
+  stroke-dashoffset: 500;
+  animation: draw 7s ease-in-out 2s infinite alternate;
+}
+@keyframes draw {
+  0%   { stroke-dashoffset: 600; opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.6; }
+}
+.node {
+  fill: #5e6ad2;
+  animation: nodePulse 3s ease-in-out infinite alternate;
+}
+.node2 { fill: #828fff; animation: nodePulse 4s ease-in-out 0.5s infinite alternate; }
+@keyframes nodePulse {
+  0%   { r: 3; opacity: 0.3; }
+  100% { r: 5; opacity: 1; }
+}
+.circuit-ui {
+  position: absolute; inset: 0; padding: 20px;
+  display: flex; flex-direction: column;
+  justify-content: space-between;
+}
+.circuit-headline {
+  animation: fadeUp 1.2s ease-out both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.c-eyebrow {
+  font-size: 9px; font-weight: 500; letter-spacing: 1px;
+  text-transform: uppercase; color: #5e6ad2; margin-bottom: 8px;
+}
+.c-title {
+  font-size: 22px; font-weight: 600; letter-spacing: -1.2px;
+  line-height: 1.1; color: #f7f8f8;
+}
+.c-sub {
+  font-size: 11px; color: #8a8f98; margin-top: 6px; line-height: 1.5;
+  max-width: 160px;
+}
+.circuit-input {
+  align-self: flex-end;
+  width: 65%;
+  background: rgba(15,16,17,0.85);
+  border: 1px solid #23252a;
+  border-radius: 10px;
+  padding: 14px;
+  backdrop-filter: blur(8px);
+  animation: fadeUp 1.2s ease-out 0.4s both;
+}
+.drop-zone {
+  border: 1.5px dashed #34343a;
+  border-radius: 7px;
+  padding: 12px;
+  text-align: center;
+  font-size: 10px;
+  color: #62666d;
+  margin-bottom: 8px;
+}
+.drop-zone span { color: #5e6ad2; }
+.cam-btn { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; display: block; text-align: center; width: 100%; }
+
+
+/* ════════════════════════════════════════
+   OPTION B — Braille refresh field
+   Grid of dots that raise/lower like a
+   real braille display refreshing.
+   Layout: headline centred, large and slow
+   type-in. Upload floats in below.
+════════════════════════════════════════ */
+.braille-bg {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-columns: repeat(22, 1fr);
+  grid-template-rows: repeat(14, 1fr);
+  padding: 4px;
+  gap: 2px;
+}
+.dot {
+  border-radius: 50%;
+  background: #23252a;
+  transition: background 0.8s, transform 0.8s;
+  width: 100%; height: 100%;
+}
+.dot.raised {
+  background: #5e6ad2;
+  transform: scale(1.4);
+}
+.dot.semi {
+  background: #2e3356;
+  transform: scale(1.1);
+}
+.braille-ui {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px; gap: 14px;
+  background: linear-gradient(to bottom, rgba(1,1,2,0.3) 0%, rgba(1,1,2,0.7) 100%);
+}
+.b-eyebrow { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5e6ad2; }
+.b-title {
+  font-size: 24px; font-weight: 600; letter-spacing: -1px;
+  line-height: 1.1; text-align: center; color: #f7f8f8;
+  animation: titleReveal 3s ease-out both;
+}
+@keyframes titleReveal {
+  0%   { opacity: 0; letter-spacing: 4px; }
+  60%  { opacity: 1; }
+  100% { opacity: 1; letter-spacing: -1px; }
+}
+.b-drop {
+  width: 100%; max-width: 210px;
+  border: 1.5px dashed #34343a;
+  border-radius: 8px; padding: 12px 10px;
+  text-align: center; font-size: 10px; color: #62666d;
+  background: rgba(1,1,2,0.6); backdrop-filter: blur(6px);
+  animation: floatIn 1.4s ease-out 0.8s both;
+}
+.b-drop span { color: #5e6ad2; }
+.b-cam { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; }
+@keyframes floatIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ════════════════════════════════════════
+   OPTION C — Waveform / oscilloscope
+   Multiple slow physics sine waves in
+   the background. Layout: asymmetric,
+   headline LARGE left-aligned with
+   massive display type, upload card
+   lower right. Very editorial.
+════════════════════════════════════════ */
+.wave-bg { position: absolute; inset: 0; }
+.wave-bg canvas { width: 100%; height: 100%; display: block; }
+.wave-ui {
+  position: absolute; inset: 0; padding: 18px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.w-top { }
+.w-tag { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5e6ad2; margin-bottom: 6px; }
+.w-big {
+  font-size: 34px; font-weight: 600; letter-spacing: -2px;
+  line-height: 0.95; color: #f7f8f8;
+  animation: slideLeft 1.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes slideLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.w-bottom {
+  display: flex; justify-content: flex-end;
+  animation: slideLeft 1.4s cubic-bezier(0.16,1,0.3,1) 0.3s both;
+}
+.w-card {
+  width: 56%;
+  background: rgba(15,16,17,0.88);
+  border: 1px solid #23252a;
+  border-radius: 9px; padding: 12px;
+  backdrop-filter: blur(10px);
+}
+.w-drop {
+  border: 1.5px dashed #34343a; border-radius: 6px;
+  padding: 10px; text-align: center;
+  font-size: 10px; color: #62666d; margin-bottom: 7px;
+}
+.w-drop span { color: #5e6ad2; }
+.w-cam { font-size: 10px; color: #8a8f98; background: none; border: none; cursor: pointer; display: block; text-align: center; width: 100%; }
+
+.badge {
+  display: inline-block;
+  position: absolute; bottom: 14px; left: 14px;
+  background: rgba(94,106,210,0.15);
+  border: 1px solid rgba(94,106,210,0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 9px; font-weight: 500; letter-spacing: 0.3px;
+  color: #5e6ad2;
+}
+</style>
+</head>
+<body>
+
+<h2>Different direction — layout + concept, not just wallpaper</h2>
+<p class="subtitle">Each option is rooted in what Tactilify actually does. The layout itself moves. Watch for 5–10 seconds — the animations are intentionally slow.</p>
+
+<div class="row">
+
+  <!-- A: Circuit traces -->
+  <div class="card" data-choice="a" onclick="pick(this,'a')">
+    <div class="preview">
+      <div class="circuit-bg">
+        <svg viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
+          <!-- main horizontal trace -->
+          <path class="trace" d="M 0 80 H 60 V 40 H 160 V 80 H 220 V 60 H 300"/>
+          <!-- branch down -->
+          <path class="trace2" d="M 160 80 V 140 H 80 V 200 H 200 V 160 H 260 V 220 H 300"/>
+          <!-- small branch -->
+          <path class="trace3" d="M 80 200 V 260 H 180 V 300"/>
+          <!-- nodes -->
+          <circle class="node"  cx="60"  cy="80"  r="3"/>
+          <circle class="node2" cx="160" cy="80"  r="3"/>
+          <circle class="node"  cx="220" cy="60"  r="3"/>
+          <circle class="node2" cx="80"  cy="200" r="3"/>
+          <circle class="node"  cx="200" cy="160" r="3"/>
+          <circle class="node2" cx="180" cy="300" r="3"/>
+        </svg>
+      </div>
+      <div class="circuit-ui">
+        <div class="circuit-headline">
+          <div class="c-eyebrow">Tactilify</div>
+          <div class="c-title">Make any<br>diagram<br>accessible</div>
+          <div class="c-sub">Upload or photograph a STEM diagram</div>
+        </div>
+        <div class="circuit-input">
+          <div class="drop-zone">Drop file or <span>browse</span><br><span style="font-size:9px;color:#62666d;">JPEG · PNG · WebP · PDF</span></div>
+          <button class="cam-btn">Use camera instead</button>
+        </div>
+      </div>
+      <span class="badge">circuit traces draw on load</span>
+    </div>
+    <div class="label">
+      <h3>A — Live circuit diagram</h3>
+      <p>SVG circuit traces slowly draw themselves on load — referencing the tool's core use case. Layout is asymmetric: headline top-left, upload card bottom-right. Traces re-draw on loop.</p>
+    </div>
+  </div>
+
+  <!-- B: Braille dots -->
+  <div class="card" data-choice="b" onclick="pick(this,'b')">
+    <div class="preview" id="braille-preview">
+      <div class="braille-bg" id="brailleGrid"></div>
+      <div class="braille-ui">
+        <div class="b-eyebrow">Tactilify</div>
+        <div class="b-title">Make any diagram<br>accessible</div>
+        <div class="b-drop">Drop file or <span>browse</span><br><span style="font-size:9px;">JPEG · PNG · WebP · PDF</span></div>
+        <button class="b-cam">Use camera instead</button>
+      </div>
+      <span class="badge">braille display refreshing</span>
+    </div>
+    <div class="label">
+      <h3>B — Braille refresh field</h3>
+      <p>Background simulates a refreshable braille display — dots raise and lower in slow waves. Deeply on-brand: the tool exists for students who use braille. Subtle, poetic, unique.</p>
+    </div>
+  </div>
+
+  <!-- C: Waveform / editorial -->
+  <div class="card" data-choice="c" onclick="pick(this,'c')">
+    <div class="preview">
+      <div class="wave-bg">
+        <canvas id="waveCanvas" width="300" height="320"></canvas>
+      </div>
+      <div class="wave-ui">
+        <div class="w-top">
+          <div class="w-tag">Tactilify</div>
+          <div class="w-big">Make<br>any<br>diagram<br>accessible</div>
+        </div>
+        <div class="w-bottom">
+          <div class="w-card">
+            <div class="w-drop">Drop file or <span>browse</span><br><span style="font-size:9px;color:#62666d;">JPEG · PNG · WebP · PDF</span></div>
+            <button class="w-cam">Use camera instead</button>
+          </div>
+        </div>
+      </div>
+      <span class="badge">slow physics waveforms</span>
+    </div>
+    <div class="label">
+      <h3>C — Waveform / editorial</h3>
+      <p>Slow physics sine waves reference the science/frequency domain. Layout is editorial — massive left-aligned display type, upload card anchored bottom-right. Feels like a science publication.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ── Braille grid animation ── */
+const grid = document.getElementById('brailleGrid');
+const COLS = 22, ROWS = 14;
+const dots = [];
+for (let i = 0; i < COLS * ROWS; i++) {
+  const d = document.createElement('div');
+  d.className = 'dot';
+  grid.appendChild(d);
+  dots.push(d);
+}
+function refreshBraille() {
+  dots.forEach((d, i) => {
+    const r = Math.random();
+    d.className = 'dot' + (r > 0.88 ? ' raised' : r > 0.75 ? ' semi' : '');
+  });
+}
+refreshBraille();
+setInterval(refreshBraille, 1800);
+
+/* ── Wave canvas animation ── */
+const canvas = document.getElementById('waveCanvas');
+const ctx = canvas.getContext('2d');
+let t = 0;
+function drawWaves() {
+  ctx.clearRect(0, 0, 300, 320);
+  const waves = [
+    { amp: 18, freq: 0.018, speed: 0.006, y: 120, color: 'rgba(94,106,210,0.35)', width: 1.5 },
+    { amp: 10, freq: 0.028, speed: 0.004, y: 160, color: 'rgba(130,143,255,0.2)',  width: 1   },
+    { amp: 24, freq: 0.012, speed: 0.003, y: 200, color: 'rgba(94,106,210,0.15)', width: 2   },
+    { amp: 8,  freq: 0.040, speed: 0.008, y: 240, color: 'rgba(130,143,255,0.12)', width: 0.8 },
+  ];
+  waves.forEach(w => {
+    ctx.beginPath();
+    ctx.strokeStyle = w.color;
+    ctx.lineWidth = w.width;
+    for (let x = 0; x <= 300; x++) {
+      const y = w.y + Math.sin(x * w.freq + t * w.speed * 100) * w.amp;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+  t++;
+  requestAnimationFrame(drawWaves);
+}
+drawWaves();
+
+/* ── Card selection ── */
+function pick(el, choice) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.__companion_recordChoice) window.__companion_recordChoice(choice, el.querySelector('h3').textContent);
+}
+</script>
+
+</body>
+</html>

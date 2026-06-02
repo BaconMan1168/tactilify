@@ -62,7 +62,7 @@ export function ImageUploader({
 
   return (
     <div
-      className="w-[400px] shrink-0 rounded-[10px] p-[14px]"
+      className="w-[500px] shrink-0 rounded-[10px] p-[14px]"
       style={{
         background: 'rgba(15,16,17,0.92)',
         border: '1px solid #23252a',
@@ -76,7 +76,7 @@ export function ImageUploader({
         aria-label="Upload diagram — drag and drop or click to browse. Accepts JPEG, PNG, WebP, PDF."
         aria-disabled={isProcessing}
         className={[
-          'rounded-[7px] px-3 py-10 min-h-[180px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-150 outline-none mb-[9px]',
+          'rounded-[7px] px-3 py-16 min-h-[300px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-150 outline-none mb-[9px]',
           'focus-visible:ring-2 focus-visible:ring-[#5e6ad2]',
           isProcessing ? 'pointer-events-none opacity-60' : '',
           isDragActive && !isError
@@ -88,16 +88,16 @@ export function ImageUploader({
       >
         <input {...getInputProps()} />
         {isProcessing ? (
-          <p className="text-[11px] text-[#62666d]">Processing…</p>
+          <p className="text-[14px] text-[#62666d]">Processing…</p>
         ) : isDragActive ? (
-          <p className="text-[11px] text-[#5e6ad2]">Drop to process</p>
+          <p className="text-[14px] text-[#5e6ad2]">Drop to process</p>
         ) : (
           <>
-            <p className="text-[11px] text-[#62666d]">
+            <p className="text-[14px] text-[#62666d]">
               Drop file or{' '}
               <span className="text-[#5e6ad2]">browse</span>
             </p>
-            <p className="text-[9px] text-[#3e3e44] mt-0.5">JPEG · PNG · WebP · PDF</p>
+            <p className="text-[11px] text-[#3e3e44] mt-1">JPEG · PNG · WebP · PDF</p>
           </>
         )}
       </div>

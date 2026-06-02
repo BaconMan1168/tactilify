@@ -1,0 +1,69 @@
+<h2>How should the image input section be structured?</h2>
+<p class="subtitle">Phase 1 has two input methods: drag-and-drop file upload and live camera capture. How do they coexist on the page?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1011;border:1px solid #23252a;border-radius:12px;padding:20px;font-family:system-ui;color:#f7f8f8;">
+        <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid #23252a;padding-bottom:12px;">
+          <div style="background:#5e6ad2;color:#fff;border-radius:6px;padding:5px 14px;font-size:13px;font-weight:500;">Upload File</div>
+          <div style="background:transparent;color:#8a8f98;border-radius:6px;padding:5px 14px;font-size:13px;">Camera</div>
+        </div>
+        <div style="border:1.5px dashed #34343a;border-radius:8px;padding:28px 16px;text-align:center;color:#8a8f98;font-size:13px;">
+          <div style="font-size:22px;margin-bottom:8px;">⬆</div>
+          Drag &amp; drop or click to browse<br>
+          <span style="font-size:11px;color:#62666d;">JPEG · PNG · WebP · PDF</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tabs</h3>
+      <p>Upload and Camera are tab-switched. One visible at a time. Clean, low visual noise. Standard pattern.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1011;border:1px solid #23252a;border-radius:12px;padding:20px;font-family:system-ui;color:#f7f8f8;">
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;border:1.5px dashed #34343a;border-radius:8px;padding:20px 10px;text-align:center;color:#8a8f98;font-size:12px;">
+            <div style="font-size:20px;margin-bottom:6px;">⬆</div>
+            Upload File<br>
+            <span style="font-size:10px;color:#62666d;">drag &amp; drop</span>
+          </div>
+          <div style="display:flex;align-items:center;color:#62666d;font-size:11px;">or</div>
+          <div style="flex:1;border:1px solid #23252a;border-radius:8px;padding:20px 10px;text-align:center;color:#8a8f98;font-size:12px;">
+            <div style="font-size:20px;margin-bottom:6px;">📷</div>
+            Use Camera<br>
+            <span style="font-size:10px;color:#62666d;">live capture</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Side by side</h3>
+      <p>Both options visible at once at desktop. Camera panel expands when clicked. Collapses to tabs on mobile.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1011;border:1px solid #23252a;border-radius:12px;padding:20px;font-family:system-ui;color:#f7f8f8;">
+        <div style="border:1.5px dashed #34343a;border-radius:8px;padding:22px 16px;text-align:center;color:#8a8f98;font-size:13px;margin-bottom:12px;">
+          <div style="font-size:20px;margin-bottom:6px;">⬆</div>
+          Drag &amp; drop or click to browse
+        </div>
+        <div style="text-align:center;color:#62666d;font-size:11px;margin-bottom:10px;">— or —</div>
+        <div style="text-align:center;">
+          <button style="background:#141516;border:1px solid #23252a;color:#d0d6e0;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;">📷 Open Camera</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Upload first, camera secondary</h3>
+      <p>Upload is the hero. Camera is a secondary button below. Camera opens inline or in a modal when clicked.</p>
+    </div>
+  </div>
+
+</div>

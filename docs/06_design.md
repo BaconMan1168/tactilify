@@ -1,6 +1,6 @@
 ---
 name: tactilify
-description: "A near-black product-focused marketing canvas built around #010102 (the deepest dark surface of any tool in this collection), light gray text (#f7f8f8), and the signature Linear lavender-blue (#5e6ad2) used as the single chromatic accent. The system reads as software-craft documentation: dense, technical, and quietly luxurious. Display type is set in the Linear custom sans (SF Pro Display fallback) at 500–700 with measured negative tracking. Cards live as charcoal panels (#0f1011) with hairline borders. The accent lavender appears on the brand mark, focus rings, and a few intentional CTAs — never decoratively. 
+description: "A near-black product-focused marketing canvas built around #010102 (the deepest dark surface of any tool in this collection), light gray text (#f7f8f8), and the signature Linear lavender-blue (#5e6ad2) used as the single chromatic accent. The system reads as software-craft documentation: dense, technical, and quietly luxurious. Display type is set in the Linear custom sans (SF Pro Display fallback) at 500–700 with measured negative tracking. Cards live as charcoal panels (#0f1011) with hairline borders. The accent lavender appears on the brand mark, focus rings, and a few intentional CTAs — never decoratively. NEVER EVER USE EMOJIS, only minimalist svgs.
 
 colors:
   primary: "#5e6ad2"
@@ -254,6 +254,16 @@ components:
     padding: 64px 32px
 ---
 
+## Frontend implementation
+
+This design system is implemented using:
+- **shadcn/ui** — all interactive primitives (buttons, cards, dialogs, tabs, inputs). Map the tokens above to shadcn's CSS variable layer.
+- **Motion (Framer Motion)** — React component transitions: panel entrances, tab switches, loading states, output reveals.
+- **GSAP** — SVG path animations, diagram element highlighting, multi-step diagram map sequencing.
+- **frontend-design skill** — invoke before building any new page, section, or complex component to enforce these tokens consistently.
+
+See `docs/03_tech_stack.md` for library versions and install commands.
+
 ## Overview
 
 Linear's marketing canvas is the deepest dark surface in this collection — `{colors.canvas}` is #010102, essentially pure black with a faint blue tint. On top sits a four-step surface ladder (`{colors.surface-1}` through `{colors.surface-4}`) for cards, panels, and lifted tiles, with hairline borders running from `{colors.hairline}` (#23252a) up through `{colors.hairline-strong}` and `{colors.hairline-tertiary}`. Light gray text (`{colors.ink}` #f7f8f8) carries the body and headlines.
@@ -495,15 +505,7 @@ Linear's depth is carried by surface ladder + hairline borders. The brand resist
 - Product UI screenshots maintain aspect ratio and never crop.
 - Customer logos in the marquee may collapse from 6-up to 3-up below 768px.
 
-## Frontend implementation
 
-This design system is implemented using:
-- **shadcn/ui** — all interactive primitives (buttons, cards, dialogs, tabs, inputs). Map the tokens above to shadcn's CSS variable layer.
-- **Motion (Framer Motion)** — React component transitions: panel entrances, tab switches, loading states, output reveals.
-- **GSAP** — SVG path animations, diagram element highlighting, multi-step diagram map sequencing.
-- **frontend-design skill** — invoke before building any new page, section, or complex component to enforce these tokens consistently.
-
-See `docs/03_tech_stack.md` for library versions and install commands.
 
 ---
 
