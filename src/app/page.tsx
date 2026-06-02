@@ -5,7 +5,16 @@ import { toast } from 'sonner'
 import { CircuitBackground } from '@/components/ui/CircuitBackground'
 import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
+import { AudioPlayer } from '@/components/output/AudioPlayer'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
+
+const OUTPUT_TABS = [
+  { id: 'audio', label: 'Audio walkthrough' },
+  { id: 'high-contrast', label: 'High-contrast SVG' },
+  { id: 'tactile', label: 'Tactile / braille' },
+  { id: 'diagram-map', label: 'Diagram map' },
+] as const
 
 type AppState = 'idle' | 'preview' | 'processing' | 'results'
 type InputMode = 'upload' | 'camera'
@@ -26,6 +35,7 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [debugOpen, setDebugOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>('audio')
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const apiResolved = useRef(false)
@@ -266,40 +276,66 @@ export default function HomePage() {
               </div>
 
               {/* Right — outputs */}
-              <div className="flex-1 p-6 flex flex-col gap-3">
-                <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-1">
+              <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+                <span className="text-[13px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
                   Accessible outputs
                 </span>
-                {['Audio walkthrough', 'High-contrast SVG', 'Tactile / braille SVG', 'Navigable diagram map'].map(
-                  (name, i) => (
-                    <motion.div
-                      key={name}
-                      className="flex items-center justify-between rounded-lg px-4 py-4"
-                      style={{ background: '#0f1011', border: '1px solid #23252a' }}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.1 + i * 0.06 }}
-                    >
-                      <span className="text-[16px] text-[#f7f8f8]">{name}</span>
-                      <span
-                        className="text-[13px] rounded px-3 py-1"
-                        style={{ color: '#27a644', background: 'rgba(39,166,68,.1)', border: '1px solid rgba(39,166,68,.2)' }}
+
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-4">
+                  {/* Tab bar */}
+                  <TabsList
+                    className="w-full h-auto gap-0.5 rounded-[8px] p-[4px]"
+                    style={{ background: '#0f1011', border: '1px solid #23252a' }}
+                  >
+                    {OUTPUT_TABS.map((tab) => (
+                      <TabsTrigger
+                        key={tab.id}
+                        value={tab.id}
+                        className="relative flex-1 h-auto rounded-[6px] !bg-transparent !shadow-none"
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          padding: '6px 14px',
+                          color: activeTab === tab.id ? '#f7f8f8' : '#62666d',
+                        }}
                       >
-                        Ready
-                      </span>
-                    </motion.div>
-                  ),
-                )}
-                <motion.button
-                  className="mt-2 w-full text-[16px] font-medium text-white rounded-lg py-3.5 hover:bg-[#828fff] transition-colors"
-                  style={{ background: '#5e6ad2' }}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.34 }}
-                  onClick={() => toast('Outputs arrive in later phases')}
-                >
-                  Explore outputs
-                </motion.button>
+                        {activeTab === tab.id && (
+                          <motion.div
+                            layoutId="tab-indicator"
+                            className="absolute inset-0 rounded-[6px]"
+                            style={{ background: '#18191a' }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                          />
+                        )}
+                        <span className="relative z-10">{tab.label}</span>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
+                  {/* Audio walkthrough */}
+                  <TabsContent value="audio">
+                    <AudioPlayer steps={analysis.narration} />
+                  </TabsContent>
+
+                  {/* Placeholder tabs for Phases 4–6 */}
+                  {(['high-contrast', 'tactile', 'diagram-map'] as const).map((id) => (
+                    <TabsContent key={id} value={id}>
+                      <div
+                        style={{
+                          background: '#0f1011',
+                          border: '1px solid #23252a',
+                          borderRadius: 12,
+                          padding: 24,
+                        }}
+                      >
+                        <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
+                          {OUTPUT_TABS.find((t) => t.id === id)?.label}
+                        </p>
+                        <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </div>
             </div>
           </motion.div>
