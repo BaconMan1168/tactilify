@@ -1,374 +1,413 @@
 import { create } from 'xmlbuilder2'
 import { optimize } from 'svgo'
-import type { DiagramAnalysis, DiagramElement, Relationship } from '@/types/diagram'
-import { encodeBraille } from '@/lib/braille'
-
-const A4_W = 794
-const A4_H = 1123
-const DRAW_X = 47
-const DRAW_Y = 120  // leaves room for title area
-const DRAW_W = 700
-const DRAW_H = 930
-
-const STROKE = '#000000'
-const SW = '2'  // stroke-width
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function toX(nx: number) { return DRAW_X + nx * DRAW_W }
-function toY(ny: number) { return DRAW_Y + ny * DRAW_H }
+import type { DiagramAnalysis } from '@/types/diagram'
+import type { TactileObject } from '@/types/tactile'
+import { encodeBraille, normalizeStemText } from '@/lib/braille'
+import {
+  buildTactilePlan,
+  KEY_START_Y, KEY_LINE_H, KEY_MAX_LINES, KEY_SEP_Y, TITLE_Y, MARGIN, PAGE_W, WIRE_SW,
+} from '@/lib/svg/tactilePlanner'
 
 type El = ReturnType<typeof create>
 
-function label(parent: El, x: number, y: number, text: string) {
-  parent.ele('text', {
-    x: String(x),
-    y: String(y),
-    'font-size': '11',
-    'font-family': 'serif',
-    fill: STROKE,
-  }).txt(encodeBraille(text)).up()
+// ── SVG coordinate formatter ───────────────────────────────────────────────────
+
+function f(v: number): string { return v.toFixed(1) }
+
+// ── Braille dot geometry ───────────────────────────────────────────────────────
+// Physical Braille standard spacing (all in mm)
+
+const B = {
+  dotR: 0.7,    // raised-dot radius
+  hStep: 2.5,   // left-column to right-column offset
+  vStep: 2.5,   // inter-row within a cell
+  cellW: 6.0,   // cell advance (left-col center, cell N → cell N+1)
+  lineH: 10.0,  // line advance (top-dot, line N → top-dot, line N+1)
 }
 
-function arrowHead(parent: El, x1: number, y1: number, x2: number, y2: number) {
-  const angle = Math.atan2(y2 - y1, x2 - x1)
-  const size = 10
-  const ax = x2 - size * Math.cos(angle - Math.PI / 6)
-  const ay = y2 - size * Math.sin(angle - Math.PI / 6)
-  const bx = x2 - size * Math.cos(angle + Math.PI / 6)
-  const by = y2 - size * Math.sin(angle + Math.PI / 6)
-  parent.ele('polygon', {
-    points: `${x2},${y2} ${ax},${ay} ${bx},${by}`,
-    fill: STROKE,
-    stroke: 'none',
+const DOT_OFFSETS = [
+  { bit: 0x01, dx: 0,       dy: 0       },  // dot 1 (top-left)
+  { bit: 0x02, dx: 0,       dy: 2.5     },  // dot 2
+  { bit: 0x04, dx: 0,       dy: 5.0     },  // dot 3
+  { bit: 0x08, dx: 2.5,     dy: 0       },  // dot 4 (top-right)
+  { bit: 0x10, dx: 2.5,     dy: 2.5     },  // dot 5
+  { bit: 0x20, dx: 2.5,     dy: 5.0     },  // dot 6
+]
+
+function drawBrailleChar(parent: El, char: string, xMm: number, yMm: number) {
+  const cp = char.codePointAt(0) ?? 0
+  if (cp < 0x2800 || cp > 0x28FF) return
+  const bits = cp - 0x2800
+  if (bits === 0) return  // blank cell, no dots
+  for (const { bit, dx, dy } of DOT_OFFSETS) {
+    if (bits & bit) {
+      parent.ele('circle', { cx: f(xMm + dx), cy: f(yMm + dy), r: f(B.dotR), fill: '#000000' }).up()
+    }
+  }
+}
+
+function drawBrailleString(parent: El, brailleStr: string, xMm: number, yMm: number): number {
+  let x = xMm
+  for (const ch of brailleStr) {
+    drawBrailleChar(parent, ch, x, yMm)
+    x += B.cellW
+  }
+  return x - xMm  // width used
+}
+
+// Word-wrap plain normalised text, then render as Braille dots.
+// Returns total height consumed (mm).
+function renderBrailleText(
+  parent: El,
+  normalizedText: string,
+  xMm: number,
+  yMm: number,
+  maxWidthMm: number,
+): number {
+  const words = normalizedText.split(' ')
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    const candidate = current ? current + ' ' + word : word
+    const braille = encodeBraille(candidate)
+    if (braille.length * B.cellW > maxWidthMm && current) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  }
+  if (current) lines.push(current)
+
+  let curY = yMm
+  for (const line of lines) {
+    drawBrailleString(parent, encodeBraille(line), xMm, curY)
+    curY += B.lineH
+  }
+  return curY - yMm
+}
+
+// ── Stroke constants ───────────────────────────────────────────────────────────
+
+const SW_WIRE      = String(WIRE_SW)   // 0.5mm
+const SW_COMPONENT = '0.7'             // component outlines
+const SW_AXIS      = '0.6'
+const SW_ARROW     = '0.7'
+const FILL_NONE    = 'none'
+const INK          = '#000000'
+
+const HALF_ALONG = 13  // mm — half of component gap in wire direction (matches planner)
+
+// ── Component symbol drawing (all horizontal; rotated flag uses SVG transform) ─
+
+function line(parent: El, x1: number, y1: number, x2: number, y2: number, sw = SW_WIRE) {
+  parent.ele('line', { x1: f(x1), y1: f(y1), x2: f(x2), y2: f(y2), stroke: INK, 'stroke-width': sw }).up()
+}
+
+function drawBattery(g: El, cx: number, cy: number) {
+  // Long plate (negative) at cx-5, short plate (positive) at cx+5
+  line(g, cx - HALF_ALONG, cy, cx - 5, cy)          // left wire stub
+  line(g, cx - 5, cy - 7,  cx - 5, cy + 7, '0.9')   // long plate
+  line(g, cx + 5, cy - 4,  cx + 5, cy + 4, '0.5')   // short plate
+  line(g, cx + 5, cy,      cx + HALF_ALONG, cy)      // right wire stub
+}
+
+function drawResistor(g: El, cx: number, cy: number) {
+  // Single polyline: left stub + zigzag + right stub
+  const pts = [
+    [cx - HALF_ALONG, cy],
+    [cx - 8, cy],
+    [cx - 6, cy - 5], [cx - 2, cy + 5],
+    [cx + 2, cy - 5], [cx + 6, cy + 5],
+    [cx + 8, cy],
+    [cx + HALF_ALONG, cy],
+  ].map(([x, y]) => `${f(x)},${f(y)}`).join(' ')
+  g.ele('polyline', { points: pts, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
+}
+
+function drawCapacitor(g: El, cx: number, cy: number) {
+  line(g, cx - HALF_ALONG, cy, cx - 4, cy)          // left wire stub
+  line(g, cx - 4, cy - 8, cx - 4, cy + 8, '0.9')   // left plate
+  line(g, cx + 4, cy - 8, cx + 4, cy + 8, '0.9')   // right plate
+  line(g, cx + 4, cy,     cx + HALF_ALONG, cy)       // right wire stub
+}
+
+function drawInductor(g: El, cx: number, cy: number) {
+  line(g, cx - HALF_ALONG, cy, cx - 10, cy)  // left stub
+  // 4 bumps (arcs), each 5mm wide, spanning cx-10 to cx+10
+  for (let i = 0; i < 4; i++) {
+    const ax = cx - 10 + i * 5
+    g.ele('path', { d: `M ${f(ax)},${f(cy)} a 2.5,2.5 0 0 1 5,0`, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
+  }
+  line(g, cx + 10, cy, cx + HALF_ALONG, cy)  // right stub
+}
+
+function drawBulb(g: El, cx: number, cy: number) {
+  line(g, cx - HALF_ALONG, cy, cx - 7, cy)
+  g.ele('circle', { cx: f(cx), cy: f(cy), r: '7', fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
+  // X crosshair inside circle
+  const d = 4.5
+  line(g, cx - d, cy - d, cx + d, cy + d, '0.5')
+  line(g, cx + d, cy - d, cx - d, cy + d, '0.5')
+  line(g, cx + 7, cy, cx + HALF_ALONG, cy)
+}
+
+function drawSwitch(g: El, cx: number, cy: number) {
+  line(g, cx - HALF_ALONG, cy, cx - 6, cy)          // left stub
+  g.ele('circle', { cx: f(cx - 6), cy: f(cy), r: '1.5', fill: FILL_NONE, stroke: INK, 'stroke-width': '0.5' }).up()
+  line(g, cx - 6, cy, cx + 4, cy - 9, SW_COMPONENT) // open arm
+  g.ele('circle', { cx: f(cx + 6), cy: f(cy), r: '1.5', fill: FILL_NONE, stroke: INK, 'stroke-width': '0.5' }).up()
+  line(g, cx + 6, cy, cx + HALF_ALONG, cy)
+}
+
+function drawGenericComponent(g: El, cx: number, cy: number) {
+  g.ele('rect', {
+    x: f(cx - 10), y: f(cy - 6), width: '20', height: '12', rx: '2',
+    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+  }).up()
+  line(g, cx - HALF_ALONG, cy, cx - 10, cy)
+  line(g, cx + 10, cy, cx + HALF_ALONG, cy)
+}
+
+// ── Graph shape drawing ───────────────────────────────────────────────────────
+
+function drawAxis(svg: El, obj: TactileObject) {
+  const pts = obj.points
+  if (!pts || pts.length < 2) return
+  const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_AXIS }).up()
+}
+
+function drawBar(svg: El, obj: TactileObject) {
+  if (!obj.widthMm || !obj.heightMm) return
+  svg.ele('rect', {
+    x: f(obj.xMm), y: f(obj.yMm), width: f(obj.widthMm), height: f(obj.heightMm),
+    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
   }).up()
 }
 
-// ── Grid fallback layout ──────────────────────────────────────────────────────
-
-function gridPosition(index: number, total: number): { x: number; y: number } {
-  const cols = Math.min(4, total)
-  const rows = Math.ceil(total / cols)
-  const col = index % cols
-  const row = Math.floor(index / cols)
-  return {
-    x: DRAW_X + (col + 0.5) * (DRAW_W / cols),
-    y: DRAW_Y + (row + 0.5) * (DRAW_H / rows),
+function drawLineChart(svg: El, obj: TactileObject) {
+  const pts = obj.points
+  if (!pts || pts.length < 2) return
+  const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
+  // Mark each data point with a small diamond
+  for (const pt of pts) {
+    const s = 2.5
+    const dPts = `${f(pt.xMm)},${f(pt.yMm - s)} ${f(pt.xMm + s)},${f(pt.yMm)} ${f(pt.xMm)},${f(pt.yMm + s)} ${f(pt.xMm - s)},${f(pt.yMm)}`
+    svg.ele('polygon', { points: dPts, fill: INK, stroke: FILL_NONE }).up()
   }
 }
 
-// ── Circuit element renderers ─────────────────────────────────────────────────
+function drawPieSector(svg: El, obj: TactileObject) {
+  const extra = obj.extra ?? {}
+  const r     = Number(extra.r ?? 60)
+  const sa    = Number(extra.startAngle ?? 0)
+  const ea    = Number(extra.endAngle ?? Math.PI)
+  const cx    = obj.xMm
+  const cy    = obj.yMm
+  const x1    = cx + r * Math.cos(sa)
+  const y1    = cy + r * Math.sin(sa)
+  const x2    = cx + r * Math.cos(ea)
+  const y2    = cy + r * Math.sin(ea)
+  const sweep = ea - sa
+  const large = sweep > Math.PI ? 1 : 0
+  svg.ele('path', {
+    d: `M ${f(cx)},${f(cy)} L ${f(x1)},${f(y1)} A ${f(r)},${f(r)} 0 ${large},1 ${f(x2)},${f(y2)} Z`,
+    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+  }).up()
+}
 
-function drawCircuitElement(parent: El, el: DiagramElement, cx: number, cy: number) {
-  const t = el.type.toLowerCase()
+// ── Free-body drawing ─────────────────────────────────────────────────────────
 
-  if (t.includes('battery') || t.includes('cell') || t.includes('power')) {
-    // IEC battery: alternating long/short horizontal lines
-    for (let i = 0; i < 3; i++) {
-      const y = cy - 10 + i * 10
-      parent.ele('line', { x1: String(cx - 18), y1: String(y), x2: String(cx + 18), y2: String(y), stroke: STROKE, 'stroke-width': i % 2 === 0 ? '2.5' : '1.2' }).up()
+function drawObjectRect(svg: El, obj: TactileObject) {
+  const w = obj.widthMm ?? 32
+  const h = obj.heightMm ?? 22
+  svg.ele('rect', {
+    x: f(obj.xMm), y: f(obj.yMm), width: f(w), height: f(h), rx: '3',
+    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+  }).up()
+}
+
+function drawForceArrow(svg: El, obj: TactileObject) {
+  const pts = obj.points
+  if (!pts || pts.length < 2) return
+  const [p1, p2] = pts
+
+  line(svg, p1.xMm, p1.yMm, p2.xMm, p2.yMm, SW_ARROW)
+
+  // Arrowhead at p2
+  const angle = Math.atan2(p2.yMm - p1.yMm, p2.xMm - p1.xMm)
+  const size  = 5  // mm
+  const ax = p2.xMm - size * Math.cos(angle - Math.PI / 6)
+  const ay = p2.yMm - size * Math.sin(angle - Math.PI / 6)
+  const bx = p2.xMm - size * Math.cos(angle + Math.PI / 6)
+  const by = p2.yMm - size * Math.sin(angle + Math.PI / 6)
+  svg.ele('polygon', { points: `${f(p2.xMm)},${f(p2.yMm)} ${f(ax)},${f(ay)} ${f(bx)},${f(by)}`, fill: INK, stroke: FILL_NONE }).up()
+}
+
+// ── Wire drawing ──────────────────────────────────────────────────────────────
+
+function drawWire(svg: El, obj: TactileObject) {
+  const pts = obj.points
+  if (!pts || pts.length < 2) return
+  const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_WIRE }).up()
+}
+
+// ── Marker rendering ──────────────────────────────────────────────────────────
+
+function drawMarker(parent: El, obj: TactileObject) {
+  if (!obj.marker) return
+  const braille = encodeBraille(obj.marker)
+  drawBrailleString(parent, braille, obj.xMm, obj.yMm)
+}
+
+// ── Main object dispatcher ────────────────────────────────────────────────────
+
+function drawObject(svg: El, obj: TactileObject) {
+  if (obj.role === 'marker') {
+    drawMarker(svg, obj)
+    return
+  }
+
+  if (obj.role === 'wire') {
+    switch (obj.shape) {
+      case 'axis': drawAxis(svg, obj); return
+      default:     drawWire(svg, obj); return
     }
-    parent.ele('line', { x1: String(cx), y1: String(cy - 10), x2: String(cx), y2: String(cy - 18), stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx), y1: String(cy + 10), x2: String(cx), y2: String(cy + 18), stroke: STROKE, 'stroke-width': SW }).up()
+  }
 
-  } else if (t.includes('resistor')) {
-    // Zigzag polyline
-    const pts = [
-      `${cx - 20},${cy}`,
-      `${cx - 14},${cy - 8}`, `${cx - 6},${cy + 8}`,
-      `${cx + 2},${cy - 8}`, `${cx + 10},${cy + 8}`,
-      `${cx + 14},${cy - 8}`, `${cx + 20},${cy}`,
-    ].join(' ')
-    parent.ele('polyline', { points: pts, fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
+  // Component shapes — wrap in optional rotation group
+  const cx = obj.xMm
+  const cy = obj.yMm
+  const g  = obj.rotated
+    ? svg.ele('g', { transform: `rotate(90, ${f(cx)}, ${f(cy)})` })
+    : svg.ele('g')
 
-  } else if (t.includes('capacitor')) {
-    // Two parallel vertical lines with wire stubs
-    parent.ele('line', { x1: String(cx - 20), y1: String(cy), x2: String(cx - 4), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx - 4), y1: String(cy - 14), x2: String(cx - 4), y2: String(cy + 14), stroke: STROKE, 'stroke-width': '2.5' }).up()
-    parent.ele('line', { x1: String(cx + 4), y1: String(cy - 14), x2: String(cx + 4), y2: String(cy + 14), stroke: STROKE, 'stroke-width': '2.5' }).up()
-    parent.ele('line', { x1: String(cx + 4), y1: String(cy), x2: String(cx + 20), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
+  switch (obj.shape) {
+    case 'battery':          drawBattery(g, cx, cy);          break
+    case 'resistor':         drawResistor(g, cx, cy);         break
+    case 'capacitor':        drawCapacitor(g, cx, cy);        break
+    case 'inductor':         drawInductor(g, cx, cy);         break
+    case 'bulb':             drawBulb(g, cx, cy);             break
+    case 'switch':           drawSwitch(g, cx, cy);           break
+    case 'generic-component':drawGenericComponent(g, cx, cy); break
+    case 'bar':              drawBar(g, obj);                 break
+    case 'line-chart':       drawLineChart(g, obj);           break
+    case 'pie-sector':       drawPieSector(g, obj);           break
+    case 'object-rect':      drawObjectRect(g, obj);          break
+    case 'force-arrow':      drawForceArrow(g, obj);          break
+  }
 
-  } else if (t.includes('inductor') || t.includes('coil')) {
-    // Series of arcs
-    for (let i = 0; i < 4; i++) {
-      const ax = cx - 16 + i * 8
-      parent.ele('path', {
-        d: `M ${ax},${cy} a 4,4 0 0 1 8,0`,
-        fill: 'none', stroke: STROKE, 'stroke-width': SW,
-      }).up()
-    }
-    parent.ele('line', { x1: String(cx - 20), y1: String(cy), x2: String(cx - 16), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx + 16), y1: String(cy), x2: String(cx + 20), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
+  g.up()
+}
 
-  } else if (t.includes('bulb') || t.includes('lamp') || t.includes('led') || t.includes('light')) {
-    // Circle with crosshair
-    parent.ele('circle', { cx: String(cx), cy: String(cy), r: '14', fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx - 10), y1: String(cy - 10), x2: String(cx + 10), y2: String(cy + 10), stroke: STROKE, 'stroke-width': '1.5' }).up()
-    parent.ele('line', { x1: String(cx + 10), y1: String(cy - 10), x2: String(cx - 10), y2: String(cy + 10), stroke: STROKE, 'stroke-width': '1.5' }).up()
+// ── Connection paths ──────────────────────────────────────────────────────────
 
-  } else if (t.includes('switch')) {
-    // Open switch: wire, angled gap, terminal dot
-    parent.ele('line', { x1: String(cx - 20), y1: String(cy), x2: String(cx - 6), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx - 6), y1: String(cy), x2: String(cx + 4), y2: String(cy - 10), stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('circle', { cx: String(cx + 8), cy: String(cy), r: '3', fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-    parent.ele('line', { x1: String(cx + 11), y1: String(cy), x2: String(cx + 20), y2: String(cy), stroke: STROKE, 'stroke-width': SW }).up()
+function drawConnection(svg: El, path: { xMm: number; yMm: number }[]) {
+  if (path.length < 2) return
+  const pStr = path.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_WIRE }).up()
+}
 
-  } else if (t.includes('wire') || t.includes('node') || t.includes('junction')) {
-    // Just a dot
-    parent.ele('circle', { cx: String(cx), cy: String(cy), r: '3', fill: STROKE, stroke: 'none' }).up()
+// ── Key section rendering ─────────────────────────────────────────────────────
 
-  } else {
-    // Labeled rectangle fallback
-    parent.ele('rect', { x: String(cx - 24), y: String(cy - 12), width: '48', height: '24', rx: '4', fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
+function drawKey(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
+  const { key, page } = plan
+  if (key.length === 0) return
+
+  const kx = MARGIN
+
+  // Separator line
+  svg.ele('line', {
+    x1: f(MARGIN), y1: f(KEY_SEP_Y),
+    x2: f(page.widthMm - MARGIN), y2: f(KEY_SEP_Y),
+    stroke: INK, 'stroke-width': '0.3',
+  }).up()
+
+  // "key" label in Braille above entries
+  const keyLabel = encodeBraille('key')
+  drawBrailleString(svg, keyLabel, kx, KEY_SEP_Y + 2)
+
+  let y = KEY_START_Y
+  const maxLineW = page.widthMm - 2 * MARGIN
+
+  const limit = Math.min(key.length, KEY_MAX_LINES)
+  for (let i = 0; i < limit; i++) {
+    const entry = key[i]
+    const lineText = `${entry.marker} ${entry.normalizedText}`
+    const wrapH = renderBrailleText(svg, lineText, kx, y, maxLineW)
+    y += Math.max(wrapH, KEY_LINE_H)
+    if (y + KEY_LINE_H > page.heightMm - MARGIN) break
+  }
+
+  if (key.length > limit) {
+    // Note that key was truncated
+    const note = encodeBraille('see attached key')
+    drawBrailleString(svg, note, kx, y)
   }
 }
 
-// ── Per-type renderers ────────────────────────────────────────────────────────
+// ── Transcriber notes ─────────────────────────────────────────────────────────
 
-function renderCircuit(svg: El, analysis: DiagramAnalysis) {
-  const { elements, relationships } = analysis
+function drawTranscriberNotes(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
+  const { transcriberNotes, page } = plan
+  if (transcriberNotes.length === 0) return
 
-  // Compute pixel positions
-  const positions = new Map<string, { x: number; y: number }>()
-  elements.forEach((el, i) => {
-    const pos = el.position
-      ? { x: toX(el.position.x), y: toY(el.position.y) }
-      : gridPosition(i, elements.length)
-    positions.set(el.id, pos)
-  })
-
-  // Draw wires first (behind elements)
-  for (const rel of relationships) {
-    const a = positions.get(rel.from)
-    const b = positions.get(rel.to)
-    if (!a || !b) continue
-    svg.ele('line', {
-      x1: String(Math.round(a.x)), y1: String(Math.round(a.y)),
-      x2: String(Math.round(b.x)), y2: String(Math.round(b.y)),
-      stroke: STROKE, 'stroke-width': '1.5',
-    }).up()
-  }
-
-  // Draw elements + labels
-  for (const el of elements) {
-    const pos = positions.get(el.id)!
-    const cx = Math.round(pos.x)
-    const cy = Math.round(pos.y)
-    drawCircuitElement(svg, el, cx, cy)
-    label(svg, cx + 16, cy - 16, el.label + (el.value ? ' ' + el.value : ''))
-  }
-}
-
-function renderGraph(svg: El, analysis: DiagramAnalysis) {
-  const { elements } = analysis
-  if (elements.length === 0) return
-
-  const axisX = DRAW_X + 40
-  const axisY = DRAW_Y + DRAW_H - 40
-  const axisW = DRAW_W - 80
-  const axisH = DRAW_H - 80
-
-  // Axes
-  svg.ele('line', { x1: String(axisX), y1: String(DRAW_Y), x2: String(axisX), y2: String(axisY), stroke: STROKE, 'stroke-width': SW }).up()
-  svg.ele('line', { x1: String(axisX), y1: String(axisY), x2: String(axisX + axisW), y2: String(axisY), stroke: STROKE, 'stroke-width': SW }).up()
-
-  // Detect chart type from element types
-  const types = elements.map(e => e.type.toLowerCase())
-  const isLine = types.some(t => t.includes('line') || t.includes('point') || t.includes('data'))
-  const isPie  = types.some(t => t.includes('sector') || t.includes('slice') || t.includes('pie') || t.includes('segment'))
-
-  if (isPie) {
-    // Pie: arc sectors
-    const cx = DRAW_X + DRAW_W / 2
-    const cy = DRAW_Y + DRAW_H / 2
-    const r = Math.min(DRAW_W, DRAW_H) / 2 - 60
-    const total = elements.reduce((s, e) => s + (parseFloat(e.value ?? '1') || 1), 0)
-    let startAngle = -Math.PI / 2
-    for (const el of elements) {
-      const frac = (parseFloat(el.value ?? '1') || 1) / total
-      const sweep = frac * 2 * Math.PI
-      const end = startAngle + sweep
-      const lx = Math.round(cx + Math.cos(startAngle + sweep / 2) * r)
-      const ly = Math.round(cy + Math.sin(startAngle + sweep / 2) * r)
-      const x1 = Math.round(cx + r * Math.cos(startAngle))
-      const y1 = Math.round(cy + r * Math.sin(startAngle))
-      const x2 = Math.round(cx + r * Math.cos(end))
-      const y2 = Math.round(cy + r * Math.sin(end))
-      const large = sweep > Math.PI ? 1 : 0
-      svg.ele('path', {
-        d: `M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 ${large},1 ${x2},${y2} Z`,
-        fill: 'none', stroke: STROKE, 'stroke-width': SW,
-      }).up()
-      label(svg, lx + 4, ly, el.label)
-      startAngle = end
-    }
-
-  } else if (isLine) {
-    // Line chart
-    const vals = elements.map(e => parseFloat(e.value ?? '0') || 0)
-    const maxV = Math.max(...vals, 1)
-    const step = axisW / Math.max(elements.length - 1, 1)
-    const pts = elements.map((_, i) => {
-      const x = axisX + i * step
-      const y = axisY - (vals[i] / maxV) * axisH
-      return `${Math.round(x)},${Math.round(y)}`
-    }).join(' ')
-    svg.ele('polyline', { points: pts, fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-    // Labels on x axis
-    elements.forEach((el, i) => {
-      const x = axisX + i * step
-      label(svg, Math.round(x) - 8, axisY + 20, el.label)
-    })
-
-  } else {
-    // Bar chart (default)
-    const vals = elements.map(e => parseFloat(e.value ?? '1') || 1)
-    const maxV = Math.max(...vals, 1)
-    const barW = Math.floor((axisW / elements.length) * 0.7)
-    const gap   = Math.floor(axisW / elements.length)
-    elements.forEach((el, i) => {
-      const barH = Math.round((vals[i] / maxV) * axisH)
-      const bx = axisX + i * gap + (gap - barW) / 2
-      const by = axisY - barH
-      svg.ele('rect', { x: String(Math.round(bx)), y: String(Math.round(by)), width: String(barW), height: String(barH), fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-      label(svg, Math.round(bx), axisY + 20, el.label)
-      // Value above bar
-      label(svg, Math.round(bx), Math.round(by) - 4, el.value ?? '')
-    })
-    // Y-axis tick marks (5 ticks)
-    for (let t = 0; t <= 5; t++) {
-      const ty = Math.round(axisY - (t / 5) * axisH)
-      svg.ele('line', { x1: String(axisX - 5), y1: String(ty), x2: String(axisX), y2: String(ty), stroke: STROKE, 'stroke-width': '1.5' }).up()
-    }
-  }
-}
-
-function renderFreeBody(svg: El, analysis: DiagramAnalysis) {
-  const { elements, relationships } = analysis
-
-  const positions = new Map<string, { x: number; y: number }>()
-  elements.forEach((el, i) => {
-    const pos = el.position
-      ? { x: toX(el.position.x), y: toY(el.position.y) }
-      : gridPosition(i, elements.length)
-    positions.set(el.id, pos)
-  })
-
-  const DIRECTION_MAP: Record<string, [number, number]> = {
-    up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
-    north: [0, -1], south: [0, 1], west: [-1, 0], east: [1, 0],
-    upward: [0, -1], downward: [0, 1],
-  }
-
-  // Draw objects
-  for (const el of elements) {
-    const t = el.type.toLowerCase()
-    const isForce = t.includes('force') || t.includes('vector') || t.includes('arrow')
-    if (isForce) continue
-
-    const pos = positions.get(el.id)!
-    const cx = Math.round(pos.x)
-    const cy = Math.round(pos.y)
-    svg.ele('rect', { x: String(cx - 30), y: String(cy - 20), width: '60', height: '40', rx: '6', fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-    label(svg, cx - 26, cy + 4, el.label)
-  }
-
-  // Draw force arrows from relationships
-  for (const rel of relationships) {
-    const from = positions.get(rel.from)
-    if (!from) continue
-    const cx = Math.round(from.x)
-    const cy = Math.round(from.y)
-
-    const dirKey = (rel.label ?? rel.type ?? '').toLowerCase().trim()
-    const dir = DIRECTION_MAP[dirKey] ?? [1, 0]
-    const mag = (() => {
-      const el = elements.find(e => e.id === rel.from || e.id === rel.to)
-      const v = parseFloat(el?.value ?? '60')
-      return isNaN(v) ? 60 : Math.min(Math.max(v * 4, 40), 120)
-    })()
-
-    const ex = cx + dir[0] * mag
-    const ey = cy + dir[1] * mag
-    svg.ele('line', { x1: String(cx), y1: String(cy), x2: String(Math.round(ex)), y2: String(Math.round(ey)), stroke: STROKE, 'stroke-width': SW }).up()
-    arrowHead(svg, cx, cy, Math.round(ex), Math.round(ey))
-    const forceEl = elements.find(e => e.id === rel.to)
-    if (forceEl) {
-      label(svg, Math.round(ex) + 4, Math.round(ey), forceEl.label + (forceEl.value ? ' ' + forceEl.value : ''))
-    }
-  }
-}
-
-function renderGeneric(svg: El, analysis: DiagramAnalysis) {
-  const { elements, relationships } = analysis
-  const positions = new Map<string, { x: number; y: number }>()
-  elements.forEach((el, i) => {
-    const pos = el.position
-      ? { x: toX(el.position.x), y: toY(el.position.y) }
-      : gridPosition(i, elements.length)
-    positions.set(el.id, pos)
-  })
-
-  for (const rel of relationships) {
-    const a = positions.get(rel.from)
-    const b = positions.get(rel.to)
-    if (!a || !b) continue
-    svg.ele('line', {
-      x1: String(Math.round(a.x)), y1: String(Math.round(a.y)),
-      x2: String(Math.round(b.x)), y2: String(Math.round(b.y)),
-      stroke: STROKE, 'stroke-width': '1.5',
-    }).up()
-  }
-
-  for (const el of elements) {
-    const pos = positions.get(el.id)!
-    const cx = Math.round(pos.x)
-    const cy = Math.round(pos.y)
-    svg.ele('rect', { x: String(cx - 28), y: String(cy - 14), width: '56', height: '28', rx: '4', fill: 'none', stroke: STROKE, 'stroke-width': SW }).up()
-    label(svg, cx - 24, cy + 4, el.label)
-  }
+  // Place notes above the key separator as small, plain SVG text (for the sighted technician)
+  // These do not emboss as Braille — they serve as setup instructions only.
+  const noteY = KEY_SEP_Y - 3
+  const note  = transcriberNotes[0].slice(0, 120)
+  svg.ele('text', {
+    x: f(MARGIN),
+    y: f(noteY),
+    'font-size': '3.5',
+    'font-family': 'sans-serif',
+    fill: '#555555',
+  }).txt(`Note: ${note}`).up()
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export function renderTactile(analysis: DiagramAnalysis): string {
+  const plan = buildTactilePlan(analysis)
+
   const doc = create({ version: '1.0' })
     .ele('svg', {
       xmlns: 'http://www.w3.org/2000/svg',
-      viewBox: `0 0 ${A4_W} ${A4_H}`,
-      width: String(A4_W),
-      height: String(A4_H),
+      viewBox: `0 0 ${PAGE_W} ${plan.page.heightMm}`,
+      width: `${PAGE_W}mm`,
+      height: `${plan.page.heightMm}mm`,
     })
 
   // White background
-  doc.ele('rect', { x: '0', y: '0', width: String(A4_W), height: String(A4_H), fill: '#ffffff' }).up()
+  doc.ele('rect', { x: '0', y: '0', width: f(PAGE_W), height: f(plan.page.heightMm), fill: '#ffffff' }).up()
 
-  // Title + summary in braille
-  doc.ele('text', { x: String(DRAW_X), y: '52', 'font-size': '18', 'font-family': 'serif', fill: STROKE })
-    .txt(encodeBraille(analysis.title)).up()
-  doc.ele('text', { x: String(DRAW_X), y: '82', 'font-size': '12', 'font-family': 'serif', fill: '#555' })
-    .txt(encodeBraille(analysis.summary.slice(0, 80))).up()
+  // Title — normalised then Braille dot geometry
+  const { normalized: normTitle } = normalizeStemText(plan.title)
+  renderBrailleText(doc, normTitle, MARGIN, TITLE_Y, PAGE_W - 2 * MARGIN)
 
-  // Divider line
-  doc.ele('line', { x1: String(DRAW_X), y1: '96', x2: String(DRAW_X + DRAW_W), y2: '96', stroke: '#ccc', 'stroke-width': '1' }).up()
-
-  if (analysis.elements.length === 0) {
-    doc.ele('text', { x: String(DRAW_X), y: String(DRAW_Y + 60), 'font-size': '14', 'font-family': 'serif', fill: STROKE })
-      .txt(encodeBraille('No elements detected.')).up()
-  } else {
-    switch (analysis.type) {
-      case 'circuit':    renderCircuit(doc, analysis);   break
-      case 'graph':      renderGraph(doc, analysis);     break
-      case 'free-body':  renderFreeBody(doc, analysis);  break
-      default:           renderGeneric(doc, analysis);   break
-    }
+  // Diagram objects
+  for (const obj of plan.objects) {
+    drawObject(doc, obj)
   }
 
-  const raw = doc.end({ headless: true })
+  // Orthogonal connection paths (custom layout)
+  for (const conn of plan.connections) {
+    drawConnection(doc, conn.path)
+  }
 
+  // Transcriber notes (plain text, for technician)
+  drawTranscriberNotes(doc, plan)
+
+  // Key
+  drawKey(doc, plan)
+
+  const raw = doc.end({ headless: true })
   const result = optimize(raw, {
     plugins: ['removeDoctype', 'removeComments', 'cleanupIds', 'minifyStyles'],
   })
-
   return result.data
 }
