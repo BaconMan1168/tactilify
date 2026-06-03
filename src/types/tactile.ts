@@ -43,6 +43,7 @@ export type ComponentShape =
   | 'line-chart'   // line chart series
   | 'pie-sector'   // pie chart sector
   | 'marker-label' // Braille label placed outside a component
+  | 'anchor'       // invisible collision anchor — occupies space, renders nothing
 
 export type TactileObject = {
   id: string
@@ -53,8 +54,9 @@ export type TactileObject = {
   yMm: number
   widthMm?: number
   heightMm?: number
-  marker?: string   // key reference number
-  label?: string    // English text (for component) or Braille text source (for marker-label)
+  marker?: string     // key reference number
+  markerSide?: 'top' | 'right' | 'bottom' | 'left'  // preferred side for braille label placement
+  label?: string      // English text (for component) or Braille text source (for marker-label)
   // Polyline / multi-point shapes (wire, line-chart, arrow)
   points?: { xMm: number; yMm: number }[]
   // Extra data for specialised shapes (pie-sector)
