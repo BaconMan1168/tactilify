@@ -36,6 +36,7 @@ export const DiagramElementSchema = z.object({
   visualShape: z
     .enum(['rect', 'circle', 'diamond', 'ellipse', 'arrow'])
     .nullish(),               // Claude's best guess at the element's visual shape; renderer defaults to rect
+  symbolHint: z.string().nullish(), // tactile-specific type hint; known values trigger domain symbol renderers
 })
 
 export const RelationshipSchema = z.object({
@@ -62,6 +63,7 @@ export const DiagramAnalysisSchema = z.object({
   elements: z.array(DiagramElementSchema),
   relationships: z.array(RelationshipSchema),
   narration: z.array(NarrationStepSchema),
+  explorationInstructions: z.string().nullish(), // optional 1–3 sentence touch exploration guide
 })
 
 export type LayoutHint = z.infer<typeof LayoutHintSchema>
