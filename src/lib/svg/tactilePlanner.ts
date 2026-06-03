@@ -66,7 +66,7 @@ function elementLabel(el: DiagramElement): string {
   return v ? `${el.label.trim()} ${v}` : el.label.trim()
 }
 
-// ── Collision helpers ─────────────────────────────────────────────────────────
+// ── Bbox helpers ──────────────────────────────────────────────────────────────
 
 function bboxOverlaps(a: Bbox, b: Bbox, pad = 2): boolean {
   return (
@@ -77,6 +77,14 @@ function bboxOverlaps(a: Bbox, b: Bbox, pad = 2): boolean {
   )
 }
 
+function pathBbox(path: { xMm: number; yMm: number }[], pad = 1): Bbox {
+  const xs = path.map(p => p.xMm)
+  const ys = path.map(p => p.yMm)
+  const minX = Math.min(...xs) - pad
+  const minY = Math.min(...ys) - pad
+  return { x: minX, y: minY, w: Math.max(...xs) + pad - minX, h: Math.max(...ys) + pad - minY }
+}
+
 function componentBboxMm(obj: TactileObject): Bbox {
   const x = obj.xMm, y = obj.yMm
   switch (obj.shape) {
@@ -85,11 +93,10 @@ function componentBboxMm(obj: TactileObject): Bbox {
     case 'diamond': return { x: x - 14, y: y - 9,  w: 28, h: 18 }
     case 'ellipse': return { x: x - 14, y: y - 8,  w: 28, h: 16 }
     case 'wire':
-    case 'axis': {
+    case 'axis':
+    case 'arrow': {
       const pts = obj.points ?? [{ xMm: x, yMm: y }]
-      const xs = pts.map(p => p.xMm), ys = pts.map(p => p.yMm)
-      const mx = Math.min(...xs) - 1, my = Math.min(...ys) - 1
-      return { x: mx, y: my, w: Math.max(...xs) + 1 - mx, h: Math.max(...ys) + 1 - my }
+      return pathBbox(pts, 1)
     }
     default: return { x: x - 14, y: y - 7, w: 28, h: 14 }
   }
@@ -137,6 +144,56 @@ function placeMarkerLabel(
     }
   }
   return null
+}
+
+// ── Universal marker post-processor ──────────────────────────────────────────
+// Runs after all layout functions. Adds ALL geometry bboxes to occupied first,
+// then places braille markers — ensuring no label overlaps any wire, connection,
+// axis, bar, or other diagram element regardless of layout type.
+
+function placeAllMarkers(
+  objects: TactileObject[],
+  connections: TactileConnection[],
+  initialOccupied: Bbox[],
+): TactileObject[] {
+  // 1. Seed occupied with every geometry bbox
+  const occupied: Bbox[] = [...initialOccupied]
+  for (const obj of objects) {
+    if (obj.bboxMm) {
+      occupied.push(obj.bboxMm)
+    } else if (obj.points && obj.points.length >= 2) {
+      occupied.push(pathBbox(obj.points))
+    }
+  }
+  for (const conn of connections) {
+    if (conn.path.length >= 2) occupied.push(pathBbox(conn.path))
+  }
+
+  // 2. Place a braille marker label for each object that carries a marker ref
+  const markers: TactileObject[] = []
+  for (const obj of objects) {
+    if (!obj.marker || !obj.bboxMm) continue
+
+    const { normalized: normMarker } = normalizeStemText(obj.marker)
+    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
+    const side: Dir = (obj.markerSide as Dir | undefined) ?? 'top'
+
+    const placed = placeMarkerLabel(side, obj.bboxMm, footprint, occupied)
+    if (placed) {
+      markers.push({
+        id: `marker-${obj.id}`,
+        role: 'marker',
+        shape: 'marker-label',
+        xMm: placed.xMm,
+        yMm: placed.yMm,
+        marker: obj.marker,
+        bboxMm: placed.bboxMm,
+      })
+      occupied.push(placed.bboxMm)
+    }
+  }
+
+  return markers
 }
 
 // ── Topology detection ────────────────────────────────────────────────────────
@@ -242,13 +299,15 @@ function buildLoopWires(
   function addWire(x1: number, y1: number, x2: number, y2: number) {
     const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1)
     if (dx < 0.5 && dy < 0.5) return
+    const pts = [{ xMm: x1, yMm: y1 }, { xMm: x2, yMm: y2 }]
     wires.push({
       id: `wire-${wIdx++}`,
       role: 'wire',
       shape: 'wire',
       xMm: x1,
       yMm: y1,
-      points: [{ xMm: x1, yMm: y1 }, { xMm: x2, yMm: y2 }],
+      points: pts,
+      bboxMm: pathBbox(pts, 1),
     })
   }
 
@@ -341,7 +400,6 @@ function planCyclic(
   analysis: DiagramAnalysis,
   warnings: TactileValidationIssue[],
   dynLayout: DynLayout,
-  initialOccupied: Bbox[],
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
   const { drawY, drawH } = dynLayout
   const loopL = DRAW_X + 20
@@ -349,7 +407,6 @@ function planCyclic(
   const loopR = DRAW_X + DRAW_W - 20
   const loopB = drawY + drawH - 10
 
-  const occupied: Bbox[] = [...initialOccupied]
   const meaningful = analysis.elements.filter(el => !isNoise(el.type))
   const topology = detectTopology(meaningful, analysis.relationships)
   const objects: TactileObject[] = []
@@ -359,7 +416,15 @@ function planCyclic(
   if (meaningful.length >= 2 && meaningful.length <= 12) {
     const ordered = orderLoopComponents(meaningful, analysis.relationships)
     const loopPoints = distributeOnLoop(ordered.length, loopL, loopT, loopR, loopB)
-    const compsOnSide: CompOnSide[] = []
+
+    // Pre-build compsOnSide and wires so their bboxes enter occupied before marker placement
+    const compsOnSide: CompOnSide[] = ordered.map((el, idx) => ({
+      xMm: loopPoints[idx].xMm,
+      yMm: loopPoints[idx].yMm,
+      side: loopPoints[idx].side,
+      id: el.id,
+    }))
+    const loopWires = buildLoopWires(compsOnSide, loopL, loopT, loopR, loopB)
 
     ordered.forEach((el, idx) => {
       const pt = loopPoints[idx]
@@ -375,33 +440,15 @@ function planCyclic(
         yMm: pt.yMm,
         label,
         marker,
+        markerSide: pt.side,
+        bboxMm: undefined,
       }
-      const compBbox = componentBboxMm(compObj)
-      compObj.bboxMm = compBbox
+      compObj.bboxMm = componentBboxMm(compObj)
       objects.push(compObj)
-      occupied.push(compBbox)
-
-      const { normalized: normMarker } = normalizeStemText(marker)
-      const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-      const placed = placeMarkerLabel(pt.side, compBbox, footprint, occupied)
-      if (placed) {
-        objects.push({
-          id: `marker-${el.id}`,
-          role: 'marker',
-          shape: 'marker-label',
-          xMm: placed.xMm,
-          yMm: placed.yMm,
-          marker,
-          bboxMm: placed.bboxMm,
-        })
-        occupied.push(placed.bboxMm)
-      }
-
-      compsOnSide.push({ xMm: pt.xMm, yMm: pt.yMm, side: pt.side, id: el.id })
       key.push(buildKeyEntry(marker, el))
     })
 
-    objects.push(...buildLoopWires(compsOnSide, loopL, loopT, loopR, loopB))
+    objects.push(...loopWires)
 
     transcriberNotes.push(
       'Diagram rearranged into a rectangle to make the cyclic connection easier to trace by touch. Follow the numbered components in order around the loop.'
@@ -419,10 +466,24 @@ function planCyclic(
     })
   }
 
-  meaningful.forEach((el, idx) => {
-    const pos = el.position
+  // Pre-compute positions so connection paths can be built before markers are placed
+  const positions = meaningful.map((el, idx) =>
+    el.position
       ? { xMm: DRAW_X + el.position.x * DRAW_W, yMm: drawY + el.position.y * drawH }
       : gridPosMm(idx, meaningful.length, drawY, drawH)
+  )
+
+  const connections: TactileConnection[] = []
+  for (const rel of analysis.relationships) {
+    const fi = meaningful.findIndex(e => e.id === rel.from)
+    const ti = meaningful.findIndex(e => e.id === rel.to)
+    if (fi < 0 || ti < 0) continue
+    const fp = positions[fi], tp = positions[ti]
+    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
+  }
+
+  meaningful.forEach((el, idx) => {
+    const pos = positions[idx]
     const marker = String(idx + 1)
     const label = elementLabel(el)
 
@@ -435,44 +496,13 @@ function planCyclic(
       yMm: pos.yMm,
       label,
       marker,
+      markerSide: 'top',
+      bboxMm: undefined,
     }
-    const compBbox = componentBboxMm(compObj)
-    compObj.bboxMm = compBbox
+    compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
-    occupied.push(compBbox)
-
-    const { normalized: normMarker } = normalizeStemText(marker)
-    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-    const placed = placeMarkerLabel('top', compBbox, footprint, occupied)
-    if (placed) {
-      objects.push({
-        id: `marker-${el.id}`,
-        role: 'marker',
-        shape: 'marker-label',
-        xMm: placed.xMm,
-        yMm: placed.yMm,
-        marker,
-        bboxMm: placed.bboxMm,
-      })
-      occupied.push(placed.bboxMm)
-    }
-
     key.push(buildKeyEntry(marker, el))
   })
-
-  const connections: TactileConnection[] = []
-  for (const rel of analysis.relationships) {
-    const fi = meaningful.findIndex(e => e.id === rel.from)
-    const ti = meaningful.findIndex(e => e.id === rel.to)
-    if (fi < 0 || ti < 0) continue
-    const fp = meaningful[fi].position
-      ? { xMm: DRAW_X + meaningful[fi].position!.x * DRAW_W, yMm: drawY + meaningful[fi].position!.y * drawH }
-      : gridPosMm(fi, meaningful.length, drawY, drawH)
-    const tp = meaningful[ti].position
-      ? { xMm: DRAW_X + meaningful[ti].position!.x * DRAW_W, yMm: drawY + meaningful[ti].position!.y * drawH }
-      : gridPosMm(ti, meaningful.length, drawY, drawH)
-    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
-  }
 
   return { layout: 'cyclic-loop', objects, connections, key, transcriberNotes }
 }
@@ -482,11 +512,9 @@ function planCyclic(
 function planAxial(
   analysis: DiagramAnalysis,
   dynLayout: DynLayout,
-  initialOccupied: Bbox[],
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
   const { drawY, drawH } = dynLayout
   const { elements } = analysis
-  const occupied: Bbox[] = [...initialOccupied]
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
@@ -495,8 +523,10 @@ function planAxial(
   const axisW = DRAW_W - 25
   const axisH = drawH - 25
 
-  objects.push({ id: 'axis-y', role: 'wire', shape: 'axis', xMm: axisX, yMm: drawY + 5, points: [{ xMm: axisX, yMm: drawY + 5 }, { xMm: axisX, yMm: axisY }] })
-  objects.push({ id: 'axis-x', role: 'wire', shape: 'axis', xMm: axisX, yMm: axisY, points: [{ xMm: axisX, yMm: axisY }, { xMm: axisX + axisW, yMm: axisY }] })
+  const axisYPts = [{ xMm: axisX, yMm: drawY + 5 }, { xMm: axisX, yMm: axisY }]
+  const axisXPts = [{ xMm: axisX, yMm: axisY }, { xMm: axisX + axisW, yMm: axisY }]
+  objects.push({ id: 'axis-y', role: 'wire', shape: 'axis', xMm: axisX, yMm: drawY + 5, points: axisYPts, bboxMm: pathBbox(axisYPts, 1) })
+  objects.push({ id: 'axis-x', role: 'wire', shape: 'axis', xMm: axisX, yMm: axisY, points: axisXPts, bboxMm: pathBbox(axisXPts, 1) })
 
   const types = elements.map(e => e.type.toLowerCase())
   const isLine = types.some(t => t.includes('line') || t.includes('point') || t.includes('data'))
@@ -516,6 +546,14 @@ function planAxial(
       const mid   = startAngle + sweep / 2
       const marker = String(idx + 1)
 
+      const deg = (mid * 180 / Math.PI + 360) % 360
+      const markerSide: Dir = deg < 45 || deg >= 315 ? 'right' : deg < 135 ? 'bottom' : deg < 225 ? 'left' : 'top'
+
+      // Anchor at the arc midpoint — no rendered shape, just a collision zone for marker placement
+      const arcX = cx + Math.cos(mid) * r
+      const arcY = cy + Math.sin(mid) * r
+      const compBbox: Bbox = { x: arcX - 5, y: arcY - 5, w: 10, h: 10 }
+
       const compObj: TactileObject = {
         id: `sector-${idx}`,
         role: 'component',
@@ -525,34 +563,10 @@ function planAxial(
         extra: { r, startAngle, endAngle: end, sweep },
         label: elementLabel(el),
         marker,
+        markerSide,
+        bboxMm: compBbox,
       }
-      // Use a bbox at the arc midpoint (outside the pie)
-      const arcX = cx + Math.cos(mid) * r
-      const arcY = cy + Math.sin(mid) * r
-      const compBbox: Bbox = { x: arcX - 5, y: arcY - 5, w: 10, h: 10 }
-      compObj.bboxMm = compBbox
       objects.push(compObj)
-      occupied.push(compBbox)
-
-      const { normalized: normMarker } = normalizeStemText(marker)
-      const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-      // Primary side: outward from center based on midpoint angle
-      const deg = (mid * 180 / Math.PI + 360) % 360
-      const primarySide: Dir = deg < 45 || deg >= 315 ? 'right' : deg < 135 ? 'bottom' : deg < 225 ? 'left' : 'top'
-      const placed = placeMarkerLabel(primarySide, compBbox, footprint, occupied)
-      if (placed) {
-        objects.push({
-          id: `marker-${idx}`,
-          role: 'marker',
-          shape: 'marker-label',
-          xMm: placed.xMm,
-          yMm: placed.yMm,
-          marker,
-          bboxMm: placed.bboxMm,
-        })
-        occupied.push(placed.bboxMm)
-      }
-
       key.push(buildKeyEntry(marker, el))
       startAngle = end
     })
@@ -563,34 +577,39 @@ function planAxial(
     const step = axisW / Math.max(elements.length - 1, 1)
     const pts  = elements.map((_, i) => ({ xMm: axisX + i * step, yMm: axisY - (vals[i] / maxV) * axisH }))
 
-    objects.push({ id: 'line-chart', role: 'component', shape: 'line-chart', xMm: pts[0]?.xMm ?? axisX, yMm: pts[0]?.yMm ?? axisY, points: pts })
+    const linePts = pts
+    objects.push({
+      id: 'line-chart',
+      role: 'component',
+      shape: 'line-chart',
+      xMm: pts[0]?.xMm ?? axisX,
+      yMm: pts[0]?.yMm ?? axisY,
+      points: linePts,
+      bboxMm: pathBbox(linePts, 2),
+    })
 
+    // One invisible anchor per data point so placeAllMarkers can place a braille marker at each
     elements.forEach((el, i) => {
       const marker = String(i + 1)
       const compBbox: Bbox = { x: pts[i].xMm - 5, y: pts[i].yMm - 5, w: 10, h: 10 }
-      occupied.push(compBbox)
-
-      const { normalized: normMarker } = normalizeStemText(marker)
-      const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-      const placed = placeMarkerLabel('bottom', compBbox, footprint, occupied)
-      if (placed) {
-        objects.push({
-          id: `marker-${i}`,
-          role: 'marker',
-          shape: 'marker-label',
-          xMm: placed.xMm,
-          yMm: placed.yMm,
-          marker,
-          bboxMm: placed.bboxMm,
-        })
-        occupied.push(placed.bboxMm)
-      }
+      objects.push({
+        id: `data-pt-${i}`,
+        role: 'component',
+        shape: 'anchor',
+        xMm: pts[i].xMm,
+        yMm: pts[i].yMm,
+        label: elementLabel(el),
+        marker,
+        markerSide: 'bottom',
+        bboxMm: compBbox,
+      })
       key.push(buildKeyEntry(marker, el))
     })
 
     for (let t = 1; t <= 4; t++) {
       const ty = axisY - (t / 4) * axisH
-      objects.push({ id: `ytick-${t}`, role: 'wire', shape: 'axis', xMm: axisX - 3, yMm: ty, points: [{ xMm: axisX - 3, yMm: ty }, { xMm: axisX, yMm: ty }] })
+      const tickPts = [{ xMm: axisX - 3, yMm: ty }, { xMm: axisX, yMm: ty }]
+      objects.push({ id: `ytick-${t}`, role: 'wire', shape: 'axis', xMm: axisX - 3, yMm: ty, points: tickPts, bboxMm: pathBbox(tickPts, 1) })
     }
 
   } else {
@@ -606,6 +625,7 @@ function planAxial(
       const by    = axisY - barH
       const marker = String(i + 1)
 
+      const compBbox: Bbox = { x: bx, y: by, w: barW, h: barH }
       const compObj: TactileObject = {
         id: `bar-${i}`,
         role: 'component',
@@ -616,33 +636,17 @@ function planAxial(
         heightMm: barH,
         label: elementLabel(el),
         marker,
+        markerSide: 'bottom',
+        bboxMm: compBbox,
       }
-      const compBbox: Bbox = { x: bx, y: by, w: barW, h: barH }
-      compObj.bboxMm = compBbox
       objects.push(compObj)
-      occupied.push(compBbox)
-
-      const { normalized: normMarker } = normalizeStemText(marker)
-      const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-      const placed = placeMarkerLabel('bottom', compBbox, footprint, occupied)
-      if (placed) {
-        objects.push({
-          id: `marker-${i}`,
-          role: 'marker',
-          shape: 'marker-label',
-          xMm: placed.xMm,
-          yMm: placed.yMm,
-          marker,
-          bboxMm: placed.bboxMm,
-        })
-        occupied.push(placed.bboxMm)
-      }
       key.push(buildKeyEntry(marker, el))
     })
 
     for (let t = 1; t <= 4; t++) {
       const ty = axisY - (t / 4) * axisH
-      objects.push({ id: `ytick-${t}`, role: 'wire', shape: 'axis', xMm: axisX - 3, yMm: ty, points: [{ xMm: axisX - 3, yMm: ty }, { xMm: axisX, yMm: ty }] })
+      const tickPts = [{ xMm: axisX - 3, yMm: ty }, { xMm: axisX, yMm: ty }]
+      objects.push({ id: `ytick-${t}`, role: 'wire', shape: 'axis', xMm: axisX - 3, yMm: ty, points: tickPts, bboxMm: pathBbox(tickPts, 1) })
     }
   }
 
@@ -660,12 +664,10 @@ const DIRECTION_MAP: Record<string, [number, number]> = {
 function planPositional(
   analysis: DiagramAnalysis,
   dynLayout: DynLayout,
-  initialOccupied: Bbox[],
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
   const { drawY, drawH } = dynLayout
   const { elements, relationships } = analysis
   const meaningful = elements.filter(el => !isNoise(el.type))
-  const occupied: Bbox[] = [...initialOccupied]
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
   let markerIdx = 1
@@ -678,6 +680,7 @@ function planPositional(
     positions.set(el.id, pos)
   })
 
+  // Non-arrow components
   meaningful.forEach(el => {
     const t = el.type.toLowerCase()
     const isArrow = el.visualShape === 'arrow' || t.includes('force') || t.includes('vector') || t.includes('arrow') || t.includes('ray')
@@ -698,30 +701,15 @@ function planPositional(
       heightMm: 22,
       label,
       marker,
+      markerSide: 'top',
+      bboxMm: undefined,
     }
-    const compBbox = componentBboxMm(compObj)
-    compObj.bboxMm = compBbox
+    compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
-    occupied.push(compBbox)
-
-    const { normalized: normMarker } = normalizeStemText(marker)
-    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-    const placed = placeMarkerLabel('top', compBbox, footprint, occupied)
-    if (placed) {
-      objects.push({
-        id: `marker-obj-${el.id}`,
-        role: 'marker',
-        shape: 'marker-label',
-        xMm: placed.xMm,
-        yMm: placed.yMm,
-        marker,
-        bboxMm: placed.bboxMm,
-      })
-      occupied.push(placed.bboxMm)
-    }
     key.push(buildKeyEntry(marker, el))
   })
 
+  // Arrow / vector objects — bboxMm set so placeAllMarkers can avoid and label them
   for (const rel of relationships) {
     const from = positions.get(rel.from)
     if (!from) continue
@@ -746,15 +734,18 @@ function planPositional(
     const forceEl = meaningful.find(e => e.id === rel.to) ?? meaningful.find(e => e.id === rel.from)
     const label = forceEl ? elementLabel(forceEl) : rel.label ?? rel.type
 
+    const arrowPts = [{ xMm: from.xMm, yMm: from.yMm }, { xMm: ex, yMm: ey }]
     objects.push({
       id: `arrow-${rel.from}-${rel.to}`,
       role: 'component',
       shape: 'arrow',
       xMm: from.xMm,
       yMm: from.yMm,
-      points: [{ xMm: from.xMm, yMm: from.yMm }, { xMm: ex, yMm: ey }],
+      points: arrowPts,
       label,
       marker,
+      markerSide: 'right',
+      bboxMm: pathBbox(arrowPts, 2),
     })
     if (forceEl) key.push(buildKeyEntry(marker, forceEl))
   }
@@ -767,24 +758,39 @@ function planPositional(
 function planDirectional(
   analysis: DiagramAnalysis,
   dynLayout: DynLayout,
-  initialOccupied: Bbox[],
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
   const { drawY, drawH } = dynLayout
   const { elements, relationships } = analysis
   const meaningful = elements.filter(el => !isNoise(el.type))
-  const occupied: Bbox[] = [...initialOccupied]
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
   const sorted = [...meaningful].sort((a, b) => (a.position?.x ?? 0.5) - (b.position?.x ?? 0.5))
 
+  // Pass 1: resolve all positions
   const posMap = new Map<string, { xMm: number; yMm: number }>()
   sorted.forEach((el, idx) => {
     const pos = el.position
       ? { xMm: DRAW_X + el.position.x * DRAW_W, yMm: drawY + el.position.y * drawH }
       : gridPosMm(idx, sorted.length, drawY, drawH)
     posMap.set(el.id, pos)
+  })
 
+  // Pass 2: build connections (paths known before marker placement)
+  const connections: TactileConnection[] = []
+  for (const rel of relationships) {
+    const fp = posMap.get(rel.from)
+    const tp = posMap.get(rel.to)
+    if (!fp || !tp) continue
+    const path = rel.waypoints && rel.waypoints.length > 0
+      ? [fp, ...rel.waypoints.map(w => ({ xMm: DRAW_X + w.x * DRAW_W, yMm: drawY + w.y * drawH })), tp]
+      : [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp]
+    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path })
+  }
+
+  // Pass 3: create component objects with marker/markerSide (placeAllMarkers runs after)
+  sorted.forEach((el, idx) => {
+    const pos = posMap.get(el.id)!
     const marker = String(idx + 1)
     const label = elementLabel(el)
     const compObj: TactileObject = {
@@ -796,42 +802,13 @@ function planDirectional(
       yMm: pos.yMm,
       label,
       marker,
+      markerSide: 'top',
+      bboxMm: undefined,
     }
-    const compBbox = componentBboxMm(compObj)
-    compObj.bboxMm = compBbox
+    compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
-    occupied.push(compBbox)
-
-    const { normalized: normMarker } = normalizeStemText(marker)
-    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-    const placed = placeMarkerLabel('top', compBbox, footprint, occupied)
-    if (placed) {
-      objects.push({
-        id: `marker-${el.id}`,
-        role: 'marker',
-        shape: 'marker-label',
-        xMm: placed.xMm,
-        yMm: placed.yMm,
-        marker,
-        bboxMm: placed.bboxMm,
-      })
-      occupied.push(placed.bboxMm)
-    }
     key.push(buildKeyEntry(marker, el))
   })
-
-  const connections: TactileConnection[] = []
-  for (const rel of relationships) {
-    const fp = posMap.get(rel.from)
-    const tp = posMap.get(rel.to)
-    if (!fp || !tp) continue
-
-    const path = rel.waypoints && rel.waypoints.length > 0
-      ? [fp, ...rel.waypoints.map(w => ({ xMm: DRAW_X + w.x * DRAW_W, yMm: drawY + w.y * drawH })), tp]
-      : [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp]
-
-    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path })
-  }
 
   return { layout: 'directional', objects, connections, key, transcriberNotes: [] }
 }
@@ -841,18 +818,32 @@ function planDirectional(
 function planGrid(
   analysis: DiagramAnalysis,
   dynLayout: DynLayout,
-  initialOccupied: Bbox[],
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
   const { drawY, drawH } = dynLayout
   const meaningful = analysis.elements.filter(el => !isNoise(el.type))
-  const occupied: Bbox[] = [...initialOccupied]
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
-  meaningful.forEach((el, idx) => {
-    const pos = el.position
+  // Pass 1: resolve all positions
+  const positions = meaningful.map((el, idx) =>
+    el.position
       ? { xMm: DRAW_X + el.position.x * DRAW_W, yMm: drawY + el.position.y * drawH }
       : gridPosMm(idx, meaningful.length, drawY, drawH)
+  )
+
+  // Pass 2: build connections (paths known before marker placement)
+  const connections: TactileConnection[] = []
+  for (const rel of analysis.relationships) {
+    const fi = meaningful.findIndex(e => e.id === rel.from)
+    const ti = meaningful.findIndex(e => e.id === rel.to)
+    if (fi < 0 || ti < 0) continue
+    const fp = positions[fi], tp = positions[ti]
+    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
+  }
+
+  // Pass 3: create component objects (placeAllMarkers runs after)
+  meaningful.forEach((el, idx) => {
+    const pos = positions[idx]
     const marker = String(idx + 1)
     const label = elementLabel(el)
 
@@ -865,43 +856,13 @@ function planGrid(
       yMm: pos.yMm,
       label,
       marker,
+      markerSide: 'top',
+      bboxMm: undefined,
     }
-    const compBbox = componentBboxMm(compObj)
-    compObj.bboxMm = compBbox
+    compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
-    occupied.push(compBbox)
-
-    const { normalized: normMarker } = normalizeStemText(marker)
-    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
-    const placed = placeMarkerLabel('top', compBbox, footprint, occupied)
-    if (placed) {
-      objects.push({
-        id: `marker-${el.id}`,
-        role: 'marker',
-        shape: 'marker-label',
-        xMm: placed.xMm,
-        yMm: placed.yMm,
-        marker,
-        bboxMm: placed.bboxMm,
-      })
-      occupied.push(placed.bboxMm)
-    }
     key.push(buildKeyEntry(marker, el))
   })
-
-  const connections: TactileConnection[] = []
-  for (const rel of analysis.relationships) {
-    const fi = meaningful.findIndex(e => e.id === rel.from)
-    const ti = meaningful.findIndex(e => e.id === rel.to)
-    if (fi < 0 || ti < 0) continue
-    const fp = meaningful[fi].position
-      ? { xMm: DRAW_X + meaningful[fi].position!.x * DRAW_W, yMm: drawY + meaningful[fi].position!.y * drawH }
-      : gridPosMm(fi, meaningful.length, drawY, drawH)
-    const tp = meaningful[ti].position
-      ? { xMm: DRAW_X + meaningful[ti].position!.x * DRAW_W, yMm: drawY + meaningful[ti].position!.y * drawH }
-      : gridPosMm(ti, meaningful.length, drawY, drawH)
-    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
-  }
 
   return { layout: 'grid', objects, connections, key, transcriberNotes: [] }
 }
@@ -927,7 +888,7 @@ export function buildTactilePlan(analysis: DiagramAnalysis): TactilePlan {
 
   // 3. Derive dynamic layout constants
   const drawY = MARGIN + Math.max(actualTitleH, KEY_LINE_H) + 4
-  const keySepY = PAGE_H - MARGIN - KEY_ENTRY_TOTAL - KEY_HEADER_H - 5
+  let keySepY = PAGE_H - MARGIN - KEY_ENTRY_TOTAL - KEY_HEADER_H - 5
   let drawH = keySepY - 5 - drawY
 
   if (drawH < 80) {
@@ -937,6 +898,8 @@ export function buildTactilePlan(analysis: DiagramAnalysis): TactilePlan {
       message: `Drawing area is only ${drawH.toFixed(0)}mm tall — diagram may be cramped.`,
     })
     drawH = Math.max(drawH, 80)
+    // Recompute keySepY so the renderer, occupied zones, and validation all agree
+    keySepY = drawY + drawH + 5
   }
 
   const dynLayout: DynLayout = { drawY, drawH, keySepY }
@@ -952,14 +915,18 @@ export function buildTactilePlan(analysis: DiagramAnalysis): TactilePlan {
   // 5. Call layout function
   let partial: Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'>
   switch (analysis.layoutHint) {
-    case 'cyclic':      partial = planCyclic(analysis, warnings, dynLayout, initialOccupied); break
-    case 'axial':       partial = planAxial(analysis, dynLayout, initialOccupied); break
-    case 'positional':  partial = planPositional(analysis, dynLayout, initialOccupied); break
-    case 'directional': partial = planDirectional(analysis, dynLayout, initialOccupied); break
-    default:            partial = planGrid(analysis, dynLayout, initialOccupied); break
+    case 'cyclic':      partial = planCyclic(analysis, warnings, dynLayout); break
+    case 'axial':       partial = planAxial(analysis, dynLayout); break
+    case 'positional':  partial = planPositional(analysis, dynLayout); break
+    case 'directional': partial = planDirectional(analysis, dynLayout); break
+    default:            partial = planGrid(analysis, dynLayout); break
   }
 
-  // 6. Set actual heightMm on key entries using computed text
+  // 6. Universal marker placement — runs after all geometry is known
+  const markerObjects = placeAllMarkers(partial.objects, partial.connections, initialOccupied)
+  partial.objects.push(...markerObjects)
+
+  // 7. Set actual heightMm on key entries using computed text
   for (const entry of partial.key) {
     const lineText = `${entry.marker} ${entry.normalizedText}`
     entry.heightMm = brailleFootprintMm(lineText, PAGE_W - 2 * MARGIN).heightMm
