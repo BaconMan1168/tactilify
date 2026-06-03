@@ -3,24 +3,27 @@ export const DIAGRAM_ANALYSIS_PROMPT = `You are an accessibility expert analyzin
 Analyze the provided diagram image and return a JSON object with exactly this shape:
 
 {
-  "type": "circuit" | "graph" | "free-body" | "unknown",
+  "layoutHint": "cyclic" | "axial" | "directional" | "positional" | "none",
   "title": "Brief descriptive title of the diagram",
   "summary": "2-3 sentence plain-language description of what the diagram shows",
   "elements": [
     {
       "id": "short-unique-id",
-      "label": "Human-readable label, e.g. '9V Battery'",
-      "type": "component type, e.g. battery | resistor | capacitor | bulb | switch | wire | bar | line | axis | force-vector | object | label",
-      "value": "optional measurement value, e.g. '9V' or '100Ω' or '32N'",
-      "position": { "x": 0.5, "y": 0.3 }
+      "label": "Human-readable name, e.g. '9V Battery' or 'Gravitational Force' or 'Convex Lens'",
+      "type": "free-text domain type, e.g. battery | resistor | force | lens | bar | data-point",
+      "value": "optional quantity with unit, e.g. '9V' or '100Ω' or '32N downward' or '45°'",
+      "position": { "x": 0.5, "y": 0.3 },
+      "visualShape": "rect" | "circle" | "diamond" | "ellipse" | "arrow"
     }
   ],
   "relationships": [
     {
       "from": "element-id",
       "to": "element-id",
-      "type": "connected-to | greater-than | acts-on | attached-to | labeled",
-      "label": "optional description"
+      "type": "connected-to | acts-on | reacts-with | light-ray | flows-to",
+      "label": "optional description",
+      "directed": true,
+      "waypoints": []
     }
   ],
   "narration": [
@@ -33,13 +36,17 @@ Analyze the provided diagram image and return a JSON object with exactly this sh
 }
 
 Rules:
-- Assign every element a short unique id (e.g. "bat1", "r1", "r2", "bar-a", "f-gravity")
-- Position values are normalised 0–1 coordinates (0 = left/top, 1 = right/bottom), approximate is fine
-- Narration must walk through the diagram logically from start to finish, one step per element
+- Assign every element a short unique id (e.g. "bat1", "r1", "f-gravity", "bar-a", "lens1")
+- position values are normalised 0–1 coordinates (0 = left/top, 1 = right/bottom) relative to the diagram bounds
+- visualShape: pick the closest match — rect for most components, circle for round elements, diamond for junctions/decisions, arrow for force vectors/rays/flow directions
+- directed: true if the connection has an arrowhead, false if it is a plain wire or bidirectional line
+- waypoints: list intermediate bend points (normalised 0–1) only for bent or curved connections; leave empty otherwise
+- Narration must walk through the diagram logically from start to finish, one step per meaningful element
 - Return ONLY the raw JSON — no markdown code fences, no commentary, nothing else
 
-Diagram type guide:
-- circuit: electrical components — batteries, resistors, capacitors, bulbs, switches, wires
-- graph: charts with axes and data — bar charts, line graphs, pie charts
-- free-body: objects with labelled force vectors showing direction and magnitude
-- unknown: use this if the image is not clearly one of the above`
+layoutHint guide:
+- cyclic: connections form a closed loop (circuit diagrams, metabolic cycles, circular flow charts)
+- axial: the diagram has coordinate axes with labeled scale (bar charts, line graphs, pie charts, titration curves, decay curves, scatter plots)
+- directional: connections are arrows without a dominant cycle (reaction mechanisms, logic gate chains, signal flow diagrams, flowcharts)
+- positional: element positions and orientations carry spatial meaning (free-body diagrams, ray diagrams, electric field lines, momentum diagrams)
+- none: no clear spatial structure, or the diagram does not fit the above (orbital diagrams, Punnett squares, periodic table regions, structural formulas)`
