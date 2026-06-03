@@ -3,10 +3,8 @@ import { optimize } from 'svgo'
 import type { DiagramAnalysis } from '@/types/diagram'
 import type { TactileObject } from '@/types/tactile'
 import { encodeBraille, normalizeStemText } from '@/lib/braille'
-import {
-  buildTactilePlan,
-  KEY_START_Y, KEY_LINE_H, KEY_MAX_LINES, KEY_SEP_Y, TITLE_Y, MARGIN, PAGE_W, WIRE_SW,
-} from '@/lib/svg/tactilePlanner'
+import { CELL_W, LINE_H } from '@/lib/brailleMetrics'
+import { buildTactilePlan, MARGIN, PAGE_W, WIRE_SW } from '@/lib/svg/tactilePlanner'
 
 type El = ReturnType<typeof create>
 
@@ -16,14 +14,7 @@ function f(v: number): string { return v.toFixed(1) }
 
 // ── Braille dot geometry (physical standard spacing, all in mm) ───────────────
 
-const B = {
-  dotR: 0.7,
-  hStep: 2.5,
-  vStep: 2.5,
-  cellW: 6.0,
-  lineH: 10.0,
-}
-
+const DOT_R    = 0.7
 const DOT_OFFSETS = [
   { bit: 0x01, dx: 0,   dy: 0   },
   { bit: 0x02, dx: 0,   dy: 2.5 },
@@ -40,7 +31,7 @@ function drawBrailleChar(parent: El, char: string, xMm: number, yMm: number) {
   if (bits === 0) return
   for (const { bit, dx, dy } of DOT_OFFSETS) {
     if (bits & bit) {
-      parent.ele('circle', { cx: f(xMm + dx), cy: f(yMm + dy), r: f(B.dotR), fill: '#000000' }).up()
+      parent.ele('circle', { cx: f(xMm + dx), cy: f(yMm + dy), r: f(DOT_R), fill: '#000000' }).up()
     }
   }
 }
@@ -49,7 +40,7 @@ function drawBrailleString(parent: El, brailleStr: string, xMm: number, yMm: num
   let x = xMm
   for (const ch of brailleStr) {
     drawBrailleChar(parent, ch, x, yMm)
-    x += B.cellW
+    x += CELL_W
   }
   return x - xMm
 }
@@ -69,7 +60,7 @@ function renderBrailleText(
   for (const word of words) {
     const candidate = current ? current + ' ' + word : word
     const braille = encodeBraille(candidate)
-    if (braille.length * B.cellW > maxWidthMm && current) {
+    if (braille.length * CELL_W > maxWidthMm && current) {
       lines.push(current)
       current = word
     } else {
@@ -82,7 +73,7 @@ function renderBrailleText(
   const limit = Math.min(lines.length, maxLines)
   for (let i = 0; i < limit; i++) {
     drawBrailleString(parent, encodeBraille(lines[i]), xMm, curY)
-    curY += B.lineH
+    curY += LINE_H
   }
   return curY - yMm
 }
@@ -96,12 +87,7 @@ const SW_ARROW     = '0.7'
 const FILL_NONE    = 'none'
 const INK          = '#000000'
 
-const HALF_ALONG = 13
-
 // ── Generic labeled shape drawing ─────────────────────────────────────────────
-// Every component is rendered as an outline shape with:
-//   - English label inside (sighted technician reference)
-//   - Braille label dots rendered by the separate marker-label object
 
 function line(parent: El, x1: number, y1: number, x2: number, y2: number, sw = SW_WIRE) {
   parent.ele('line', { x1: f(x1), y1: f(y1), x2: f(x2), y2: f(y2), stroke: INK, 'stroke-width': sw }).up()
@@ -110,9 +96,9 @@ function line(parent: El, x1: number, y1: number, x2: number, y2: number, sw = S
 function drawLabeledShape(g: El, obj: TactileObject) {
   const cx = obj.xMm
   const cy = obj.yMm
-  // Truncate label to fit visually inside the shape
-  const raw = obj.label ?? ''
-  const display = raw.length > 11 ? raw.slice(0, 10) + '…' : raw
+  const prefix = obj.marker ? `#${obj.marker} ` : ''
+  const combined = prefix + (obj.label ?? '')
+  const display = combined.length > 11 ? combined.slice(0, 10) + '…' : combined
 
   switch (obj.shape) {
     case 'rect': {
@@ -145,14 +131,12 @@ function drawLabeledShape(g: El, obj: TactileObject) {
       break
     }
     default:
-      // Unknown generic shape — fall back to rect
       g.ele('rect', {
         x: f(cx - 14), y: f(cy - 7), width: '28', height: '14', rx: '2',
         fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
       }).up()
   }
 
-  // English label centered inside the shape
   g.ele('text', {
     x: f(cx),
     y: f(cy + 1),
@@ -164,17 +148,15 @@ function drawLabeledShape(g: El, obj: TactileObject) {
   }).txt(display).up()
 }
 
-// ── Arrow drawing (force vectors, rays, directed flows) ───────────────────────
+// ── Arrow drawing ─────────────────────────────────────────────────────────────
 
 function drawArrow(svg: El, obj: TactileObject) {
   const pts = obj.points
   if (!pts || pts.length < 2) return
 
-  // Draw the shaft as a polyline
   const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
   svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_ARROW }).up()
 
-  // Arrowhead at last point
   const p1 = pts[pts.length - 2]
   const p2 = pts[pts.length - 1]
   const angle = Math.atan2(p2.yMm - p1.yMm, p2.xMm - p1.xMm)
@@ -211,7 +193,6 @@ function drawLineChart(svg: El, obj: TactileObject) {
   if (!pts || pts.length < 2) return
   const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
   svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Mark each data point with a small filled diamond
   for (const pt of pts) {
     const s = 2.5
     const dPts = `${f(pt.xMm)},${f(pt.yMm - s)} ${f(pt.xMm + s)},${f(pt.yMm)} ${f(pt.xMm)},${f(pt.yMm + s)} ${f(pt.xMm - s)},${f(pt.yMm)}`
@@ -247,11 +228,10 @@ function drawWire(svg: El, obj: TactileObject) {
 }
 
 // ── Marker / Braille label rendering ─────────────────────────────────────────
-// Renders obj.label (the element's English label) as Braille dots at the object position.
-// Falls back to obj.marker (the key reference number) if no label is set.
+// Uses obj.marker (short numeric key reference) first; falls back to obj.label.
 
 function drawMarker(parent: El, obj: TactileObject) {
-  const text = obj.label ?? obj.marker ?? ''
+  const text = obj.marker ?? obj.label ?? ''
   if (!text) return
   const { normalized } = normalizeStemText(text)
   const braille = encodeBraille(normalized)
@@ -296,7 +276,6 @@ function drawObject(svg: El, obj: TactileObject) {
     }
   }
 
-  // Component shapes
   switch (obj.shape) {
     case 'rect':
     case 'circle':
@@ -322,45 +301,46 @@ function drawObject(svg: El, obj: TactileObject) {
 // ── Key section ───────────────────────────────────────────────────────────────
 
 function drawKey(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
-  const { key, page } = plan
+  const { key, page, drawingArea } = plan
   if (key.length === 0) return
 
   const kx = MARGIN
+  // Derive separator position from drawing area (planner guarantees this relationship)
+  const keySepY = drawingArea.yMm + drawingArea.heightMm + 5
+  const keyStartY = keySepY + 10  // KEY_HEADER_H = 10mm
 
   svg.ele('line', {
-    x1: f(MARGIN), y1: f(KEY_SEP_Y),
-    x2: f(page.widthMm - MARGIN), y2: f(KEY_SEP_Y),
+    x1: f(MARGIN), y1: f(keySepY),
+    x2: f(page.widthMm - MARGIN), y2: f(keySepY),
     stroke: INK, 'stroke-width': '0.3',
   }).up()
 
-  drawBrailleString(svg, encodeBraille('key'), kx, KEY_SEP_Y + 2)
+  drawBrailleString(svg, encodeBraille('key'), kx, keySepY + 2)
 
-  let y = KEY_START_Y
+  let y = keyStartY
   const maxLineW = page.widthMm - 2 * MARGIN
-  const limit = Math.min(key.length, KEY_MAX_LINES)
 
-  for (let i = 0; i < limit; i++) {
-    const entry = key[i]
+  for (const entry of key) {
+    if (y + entry.heightMm > page.heightMm - MARGIN) {
+      drawBrailleString(svg, encodeBraille('see attached key'), kx, y)
+      break
+    }
     const lineText = `${entry.marker} ${entry.normalizedText}`
-    const wrapH = renderBrailleText(svg, lineText, kx, y, maxLineW)
-    y += Math.max(wrapH, KEY_LINE_H)
-    if (y + KEY_LINE_H > page.heightMm - MARGIN) break
-  }
-
-  if (key.length > limit) {
-    drawBrailleString(svg, encodeBraille('see attached key'), kx, y)
+    renderBrailleText(svg, lineText, kx, y, maxLineW)
+    y += entry.heightMm
   }
 }
 
 // ── Transcriber notes ─────────────────────────────────────────────────────────
 
 function drawTranscriberNotes(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
-  const { transcriberNotes } = plan
+  const { transcriberNotes, drawingArea } = plan
   if (transcriberNotes.length === 0) return
+  const keySepY = drawingArea.yMm + drawingArea.heightMm + 5
   const note = transcriberNotes[0].slice(0, 120)
   svg.ele('text', {
     x: f(MARGIN),
-    y: f(KEY_SEP_Y - 3),
+    y: f(keySepY - 3),
     'font-size': '3.5',
     'font-family': 'sans-serif',
     fill: '#555555',
@@ -383,7 +363,7 @@ export function renderTactile(analysis: DiagramAnalysis): string {
   doc.ele('rect', { x: '0', y: '0', width: f(PAGE_W), height: f(plan.page.heightMm), fill: '#ffffff' }).up()
 
   const { normalized: normTitle } = normalizeStemText(plan.title)
-  renderBrailleText(doc, normTitle, MARGIN, TITLE_Y, PAGE_W - 2 * MARGIN, 2)
+  renderBrailleText(doc, normTitle, MARGIN, MARGIN, PAGE_W - 2 * MARGIN, 2)
 
   for (const obj of plan.objects) {
     drawObject(doc, obj)
