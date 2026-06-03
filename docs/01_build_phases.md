@@ -45,7 +45,7 @@ Send the preprocessed image to Claude Vision via a Next.js API route. Claude cla
 - Define Zod schemas in `src/types/diagram.ts` — these are the source of truth for `DiagramAnalysis` and all sub-types
 - In the API route: send image to Claude → run response through `jsonrepair` → validate with Zod schema → return typed JSON
 - Wrap Claude call in `p-retry` (3 attempts, exponential backoff) for transient failures
-- Handle the three diagram types with type-discriminated Zod schemas
+- Classify into a rendering category (`connected-graph`, `chart`, `vector-field`, `spatial`, `other`) — not a closed list of domain types
 - Return structured JSON to the client; display raw JSON in a collapsible debug panel (dev only)
 - Loading state shows a `sonner` toast: "Analyzing your diagram…"
 - Error states surface as `sonner` toast errors with retry affordance
@@ -56,35 +56,58 @@ Send the preprocessed image to Claude Vision via a Next.js API route. Claude cla
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
 
-export const DiagramTypeSchema = z.enum(['circuit', 'graph', 'free-body', 'unknown'])
+// Rendering category — drives layout algorithm. Not a closed list of science domains.
+// 'connected-graph': circuits, logic gates, flowcharts, reaction mechanisms
+// 'chart':           bar, line, pie, titration curves, decay curves, scatter plots
+// 'vector-field':    free-body, ray diagrams, electric field lines, momentum diagrams
+// 'spatial':         orbital diagrams, crystal structures, atomic models, Punnett squares
+// 'other':           fallback grid layout
+export const DiagramCategorySchema = z.enum([
+  'connected-graph',
+  'chart',
+  'vector-field',
+  'spatial',
+  'other',
+])
 
 export const DiagramElementSchema = z.object({
   id: z.string().default(() => nanoid()),
-  label: z.string(),                          // e.g. "9V Battery"
-  type: z.string(),                           // e.g. "battery", "resistor", "bar", "force-vector"
-  value: z.string().optional(),               // e.g. "9V", "100Ω", "32N"
-  position: z.object({                        // Normalised 0–1 position
+  label: z.string(),          // e.g. "9V Battery", "Resistor", "Gravitational Force"
+  type: z.string(),           // free-text domain type from Claude, e.g. "battery", "bar", "lens"
+  value: z.string().optional(),              // e.g. "9V", "100Ω", "32N"
+  position: z.object({                       // Normalised 0–1 centroid position
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
   }).optional(),
-  brailleLabel: z.string().optional(),        // Populated by braille.ts in Phase 5
+  visualShape: z.enum(['rect', 'circle', 'diamond', 'arrow', 'arc', 'path']).optional(),
+  boundingBox: z.object({                    // Normalised 0–1 bounding box
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(0).max(1),
+    h: z.number().min(0).max(1),
+  }).optional(),
 })
 
 export const RelationshipSchema = z.object({
-  from: z.string(),                           // element id
-  to: z.string(),                             // element id
-  type: z.string(),                           // e.g. "connected-to", "greater-than", "acts-on"
+  from: z.string(),                          // element id
+  to: z.string(),                            // element id
+  type: z.string(),                          // e.g. "connected-to", "acts-on", "reacts-with"
   label: z.string().optional(),
+  directed: z.boolean().optional(),          // true → render arrowhead on tactile line
+  geometry: z.array(z.object({              // intermediate waypoints (normalised 0–1)
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+  })).optional(),
 })
 
 export const NarrationStepSchema = z.object({
   order: z.number().int().positive(),
-  text: z.string(),                           // Full TTS sentence
-  elementId: z.string().optional(),           // Links step to a diagram element
+  text: z.string(),                          // Full TTS sentence
+  elementId: z.string().optional(),          // Links step to a diagram element
 })
 
 export const DiagramAnalysisSchema = z.object({
-  type: DiagramTypeSchema,
+  type: DiagramCategorySchema,
   title: z.string(),
   summary: z.string(),
   elements: z.array(DiagramElementSchema),
@@ -92,6 +115,7 @@ export const DiagramAnalysisSchema = z.object({
   narration: z.array(NarrationStepSchema),
 })
 
+export type DiagramCategory = z.infer<typeof DiagramCategorySchema>
 export type DiagramAnalysis = z.infer<typeof DiagramAnalysisSchema>
 export type DiagramElement = z.infer<typeof DiagramElementSchema>
 export type Relationship = z.infer<typeof RelationshipSchema>
@@ -102,6 +126,7 @@ export type NarrationStep = z.infer<typeof NarrationStepSchema>
 - [ ] `/api/analyze` returns valid, Zod-validated `DiagramAnalysis` JSON for a circuit diagram test image
 - [ ] `/api/analyze` returns valid JSON for a bar chart test image
 - [ ] `/api/analyze` returns valid JSON for a free-body diagram test image
+- [ ] `/api/analyze` returns valid JSON for a diagram outside the three common types (e.g. ray diagram)
 - [ ] `jsonrepair` handles a deliberately malformed Claude response without crashing
 - [ ] `p-retry` retries on transient 5xx errors; logs retry attempts
 - [ ] Zod types are the single source of truth — no separate `interface` declarations
@@ -151,15 +176,17 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo`:
 - Build `TactileRenderer` using `xmlbuilder2`:
   - All fills removed (stroke only, min 2pt stroke-width)
   - No color — pure black strokes on white
-  - Labels replaced with `braille.ts`-encoded Unicode Braille characters
-  - Standard tactile symbol conventions for circuit elements where possible
+  - Every element rendered as its `visualShape` (or `rect` by default): circle, diamond, arc, arrow, path
+  - English label printed in readable text beside or inside each shape (for sighted reviewers)
+  - Braille label encoded via `braille.ts` placed outside the shape, below or to the right
+  - No domain-specific symbols (no IEC circuit glyphs, no scientific icons) — generic shapes only
   - ViewBox sized to A4 (794×1123px at 96dpi)
 - Run output through `svgo`
 - Add "Download Tactile SVG" button with `sonner` toast
 - On-screen note: "Optimised for swell-paper or tactile embossing printers. Print at 100% scale."
 
 ### Definition of done ✅
-- [ ] Tactile SVG renders for all three diagram types
+- [ ] Tactile SVG renders for circuit, chart, free-body, and an unknown diagram type
 - [ ] All labels are Unicode Braille (verified character by character against braille chart)
 - [ ] SVG has no fill colors — stroke only, confirmed by `svgo` output inspection
 - [ ] ViewBox is A4 proportioned (794×1123)

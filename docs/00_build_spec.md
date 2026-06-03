@@ -13,17 +13,25 @@ Tactilify accepts a photo or file upload of a STEM diagram and returns four acce
 |---|---|---|
 | Audio walkthrough | Blind students | Claude-generated narration, spoken via Web Speech API or OpenAI TTS, walking through each component and its relationships |
 | High-contrast SVG | Low-vision students | Simplified diagram with bold outlines, high-contrast fill, large labels — rendered in-browser |
-| Tactile/braille-print SVG | Blind students (physical) | Clean outline SVG with braille-encoded labels, suitable for swell-paper embossing or tactile printer output |
+| Tactile/braille-print SVG | Blind students (physical) | Clean outline SVG using generic shapes (rect, circle, diamond, arc, arrow) with English labels inside and Braille dot labels outside each shape — suitable for swell-paper embossing or tactile printer output |
 | Navigable diagram map | Blind/low-vision students | Keyboard and screen-reader navigable interface; student moves through diagram elements one by one with arrow keys |
 
 ## Target users
 - **Primary:** Blind and low-vision K–12 and university students
 - **Secondary:** Teachers and accessibility coordinators who need to produce accessible STEM materials quickly
 
-## Diagram types supported (v1)
-1. **Circuit diagrams** — batteries, resistors, LEDs, capacitors, switches, wires, junctions
-2. **Graphs and charts** — bar charts, line graphs, pie charts; axes, labels, scales, data trends
-3. **Free-body diagrams** — objects, force vectors, labels (e.g. gravity, normal, tension), directions
+## Diagram types supported
+Any STEM diagram a student or teacher might encounter. The app does not hard-code a fixed list of diagram types. Claude Vision classifies each upload into a **rendering category** that drives layout:
+
+| Category | Examples |
+|---|---|
+| `connected-graph` | Circuit diagrams, logic gate diagrams, flowcharts, reaction mechanism arrows |
+| `chart` | Bar charts, line graphs, pie charts, titration curves, decay curves, scatter plots |
+| `vector-field` | Free-body diagrams, ray diagrams, electric field lines, momentum diagrams |
+| `spatial` | Orbital diagrams, crystal structures, atomic models, Punnett squares |
+| `other` | Anything else — falls back to a labelled grid layout |
+
+The tactile renderer does not use domain-specific symbols (e.g. IEC circuit glyphs). Every element is rendered as a generic shape (rect, circle, diamond, arc, arrow) with its English label and Braille label placed outside the shape. This keeps the renderer extensible to new diagram types without code changes.
 
 ## Core AI pipeline
 ```
@@ -65,10 +73,11 @@ The LLM is only the narrator and extractor. The core technical work is:
 - Color is never the sole means of conveying information
 
 ## Success criteria for hackathon demo
-1. Upload a circuit diagram → app correctly identifies it as a circuit, narrates components, produces all four outputs
+1. Upload a circuit diagram → app correctly identifies it, narrates components, produces all four outputs
 2. Upload a bar chart → app reads axes and data correctly, produces accessible outputs
 3. Upload a free-body diagram → app identifies forces and directions correctly
-4. All four output panels visible and functional in one UI
-5. Audio plays without error on click
-6. Tactile SVG downloads as a valid `.svg` file
-7. Navigable map responds to arrow keys and announces elements via screen reader
+4. Upload a diagram outside the three common types (e.g. ray diagram, titration curve) → app produces a usable accessible output using the generic renderer
+5. All four output panels visible and functional in one UI
+6. Audio plays without error on click
+7. Tactile SVG downloads as a valid `.svg` file — every element has an English label and a Braille label
+8. Navigable map responds to arrow keys and announces elements via screen reader

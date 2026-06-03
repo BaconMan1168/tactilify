@@ -33,9 +33,14 @@ A student or teacher uploads or photographs a STEM diagram. The app uses Claude 
 Update `docs/05_current_phase.md` to reflect the next phase. Mark the completed phase's definition of done as ✅.
 
 ## Diagram types supported
-- Circuit diagrams (batteries, resistors, capacitors, inductors, bubls, switches, wires, etc.)
-- Graphs and charts (bar, line, pie — axes, labels, data trends)
-- Free-body diagrams (objects, force vectors, labels, directions)
+Any STEM diagram. Claude classifies uploads into a **rendering category** (not a fixed domain list):
+- `connected-graph` — circuits, logic gates, flowcharts, reaction mechanisms
+- `chart` — bar, line, pie, titration curves, scatter plots, decay curves
+- `vector-field` — free-body, ray diagrams, electric field lines
+- `spatial` — orbital diagrams, atomic models, crystal structures
+- `other` — fallback grid layout
+
+The tactile renderer uses **generic shapes only** (rect, circle, diamond, arc, arrow) with an English label and a Braille label placed outside each shape. No IEC symbols or domain-specific icons.
 
 ## Key APIs
 - **Claude Vision** (`claude-opus-4-5` or `claude-sonnet-4-6`) — diagram parsing, object/relationship extraction, narration generation

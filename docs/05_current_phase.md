@@ -38,7 +38,7 @@ Before writing any code, read:
 
 ## Phase 4 task summary
 
-Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` (via `/api/tactile` server route): outline-only strokes, no fills, braille-encoded labels via `braille.ts`. A4 sized for direct swell-paper printing. Per-type element symbols (circuit uses IEC geometric proxies, graphs use chart shapes, free-body uses arrows). Inline preview with zoom controls (50%–200%) + download button.
+Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` (via `/api/tactile` server route): outline-only strokes, no fills, braille-encoded labels via `braille.ts`. A4 sized for direct swell-paper printing. Each element rendered as a generic shape (rect, circle, diamond, arc, arrow) with English label and Braille label — no domain-specific symbols. Inline preview with zoom controls (50%–200%) + download button.
 
 ### Checklist (Phase 4 — completed)
 - [x] Hand-rolled `braille.ts` ASCII → Unicode Grade 1 Braille encoder

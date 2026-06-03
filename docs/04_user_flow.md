@@ -13,7 +13,7 @@
 │  [ Upload a diagram ]   [ Use camera ]                  │
 │                                                         │
 │  ── or try a sample ──                                  │
-│  [ Circuit ]  [ Bar Chart ]  [ Free-Body ]              │
+│  [ Circuit ]  [ Bar Chart ]  [ Ray Diagram ]            │
 └────────────────────┬────────────────────────────────────┘
                      │ user picks input method
           ┌──────────┴──────────┐
@@ -219,7 +219,7 @@ sonner toast: "Audio downloaded"
 |---|---|
 | Invalid file type | `sonner` toast: "Unsupported file type. Please upload JPEG, PNG, WebP, or PDF." — shown before API call |
 | Image too large (>10MB) | `sonner` toast: "Please upload an image under 10MB." — shown before API call |
-| Claude returns unknown diagram type | `sonner` error toast: "We couldn't identify this diagram type. Try a circuit, graph, or free-body diagram." |
+| Claude returns unreadable diagram | `sonner` error toast: "We couldn't extract diagram data. Try a clearer image or a different diagram." |
 | Zod validation fails after jsonrepair | `sonner` error toast: "Analysis returned unexpected data. Retrying…" — triggers p-retry |
 | API call fails after all retries | `sonner` error toast: "Something went wrong. Please try again." with inline retry button |
 | Camera permission denied | `sonner` toast: "Camera access was denied. Please upload an image instead." |
