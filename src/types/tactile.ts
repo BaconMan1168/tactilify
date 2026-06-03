@@ -3,6 +3,8 @@
 
 import type { LayoutHint } from './diagram'
 
+export type Bbox = { x: number; y: number; w: number; h: number }
+
 export type TactilePlan = {
   page: {
     widthMm: number
@@ -57,6 +59,8 @@ export type TactileObject = {
   points?: { xMm: number; yMm: number }[]
   // Extra data for specialised shapes (pie-sector)
   extra?: Record<string, number | string | boolean>
+  // Placed footprint on page (set by planner; optional for non-blocking objects)
+  bboxMm?: Bbox
 }
 
 export type TactileConnection = {
@@ -71,6 +75,7 @@ export type TactileKeyEntry = {
   elementId: string
   text: string          // raw label + value
   normalizedText: string // after STEM symbol normalisation
+  heightMm: number      // actual rendered height in mm (may span multiple braille lines)
 }
 
 export type TactileValidationIssue = {
