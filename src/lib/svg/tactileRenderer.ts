@@ -89,16 +89,12 @@ const INK          = '#000000'
 
 // ── Generic labeled shape drawing ─────────────────────────────────────────────
 
-function line(parent: El, x1: number, y1: number, x2: number, y2: number, sw = SW_WIRE) {
-  parent.ele('line', { x1: f(x1), y1: f(y1), x2: f(x2), y2: f(y2), stroke: INK, 'stroke-width': sw }).up()
-}
-
 function drawLabeledShape(g: El, obj: TactileObject) {
   const cx = obj.xMm
   const cy = obj.yMm
   const prefix = obj.marker ? `#${obj.marker} ` : ''
   const combined = prefix + (obj.label ?? '')
-  const display = combined.length > 11 ? combined.slice(0, 10) + '…' : combined
+  const display = combined.length > 18 ? combined.slice(0, 17) + '…' : combined
 
   switch (obj.shape) {
     case 'rect': {
@@ -337,7 +333,7 @@ function drawTranscriberNotes(svg: El, plan: ReturnType<typeof buildTactilePlan>
   const { transcriberNotes, drawingArea } = plan
   if (transcriberNotes.length === 0) return
   const keySepY = drawingArea.yMm + drawingArea.heightMm + 5
-  const note = transcriberNotes[0].slice(0, 120)
+  const note = transcriberNotes[0].slice(0, 80)
   svg.ele('text', {
     x: f(MARGIN),
     y: f(keySepY - 3),
