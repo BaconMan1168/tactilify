@@ -344,9 +344,13 @@ export default function HomePage() {
                       <AudioPlayer steps={analysis.narration} />
                     </TabsContent>
 
-                    {/* Tactile / braille SVG — Phase 4 */}
+                    {/* Tactile / braille SVG — Phase 4.5 */}
                     <TabsContent value="tactile">
-                      <TactileSVG analysis={analysis} />
+                      <TactileSVG
+                        analysis={analysis}
+                        imageBase64={image?.base64}
+                        imageMimeType={image?.mimeType}
+                      />
                     </TabsContent>
 
                     {/* Diagram map — Phase 5 placeholder */}
