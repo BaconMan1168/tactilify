@@ -204,3 +204,40 @@ Import `CELL_W` and `LINE_H` from `@/lib/brailleMetrics` and remove the local `B
 | `src/types/tactile.ts` | add `Bbox`, `bboxMm`, `heightMm` |
 | `src/lib/svg/tactilePlanner.ts` | dynamic layout, collision helpers, per-layout updates |
 | `src/lib/svg/tactileRenderer.ts` | drawMarker fix, marker prefix, drawKey hard-stop, import constants |
+
+---
+
+## Documentation updates
+
+These existing docs must be updated as part of implementation (not deferred):
+
+### `docs/02_repo_structure.md`
+
+1. Add `brailleMetrics.ts` under `src/lib/`:
+   ```
+   ├── brailleMetrics.ts    # Braille cell/line footprint calculation (mm)
+   ```
+2. Add `tactile.ts` under `src/types/` (currently missing from the tree):
+   ```
+   ├── tactile.ts           # TactilePlan, TactileObject, Bbox, and related types
+   ```
+3. Add `tactilePlanner.ts` under `src/lib/svg/` (currently missing from the tree):
+   ```
+   └── svg/
+       ├── tactilePlanner.ts    # DiagramAnalysis → collision-resolved TactilePlan
+       └── tactileRenderer.ts   # TactilePlan → A4 SVG string
+   ```
+4. Update the `lib/svg/` convention description to explain the two-stage pipeline:
+   > `tactilePlanner.ts` converts a `DiagramAnalysis` into a `TactilePlan` — a collision-resolved intermediate representation with all positions and bounding boxes in mm. `tactileRenderer.ts` consumes the plan and emits the final SVG string. No layout decisions happen in the renderer.
+
+### `docs/01_build_phases.md` — Phase 4 section
+
+Update the Steps bullet:
+- **Before:** "Braille label encoded via `braille.ts` placed outside the shape, below or to the right"
+- **After:** "Short numeric marker (e.g. braille '1', '2') placed outside the component in the first collision-free candidate position; full label in the keyed legend at the bottom of the page (BANA keyed-label approach)"
+
+### `docs/00_build_spec.md` — Core AI pipeline
+
+Update the tactile step in the data flow:
+- **Before:** "→ Renderer: produce tactile/braille SVG from JSON"
+- **After:** "→ Planner: convert `DiagramAnalysis` to collision-resolved `TactilePlan` (positions, bboxes, key entries) → Renderer: produce A4 SVG from `TactilePlan`"
