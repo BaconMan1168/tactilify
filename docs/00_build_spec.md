@@ -40,7 +40,7 @@ Image input
   → Claude Vision: extract structured object/relationship JSON
   → Claude: generate natural-language narration from JSON
   → Renderer: produce high-contrast SVG from JSON
-  → Planner: convert DiagramAnalysis to collision-resolved TactilePlan (positions, bboxes, key entries)
+  → Planner: convert DiagramAnalysis to TactilePlan (geometry pass: all objects + bboxes; marker pass: universal collision-resolved braille label placement)
   → Renderer: produce A4 SVG from TactilePlan
   → UI: build navigable diagram map from JSON
   → TTS: speak narration via Web Speech API (fallback: OpenAI TTS)

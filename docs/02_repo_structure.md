@@ -51,10 +51,12 @@ tactilify/
 │   │   ├── anthropic.ts               # Anthropic client initialisation (server-only)
 │   │   ├── openai.ts                  # OpenAI client initialisation (server-only)
 │   │   ├── braille.ts                 # ASCII → Unicode Grade 1 Braille encoder
+│   │   ├── braille.test.ts            # Vitest: encodeBraille unit tests
 │   │   ├── brailleMetrics.ts          # Braille cell/line footprint calculation (mm)
+│   │   ├── brailleMetrics.test.ts     # Vitest: footprint, collision placement, key hard-stop
 │   │   ├── prompts.ts                 # All Claude prompt templates (analysis, narration)
 │   │   └── svg/
-│   │       ├── tactilePlanner.ts      # DiagramAnalysis → collision-resolved TactilePlan
+│   │       ├── tactilePlanner.ts      # DiagramAnalysis → TactilePlan (geometry pass + universal marker pass)
 │   │       └── tactileRenderer.ts     # TactilePlan → A4 SVG string
 │   │
 │   └── types/
@@ -67,6 +69,7 @@ tactilify/
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── tsconfig.json
+├── vitest.config.ts                   # Vitest: resolves @/ path alias for test files
 ├── package.json
 └── vercel.json                        # Vercel config (function timeout: 60s for AI routes)
 ```
@@ -82,7 +85,11 @@ All AI calls go through `/api/` routes. The client never calls Anthropic or Open
 - `ui/` — reusable generic UI primitives
 
 ### lib/svg/
-`tactilePlanner.ts` converts a `DiagramAnalysis` into a `TactilePlan` — a collision-resolved intermediate representation with all positions and bounding boxes in mm. `tactileRenderer.ts` consumes the plan and emits the final SVG string. No layout decisions happen in the renderer.
+`tactilePlanner.ts` converts a `DiagramAnalysis` into a `TactilePlan` in two phases:
+1. **Geometry pass** — each layout function (`planCyclic`, `planAxial`, `planPositional`, `planDirectional`, `planGrid`) creates all diagram objects (components, wires, connections, arrows, axes, bars) and sets `bboxMm` on every object. No braille marker labels are placed yet.
+2. **Marker pass** — `placeAllMarkers` runs after the layout function returns. It seeds `occupied` with every geometry bbox (including connection paths), then places a braille marker label for each object that carries a `marker` ref. This guarantees no braille label overlaps any diagram element regardless of layout type. New layout types automatically get collision-safe marker placement for free.
+
+`tactileRenderer.ts` consumes the plan and emits the final SVG string. No layout decisions happen in the renderer.
 
 ### types/diagram.ts
 Single source of truth for all TypeScript types. Both the API route and client components import from here.
