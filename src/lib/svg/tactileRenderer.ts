@@ -10,35 +10,34 @@ import {
 
 type El = ReturnType<typeof create>
 
-// ── SVG coordinate formatter ───────────────────────────────────────────────────
+// ── SVG coordinate formatter ──────────────────────────────────────────────────
 
 function f(v: number): string { return v.toFixed(1) }
 
-// ── Braille dot geometry ───────────────────────────────────────────────────────
-// Physical Braille standard spacing (all in mm)
+// ── Braille dot geometry (physical standard spacing, all in mm) ───────────────
 
 const B = {
-  dotR: 0.7,    // raised-dot radius
-  hStep: 2.5,   // left-column to right-column offset
-  vStep: 2.5,   // inter-row within a cell
-  cellW: 6.0,   // cell advance (left-col center, cell N → cell N+1)
-  lineH: 10.0,  // line advance (top-dot, line N → top-dot, line N+1)
+  dotR: 0.7,
+  hStep: 2.5,
+  vStep: 2.5,
+  cellW: 6.0,
+  lineH: 10.0,
 }
 
 const DOT_OFFSETS = [
-  { bit: 0x01, dx: 0,       dy: 0       },  // dot 1 (top-left)
-  { bit: 0x02, dx: 0,       dy: 2.5     },  // dot 2
-  { bit: 0x04, dx: 0,       dy: 5.0     },  // dot 3
-  { bit: 0x08, dx: 2.5,     dy: 0       },  // dot 4 (top-right)
-  { bit: 0x10, dx: 2.5,     dy: 2.5     },  // dot 5
-  { bit: 0x20, dx: 2.5,     dy: 5.0     },  // dot 6
+  { bit: 0x01, dx: 0,   dy: 0   },
+  { bit: 0x02, dx: 0,   dy: 2.5 },
+  { bit: 0x04, dx: 0,   dy: 5.0 },
+  { bit: 0x08, dx: 2.5, dy: 0   },
+  { bit: 0x10, dx: 2.5, dy: 2.5 },
+  { bit: 0x20, dx: 2.5, dy: 5.0 },
 ]
 
 function drawBrailleChar(parent: El, char: string, xMm: number, yMm: number) {
   const cp = char.codePointAt(0) ?? 0
   if (cp < 0x2800 || cp > 0x28FF) return
   const bits = cp - 0x2800
-  if (bits === 0) return  // blank cell, no dots
+  if (bits === 0) return
   for (const { bit, dx, dy } of DOT_OFFSETS) {
     if (bits & bit) {
       parent.ele('circle', { cx: f(xMm + dx), cy: f(yMm + dy), r: f(B.dotR), fill: '#000000' }).up()
@@ -52,17 +51,16 @@ function drawBrailleString(parent: El, brailleStr: string, xMm: number, yMm: num
     drawBrailleChar(parent, ch, x, yMm)
     x += B.cellW
   }
-  return x - xMm  // width used
+  return x - xMm
 }
 
-// Word-wrap plain normalised text, then render as Braille dots.
-// Returns total height consumed (mm).
 function renderBrailleText(
   parent: El,
   normalizedText: string,
   xMm: number,
   yMm: number,
   maxWidthMm: number,
+  maxLines = Infinity,
 ): number {
   const words = normalizedText.split(' ')
   const lines: string[] = []
@@ -81,96 +79,117 @@ function renderBrailleText(
   if (current) lines.push(current)
 
   let curY = yMm
-  for (const line of lines) {
-    drawBrailleString(parent, encodeBraille(line), xMm, curY)
+  const limit = Math.min(lines.length, maxLines)
+  for (let i = 0; i < limit; i++) {
+    drawBrailleString(parent, encodeBraille(lines[i]), xMm, curY)
     curY += B.lineH
   }
   return curY - yMm
 }
 
-// ── Stroke constants ───────────────────────────────────────────────────────────
+// ── Stroke constants ──────────────────────────────────────────────────────────
 
-const SW_WIRE      = String(WIRE_SW)   // 0.5mm
-const SW_COMPONENT = '0.7'             // component outlines
+const SW_WIRE      = String(WIRE_SW)
+const SW_COMPONENT = '0.7'
 const SW_AXIS      = '0.6'
 const SW_ARROW     = '0.7'
 const FILL_NONE    = 'none'
 const INK          = '#000000'
 
-const HALF_ALONG = 13  // mm — half of component gap in wire direction (matches planner)
+const HALF_ALONG = 13
 
-// ── Component symbol drawing (all horizontal; rotated flag uses SVG transform) ─
+// ── Generic labeled shape drawing ─────────────────────────────────────────────
+// Every component is rendered as an outline shape with:
+//   - English label inside (sighted technician reference)
+//   - Braille label dots rendered by the separate marker-label object
 
 function line(parent: El, x1: number, y1: number, x2: number, y2: number, sw = SW_WIRE) {
   parent.ele('line', { x1: f(x1), y1: f(y1), x2: f(x2), y2: f(y2), stroke: INK, 'stroke-width': sw }).up()
 }
 
-function drawBattery(g: El, cx: number, cy: number) {
-  // Long plate (negative) at cx-5, short plate (positive) at cx+5
-  line(g, cx - HALF_ALONG, cy, cx - 5, cy)          // left wire stub
-  line(g, cx - 5, cy - 7,  cx - 5, cy + 7, '0.9')   // long plate
-  line(g, cx + 5, cy - 4,  cx + 5, cy + 4, '0.5')   // short plate
-  line(g, cx + 5, cy,      cx + HALF_ALONG, cy)      // right wire stub
-}
+function drawLabeledShape(g: El, obj: TactileObject) {
+  const cx = obj.xMm
+  const cy = obj.yMm
+  // Truncate label to fit visually inside the shape
+  const raw = obj.label ?? ''
+  const display = raw.length > 11 ? raw.slice(0, 10) + '…' : raw
 
-function drawResistor(g: El, cx: number, cy: number) {
-  // Single polyline: left stub + zigzag + right stub
-  const pts = [
-    [cx - HALF_ALONG, cy],
-    [cx - 8, cy],
-    [cx - 6, cy - 5], [cx - 2, cy + 5],
-    [cx + 2, cy - 5], [cx + 6, cy + 5],
-    [cx + 8, cy],
-    [cx + HALF_ALONG, cy],
-  ].map(([x, y]) => `${f(x)},${f(y)}`).join(' ')
-  g.ele('polyline', { points: pts, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-}
-
-function drawCapacitor(g: El, cx: number, cy: number) {
-  line(g, cx - HALF_ALONG, cy, cx - 4, cy)          // left wire stub
-  line(g, cx - 4, cy - 8, cx - 4, cy + 8, '0.9')   // left plate
-  line(g, cx + 4, cy - 8, cx + 4, cy + 8, '0.9')   // right plate
-  line(g, cx + 4, cy,     cx + HALF_ALONG, cy)       // right wire stub
-}
-
-function drawInductor(g: El, cx: number, cy: number) {
-  line(g, cx - HALF_ALONG, cy, cx - 10, cy)  // left stub
-  // 4 bumps (arcs), each 5mm wide, spanning cx-10 to cx+10
-  for (let i = 0; i < 4; i++) {
-    const ax = cx - 10 + i * 5
-    g.ele('path', { d: `M ${f(ax)},${f(cy)} a 2.5,2.5 0 0 1 5,0`, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
+  switch (obj.shape) {
+    case 'rect': {
+      g.ele('rect', {
+        x: f(cx - 14), y: f(cy - 7), width: '28', height: '14', rx: '2',
+        fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+      }).up()
+      break
+    }
+    case 'circle': {
+      g.ele('circle', {
+        cx: f(cx), cy: f(cy), r: '10',
+        fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+      }).up()
+      break
+    }
+    case 'diamond': {
+      const pts = `${f(cx)},${f(cy - 9)} ${f(cx + 14)},${f(cy)} ${f(cx)},${f(cy + 9)} ${f(cx - 14)},${f(cy)}`
+      g.ele('polygon', {
+        points: pts,
+        fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+      }).up()
+      break
+    }
+    case 'ellipse': {
+      g.ele('ellipse', {
+        cx: f(cx), cy: f(cy), rx: '14', ry: '8',
+        fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+      }).up()
+      break
+    }
+    default:
+      // Unknown generic shape — fall back to rect
+      g.ele('rect', {
+        x: f(cx - 14), y: f(cy - 7), width: '28', height: '14', rx: '2',
+        fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+      }).up()
   }
-  line(g, cx + 10, cy, cx + HALF_ALONG, cy)  // right stub
+
+  // English label centered inside the shape
+  g.ele('text', {
+    x: f(cx),
+    y: f(cy + 1),
+    'text-anchor': 'middle',
+    'dominant-baseline': 'middle',
+    'font-size': '3',
+    'font-family': 'sans-serif',
+    fill: INK,
+  }).txt(display).up()
 }
 
-function drawBulb(g: El, cx: number, cy: number) {
-  line(g, cx - HALF_ALONG, cy, cx - 7, cy)
-  g.ele('circle', { cx: f(cx), cy: f(cy), r: '7', fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // X crosshair inside circle
-  const d = 4.5
-  line(g, cx - d, cy - d, cx + d, cy + d, '0.5')
-  line(g, cx + d, cy - d, cx - d, cy + d, '0.5')
-  line(g, cx + 7, cy, cx + HALF_ALONG, cy)
-}
+// ── Arrow drawing (force vectors, rays, directed flows) ───────────────────────
 
-function drawSwitch(g: El, cx: number, cy: number) {
-  line(g, cx - HALF_ALONG, cy, cx - 6, cy)          // left stub
-  g.ele('circle', { cx: f(cx - 6), cy: f(cy), r: '1.5', fill: FILL_NONE, stroke: INK, 'stroke-width': '0.5' }).up()
-  line(g, cx - 6, cy, cx + 4, cy - 9, SW_COMPONENT) // open arm
-  g.ele('circle', { cx: f(cx + 6), cy: f(cy), r: '1.5', fill: FILL_NONE, stroke: INK, 'stroke-width': '0.5' }).up()
-  line(g, cx + 6, cy, cx + HALF_ALONG, cy)
-}
+function drawArrow(svg: El, obj: TactileObject) {
+  const pts = obj.points
+  if (!pts || pts.length < 2) return
 
-function drawGenericComponent(g: El, cx: number, cy: number) {
-  g.ele('rect', {
-    x: f(cx - 10), y: f(cy - 6), width: '20', height: '12', rx: '2',
-    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
+  // Draw the shaft as a polyline
+  const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_ARROW }).up()
+
+  // Arrowhead at last point
+  const p1 = pts[pts.length - 2]
+  const p2 = pts[pts.length - 1]
+  const angle = Math.atan2(p2.yMm - p1.yMm, p2.xMm - p1.xMm)
+  const size  = 5
+  const ax = p2.xMm - size * Math.cos(angle - Math.PI / 6)
+  const ay = p2.yMm - size * Math.sin(angle - Math.PI / 6)
+  const bx = p2.xMm - size * Math.cos(angle + Math.PI / 6)
+  const by = p2.yMm - size * Math.sin(angle + Math.PI / 6)
+  svg.ele('polygon', {
+    points: `${f(p2.xMm)},${f(p2.yMm)} ${f(ax)},${f(ay)} ${f(bx)},${f(by)}`,
+    fill: INK, stroke: FILL_NONE,
   }).up()
-  line(g, cx - HALF_ALONG, cy, cx - 10, cy)
-  line(g, cx + 10, cy, cx + HALF_ALONG, cy)
 }
 
-// ── Graph shape drawing ───────────────────────────────────────────────────────
+// ── Chart shape drawing ───────────────────────────────────────────────────────
 
 function drawAxis(svg: El, obj: TactileObject) {
   const pts = obj.points
@@ -192,7 +211,7 @@ function drawLineChart(svg: El, obj: TactileObject) {
   if (!pts || pts.length < 2) return
   const pStr = pts.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
   svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Mark each data point with a small diamond
+  // Mark each data point with a small filled diamond
   for (const pt of pts) {
     const s = 2.5
     const dPts = `${f(pt.xMm)},${f(pt.yMm - s)} ${f(pt.xMm + s)},${f(pt.yMm)} ${f(pt.xMm)},${f(pt.yMm + s)} ${f(pt.xMm - s)},${f(pt.yMm)}`
@@ -202,49 +221,20 @@ function drawLineChart(svg: El, obj: TactileObject) {
 
 function drawPieSector(svg: El, obj: TactileObject) {
   const extra = obj.extra ?? {}
-  const r     = Number(extra.r ?? 60)
-  const sa    = Number(extra.startAngle ?? 0)
-  const ea    = Number(extra.endAngle ?? Math.PI)
-  const cx    = obj.xMm
-  const cy    = obj.yMm
-  const x1    = cx + r * Math.cos(sa)
-  const y1    = cy + r * Math.sin(sa)
-  const x2    = cx + r * Math.cos(ea)
-  const y2    = cy + r * Math.sin(ea)
-  const sweep = ea - sa
-  const large = sweep > Math.PI ? 1 : 0
+  const r  = Number(extra.r ?? 60)
+  const sa = Number(extra.startAngle ?? 0)
+  const ea = Number(extra.endAngle ?? Math.PI)
+  const cx = obj.xMm
+  const cy = obj.yMm
+  const x1 = cx + r * Math.cos(sa)
+  const y1 = cy + r * Math.sin(sa)
+  const x2 = cx + r * Math.cos(ea)
+  const y2 = cy + r * Math.sin(ea)
+  const large = (ea - sa) > Math.PI ? 1 : 0
   svg.ele('path', {
     d: `M ${f(cx)},${f(cy)} L ${f(x1)},${f(y1)} A ${f(r)},${f(r)} 0 ${large},1 ${f(x2)},${f(y2)} Z`,
     fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
   }).up()
-}
-
-// ── Free-body drawing ─────────────────────────────────────────────────────────
-
-function drawObjectRect(svg: El, obj: TactileObject) {
-  const w = obj.widthMm ?? 32
-  const h = obj.heightMm ?? 22
-  svg.ele('rect', {
-    x: f(obj.xMm), y: f(obj.yMm), width: f(w), height: f(h), rx: '3',
-    fill: FILL_NONE, stroke: INK, 'stroke-width': SW_COMPONENT,
-  }).up()
-}
-
-function drawForceArrow(svg: El, obj: TactileObject) {
-  const pts = obj.points
-  if (!pts || pts.length < 2) return
-  const [p1, p2] = pts
-
-  line(svg, p1.xMm, p1.yMm, p2.xMm, p2.yMm, SW_ARROW)
-
-  // Arrowhead at p2
-  const angle = Math.atan2(p2.yMm - p1.yMm, p2.xMm - p1.xMm)
-  const size  = 5  // mm
-  const ax = p2.xMm - size * Math.cos(angle - Math.PI / 6)
-  const ay = p2.yMm - size * Math.sin(angle - Math.PI / 6)
-  const bx = p2.xMm - size * Math.cos(angle + Math.PI / 6)
-  const by = p2.yMm - size * Math.sin(angle + Math.PI / 6)
-  svg.ele('polygon', { points: `${f(p2.xMm)},${f(p2.yMm)} ${f(ax)},${f(ay)} ${f(bx)},${f(by)}`, fill: INK, stroke: FILL_NONE }).up()
 }
 
 // ── Wire drawing ──────────────────────────────────────────────────────────────
@@ -256,12 +246,39 @@ function drawWire(svg: El, obj: TactileObject) {
   svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
-// ── Marker rendering ──────────────────────────────────────────────────────────
+// ── Marker / Braille label rendering ─────────────────────────────────────────
+// Renders obj.label (the element's English label) as Braille dots at the object position.
+// Falls back to obj.marker (the key reference number) if no label is set.
 
 function drawMarker(parent: El, obj: TactileObject) {
-  if (!obj.marker) return
-  const braille = encodeBraille(obj.marker)
+  const text = obj.label ?? obj.marker ?? ''
+  if (!text) return
+  const { normalized } = normalizeStemText(text)
+  const braille = encodeBraille(normalized)
   drawBrailleString(parent, braille, obj.xMm, obj.yMm)
+}
+
+// ── Connection paths ──────────────────────────────────────────────────────────
+
+function drawConnection(svg: El, path: { xMm: number; yMm: number }[], directed?: boolean) {
+  if (path.length < 2) return
+  const pStr = path.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
+  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_WIRE }).up()
+
+  if (directed) {
+    const p1 = path[path.length - 2]
+    const p2 = path[path.length - 1]
+    const angle = Math.atan2(p2.yMm - p1.yMm, p2.xMm - p1.xMm)
+    const size  = 4
+    const ax = p2.xMm - size * Math.cos(angle - Math.PI / 6)
+    const ay = p2.yMm - size * Math.sin(angle - Math.PI / 6)
+    const bx = p2.xMm - size * Math.cos(angle + Math.PI / 6)
+    const by = p2.yMm - size * Math.sin(angle + Math.PI / 6)
+    svg.ele('polygon', {
+      points: `${f(p2.xMm)},${f(p2.yMm)} ${f(ax)},${f(ay)} ${f(bx)},${f(by)}`,
+      fill: INK, stroke: FILL_NONE,
+    }).up()
+  }
 }
 
 // ── Main object dispatcher ────────────────────────────────────────────────────
@@ -279,40 +296,30 @@ function drawObject(svg: El, obj: TactileObject) {
     }
   }
 
-  // Component shapes — wrap in optional rotation group
-  const cx = obj.xMm
-  const cy = obj.yMm
-  const g  = obj.rotated
-    ? svg.ele('g', { transform: `rotate(90, ${f(cx)}, ${f(cy)})` })
-    : svg.ele('g')
-
+  // Component shapes
   switch (obj.shape) {
-    case 'battery':          drawBattery(g, cx, cy);          break
-    case 'resistor':         drawResistor(g, cx, cy);         break
-    case 'capacitor':        drawCapacitor(g, cx, cy);        break
-    case 'inductor':         drawInductor(g, cx, cy);         break
-    case 'bulb':             drawBulb(g, cx, cy);             break
-    case 'switch':           drawSwitch(g, cx, cy);           break
-    case 'generic-component':drawGenericComponent(g, cx, cy); break
-    case 'bar':              drawBar(g, obj);                 break
-    case 'line-chart':       drawLineChart(g, obj);           break
-    case 'pie-sector':       drawPieSector(g, obj);           break
-    case 'object-rect':      drawObjectRect(g, obj);          break
-    case 'force-arrow':      drawForceArrow(g, obj);          break
+    case 'rect':
+    case 'circle':
+    case 'diamond':
+    case 'ellipse':
+      drawLabeledShape(svg, obj)
+      break
+    case 'arrow':
+      drawArrow(svg, obj)
+      break
+    case 'bar':
+      drawBar(svg, obj)
+      break
+    case 'line-chart':
+      drawLineChart(svg, obj)
+      break
+    case 'pie-sector':
+      drawPieSector(svg, obj)
+      break
   }
-
-  g.up()
 }
 
-// ── Connection paths ──────────────────────────────────────────────────────────
-
-function drawConnection(svg: El, path: { xMm: number; yMm: number }[]) {
-  if (path.length < 2) return
-  const pStr = path.map(p => `${f(p.xMm)},${f(p.yMm)}`).join(' ')
-  svg.ele('polyline', { points: pStr, fill: FILL_NONE, stroke: INK, 'stroke-width': SW_WIRE }).up()
-}
-
-// ── Key section rendering ─────────────────────────────────────────────────────
+// ── Key section ───────────────────────────────────────────────────────────────
 
 function drawKey(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
   const { key, page } = plan
@@ -320,21 +327,18 @@ function drawKey(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
 
   const kx = MARGIN
 
-  // Separator line
   svg.ele('line', {
     x1: f(MARGIN), y1: f(KEY_SEP_Y),
     x2: f(page.widthMm - MARGIN), y2: f(KEY_SEP_Y),
     stroke: INK, 'stroke-width': '0.3',
   }).up()
 
-  // "key" label in Braille above entries
-  const keyLabel = encodeBraille('key')
-  drawBrailleString(svg, keyLabel, kx, KEY_SEP_Y + 2)
+  drawBrailleString(svg, encodeBraille('key'), kx, KEY_SEP_Y + 2)
 
   let y = KEY_START_Y
   const maxLineW = page.widthMm - 2 * MARGIN
-
   const limit = Math.min(key.length, KEY_MAX_LINES)
+
   for (let i = 0; i < limit; i++) {
     const entry = key[i]
     const lineText = `${entry.marker} ${entry.normalizedText}`
@@ -344,25 +348,19 @@ function drawKey(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
   }
 
   if (key.length > limit) {
-    // Note that key was truncated
-    const note = encodeBraille('see attached key')
-    drawBrailleString(svg, note, kx, y)
+    drawBrailleString(svg, encodeBraille('see attached key'), kx, y)
   }
 }
 
 // ── Transcriber notes ─────────────────────────────────────────────────────────
 
 function drawTranscriberNotes(svg: El, plan: ReturnType<typeof buildTactilePlan>) {
-  const { transcriberNotes, page } = plan
+  const { transcriberNotes } = plan
   if (transcriberNotes.length === 0) return
-
-  // Place notes above the key separator as small, plain SVG text (for the sighted technician)
-  // These do not emboss as Braille — they serve as setup instructions only.
-  const noteY = KEY_SEP_Y - 3
-  const note  = transcriberNotes[0].slice(0, 120)
+  const note = transcriberNotes[0].slice(0, 120)
   svg.ele('text', {
     x: f(MARGIN),
-    y: f(noteY),
+    y: f(KEY_SEP_Y - 3),
     'font-size': '3.5',
     'font-family': 'sans-serif',
     fill: '#555555',
@@ -382,27 +380,20 @@ export function renderTactile(analysis: DiagramAnalysis): string {
       height: `${plan.page.heightMm}mm`,
     })
 
-  // White background
   doc.ele('rect', { x: '0', y: '0', width: f(PAGE_W), height: f(plan.page.heightMm), fill: '#ffffff' }).up()
 
-  // Title — normalised then Braille dot geometry
   const { normalized: normTitle } = normalizeStemText(plan.title)
-  renderBrailleText(doc, normTitle, MARGIN, TITLE_Y, PAGE_W - 2 * MARGIN)
+  renderBrailleText(doc, normTitle, MARGIN, TITLE_Y, PAGE_W - 2 * MARGIN, 2)
 
-  // Diagram objects
   for (const obj of plan.objects) {
     drawObject(doc, obj)
   }
 
-  // Orthogonal connection paths (custom layout)
   for (const conn of plan.connections) {
-    drawConnection(doc, conn.path)
+    drawConnection(doc, conn.path, conn.directed)
   }
 
-  // Transcriber notes (plain text, for technician)
   drawTranscriberNotes(doc, plan)
-
-  // Key
   drawKey(doc, plan)
 
   const raw = doc.end({ headless: true })
