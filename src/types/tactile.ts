@@ -1,6 +1,8 @@
 // Tactile plan types — intermediate representation between DiagramAnalysis and SVG output.
 // All positions are in millimetres. 1 SVG unit = 1 mm in the final output.
 
+import type { LayoutHint } from './diagram'
+
 export type TactilePlan = {
   page: {
     widthMm: number
@@ -14,8 +16,8 @@ export type TactilePlan = {
     widthMm: number
     heightMm: number
   }
-  diagramType: 'circuit' | 'graph' | 'free-body' | 'unknown'
-  layout: 'orthogonal-series-loop' | 'orthogonal-parallel' | 'custom'
+  layoutHint: LayoutHint
+  layout: 'cyclic-loop' | 'axial-chart' | 'positional' | 'directional' | 'grid'
   title: string
   objects: TactileObject[]
   connections: TactileConnection[]
@@ -24,22 +26,21 @@ export type TactilePlan = {
   warnings: TactileValidationIssue[]
 }
 
+// Generic outline shapes — no domain-specific symbols.
+// Every component is rendered as one of these with an English label inside
+// and a Braille label placed outside.
 export type ComponentShape =
-  | 'battery'
-  | 'resistor'
-  | 'capacitor'
-  | 'inductor'
-  | 'bulb'
-  | 'switch'
-  | 'generic-component'
-  | 'wire'
-  | 'axis'
-  | 'bar'
-  | 'line-chart'
-  | 'pie-sector'
-  | 'object-rect'
-  | 'force-arrow'
-  | 'marker-label'
+  | 'rect'         // default rectangle
+  | 'circle'       // circular element
+  | 'diamond'      // decision / junction
+  | 'ellipse'      // oval element
+  | 'arrow'        // directional arrow (force, ray, flow)
+  | 'wire'         // plain polyline connection
+  | 'axis'         // chart axis line
+  | 'bar'          // bar chart bar
+  | 'line-chart'   // line chart series
+  | 'pie-sector'   // pie chart sector
+  | 'marker-label' // Braille label placed outside a component
 
 export type TactileObject = {
   id: string
@@ -50,28 +51,26 @@ export type TactileObject = {
   yMm: number
   widthMm?: number
   heightMm?: number
-  rotated?: boolean
-  marker?: string
-  label?: string
-  // Polyline / multi-point shapes (wire, line-chart, force-arrow)
+  marker?: string   // key reference number
+  label?: string    // English text (for component) or Braille text source (for marker-label)
+  // Polyline / multi-point shapes (wire, line-chart, arrow)
   points?: { xMm: number; yMm: number }[]
-  // Extra data for specialised shapes
+  // Extra data for specialised shapes (pie-sector)
   extra?: Record<string, number | string | boolean>
 }
 
 export type TactileConnection = {
   from: string
   to: string
+  directed?: boolean  // if true, renderer draws arrowhead at 'to' end
   path: { xMm: number; yMm: number }[]
 }
 
 export type TactileKeyEntry = {
   marker: string
   elementId: string
-  /** Raw label + value from DiagramAnalysis */
-  text: string
-  /** After STEM symbol normalisation */
-  normalizedText: string
+  text: string          // raw label + value
+  normalizedText: string // after STEM symbol normalisation
 }
 
 export type TactileValidationIssue = {
