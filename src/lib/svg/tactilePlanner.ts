@@ -1,4 +1,6 @@
-import type { DiagramAnalysis, DiagramElement, Relationship } from '@/types/diagram'
+// Server-only — do not import from client components
+import ELK from 'elkjs'
+import type { Relationship } from '@/types/diagram'
 import type {
   TactilePlan,
   TactileObject,
@@ -7,36 +9,35 @@ import type {
   TactileValidationIssue,
   ComponentShape,
   Bbox,
+  TactileDomain,
+  TactileStrategy,
+  AdaptedDiagramElement,
+  TactilePageSpec,
+  ZoneRect,
 } from '@/types/tactile'
 import { normalizeStemText } from '@/lib/braille'
-import { brailleFootprintMm } from '@/lib/brailleMetrics'
+import { brailleFootprintMm, CELL_W, LINE_H } from '@/lib/brailleMetrics'
+import { normalizeSymbolHint } from '@/lib/svg/tactileAdaptor'
 
 // ── Page constants (A4 portrait, all in mm) ───────────────────────────────────
 
-const PAGE_W = 210
-const PAGE_H = 297
-const MARGIN = 15
-
-const TITLE_Y = MARGIN
+export const PAGE_W = 210
+export const PAGE_H = 297
+export const MARGIN = 15
+export const WIRE_SW = 0.5
 
 const DRAW_X = MARGIN
-const DRAW_W = PAGE_W - 2 * MARGIN         // 180mm
-
-// These are defaults used only as fallback; actual values are derived per-plan in buildTactilePlan.
-const DRAW_Y_DEFAULT = 41
-const DRAW_H_DEFAULT = 170
-const KEY_SEP_Y_DEFAULT = DRAW_Y_DEFAULT + DRAW_H_DEFAULT + 5
-
-const KEY_HEADER_H = 10    // "key" braille word + separator line
-const KEY_LINE_H = 10      // fallback line height (= LINE_H from brailleMetrics)
+const DRAW_W = PAGE_W - 2 * MARGIN  // 180mm
 
 const CORNER_GUARD = 14
 const HALF_ALONG = 13
-const WIRE_SW = 0.5
+const KEY_LINE_H = LINE_H
+const INSTRUCTIONS_MAX_LINES_SINGLE = 2
+const INSTRUCTIONS_MAX_LINES_OVERVIEW = 4
 
 // ── Dynamic layout context ────────────────────────────────────────────────────
 
-type DynLayout = { drawY: number; drawH: number; keySepY: number }
+type DynLayout = { drawY: number; drawH: number }
 
 // ── Noise filter ──────────────────────────────────────────────────────────────
 
@@ -49,8 +50,9 @@ function isNoise(type: string): boolean {
 
 // ── Shape resolver ────────────────────────────────────────────────────────────
 
-function resolveShape(visualShape?: string | null): ComponentShape {
-  switch (visualShape) {
+function resolveShape(el: AdaptedDiagramElement): ComponentShape {
+  if (el.componentShape) return el.componentShape
+  switch (el.visualShape) {
     case 'circle':  return 'circle'
     case 'diamond': return 'diamond'
     case 'ellipse': return 'ellipse'
@@ -61,7 +63,7 @@ function resolveShape(visualShape?: string | null): ComponentShape {
 
 // ── Label builder ─────────────────────────────────────────────────────────────
 
-function elementLabel(el: DiagramElement): string {
+function elementLabel(el: AdaptedDiagramElement): string {
   const v = el.value?.trim()
   return v ? `${el.label.trim()} ${v}` : el.label.trim()
 }
@@ -88,17 +90,29 @@ function pathBbox(path: { xMm: number; yMm: number }[], pad = 1): Bbox {
 function componentBboxMm(obj: TactileObject): Bbox {
   const x = obj.xMm, y = obj.yMm
   switch (obj.shape) {
-    case 'rect':    return { x: x - 14, y: y - 7,  w: 28, h: 14 }
     case 'circle':  return { x: x - 10, y: y - 10, w: 20, h: 20 }
     case 'diamond': return { x: x - 14, y: y - 9,  w: 28, h: 18 }
     case 'ellipse': return { x: x - 14, y: y - 8,  w: 28, h: 16 }
     case 'wire':
     case 'axis':
-    case 'arrow': {
+    case 'arrow':
+    case 'force-arrow-scaled': {
       const pts = obj.points ?? [{ xMm: x, yMm: y }]
       return pathBbox(pts, 1)
     }
-    default: return { x: x - 14, y: y - 7, w: 28, h: 14 }
+    // Domain symbols — approximate footprint
+    case 'battery-symbol':   return { x: x - 10, y: y - 5,  w: 20, h: 10 }
+    case 'resistor-symbol':  return { x: x - 10, y: y - 4,  w: 20, h: 8  }
+    case 'capacitor-symbol': return { x: x - 6,  y: y - 8,  w: 12, h: 16 }
+    case 'switch-symbol':    return { x: x - 10, y: y - 5,  w: 20, h: 10 }
+    case 'lamp-symbol':      return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
+    case 'inductor-symbol':  return { x: x - 10, y: y - 4,  w: 20, h: 8  }
+    case 'diode-symbol':     return { x: x - 8,  y: y - 6,  w: 16, h: 12 }
+    case 'atom-circle':      return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
+    case 'bond-line':        return { x: x - 10, y: y - 3,  w: 20, h: 6  }
+    case 'angle-arc':        return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
+    case 'right-angle-mark': return { x: x - 3,  y: y - 3,  w: 6,  h: 6  }
+    default:                 return { x: x - 14, y: y - 7,  w: 28, h: 14 }
   }
 }
 
@@ -147,48 +161,54 @@ function placeMarkerLabel(
 }
 
 // ── Universal marker post-processor ──────────────────────────────────────────
-// Runs after all layout functions. Adds ALL geometry bboxes to occupied first,
-// then places braille markers — ensuring no label overlaps any wire, connection,
-// axis, bar, or other diagram element regardless of layout type.
 
 function placeAllMarkers(
   objects: TactileObject[],
   connections: TactileConnection[],
   initialOccupied: Bbox[],
+  pageW: number,
+  pageMm: number,
 ): TactileObject[] {
-  // 1. Seed occupied with every geometry bbox
   const occupied: Bbox[] = [...initialOccupied]
   for (const obj of objects) {
-    if (obj.bboxMm) {
-      occupied.push(obj.bboxMm)
-    } else if (obj.points && obj.points.length >= 2) {
-      occupied.push(pathBbox(obj.points))
-    }
+    if (obj.bboxMm) occupied.push(obj.bboxMm)
+    else if (obj.points && obj.points.length >= 2) occupied.push(pathBbox(obj.points))
   }
   for (const conn of connections) {
     if (conn.path.length >= 2) occupied.push(pathBbox(conn.path))
   }
 
-  // 2. Place a braille marker label for each object that carries a marker ref
   const markers: TactileObject[] = []
   for (const obj of objects) {
     if (!obj.marker || !obj.bboxMm) continue
 
-    const { normalized: normMarker } = normalizeStemText(obj.marker)
-    const footprint = brailleFootprintMm(normMarker, PAGE_W - 2 * MARGIN)
+    const labelText = obj.labelMethod === 'lead-line' || obj.labelMethod === 'direct'
+      ? (obj.label ?? obj.marker)
+      : obj.marker
+
+    const { normalized: normMarker } = normalizeStemText(labelText)
+    const footprint = brailleFootprintMm(normMarker, pageW - 2 * pageMm)
     const side: Dir = (obj.markerSide as Dir | undefined) ?? 'top'
 
     const placed = placeMarkerLabel(side, obj.bboxMm, footprint, occupied)
     if (placed) {
-      markers.push({
+      const markerObj: TactileObject = {
         id: `marker-${obj.id}`,
         role: 'marker',
         shape: 'marker-label',
         xMm: placed.xMm,
         yMm: placed.yMm,
-        marker: obj.marker,
+        marker: labelText,
         bboxMm: placed.bboxMm,
-      })
+        labelMethod: obj.labelMethod,
+      }
+      // Set lead-line target for lead-line labels
+      if (obj.labelMethod === 'lead-line' && obj.bboxMm) {
+        const cx = obj.bboxMm.x + obj.bboxMm.w / 2
+        const cy = obj.bboxMm.y + obj.bboxMm.h / 2
+        markerObj.leadLineTo = { xMm: cx, yMm: cy }
+      }
+      markers.push(markerObj)
       occupied.push(placed.bboxMm)
     }
   }
@@ -196,9 +216,30 @@ function placeAllMarkers(
   return markers
 }
 
+// ── Key entry builder ─────────────────────────────────────────────────────────
+
+function buildKeyEntry(marker: string, el: AdaptedDiagramElement): TactileKeyEntry {
+  const rawText = elementLabel(el)
+  const { normalized } = normalizeStemText(rawText)
+  return { marker, elementId: el.id, text: rawText, normalizedText: normalized, heightMm: KEY_LINE_H }
+}
+
+// ── Grid position fallback ────────────────────────────────────────────────────
+
+function gridPosMm(index: number, total: number, drawY: number, drawH: number): { xMm: number; yMm: number } {
+  const cols = Math.min(4, Math.max(1, total))
+  const col  = index % cols
+  const row  = Math.floor(index / cols)
+  const rows = Math.ceil(total / cols)
+  return {
+    xMm: DRAW_X + (col + 0.5) * (DRAW_W / cols),
+    yMm: drawY + (row + 0.5) * (drawH / rows),
+  }
+}
+
 // ── Topology detection ────────────────────────────────────────────────────────
 
-function detectTopology(elements: DiagramElement[], relationships: Relationship[]): 'series' | 'parallel' | 'unknown' {
+function detectTopology(elements: AdaptedDiagramElement[], relationships: Relationship[]): 'series' | 'parallel' | 'unknown' {
   if (relationships.length === 0) return 'unknown'
   const degree = new Map<string, number>()
   for (const rel of relationships) {
@@ -211,7 +252,7 @@ function detectTopology(elements: DiagramElement[], relationships: Relationship[
   return 'unknown'
 }
 
-function orderLoopComponents(elements: DiagramElement[], relationships: Relationship[]): DiagramElement[] {
+function orderLoopComponents(elements: AdaptedDiagramElement[], relationships: Relationship[]): AdaptedDiagramElement[] {
   const sourceKeys = ['battery', 'cell', 'power', 'source', 'voltage', 'supply']
   const source = elements.find(el => sourceKeys.some(k => el.type.toLowerCase().includes(k))) ?? elements[0]
 
@@ -226,7 +267,7 @@ function orderLoopComponents(elements: DiagramElement[], relationships: Relation
   }
 
   const ids = new Set(elements.map(e => e.id))
-  const ordered: DiagramElement[] = []
+  const ordered: AdaptedDiagramElement[] = []
   const visited = new Set<string>()
   const queue = [source.id]
   visited.add(source.id)
@@ -282,7 +323,7 @@ function distributeOnLoop(
   return points
 }
 
-// ── Wire segments for series loop ────────────────────────────────────────────
+// ── Wire segments for series loop ─────────────────────────────────────────────
 
 type CompOnSide = { xMm: number; yMm: number; side: Dir; id: string }
 
@@ -335,89 +376,29 @@ function buildLoopWires(
   return wires
 }
 
-// ── Key entry builder ─────────────────────────────────────────────────────────
-
-function buildKeyEntry(marker: string, el: DiagramElement): TactileKeyEntry {
-  const rawText = elementLabel(el)
-  const { normalized } = normalizeStemText(rawText)
-  return { marker, elementId: el.id, text: rawText, normalizedText: normalized, heightMm: KEY_LINE_H }
-}
-
-// ── Grid position fallback ────────────────────────────────────────────────────
-
-function gridPosMm(index: number, total: number, drawY: number, drawH: number): { xMm: number; yMm: number } {
-  const cols = Math.min(4, Math.max(1, total))
-  const col  = index % cols
-  const row  = Math.floor(index / cols)
-  const rows = Math.ceil(total / cols)
-  return {
-    xMm: DRAW_X + (col + 0.5) * (DRAW_W / cols),
-    yMm: drawY  + (row + 0.5) * (drawH  / rows),
-  }
-}
-
-// ── Validation ────────────────────────────────────────────────────────────────
-
-function validate(
-  plan: Pick<TactilePlan, 'objects' | 'key' | 'transcriberNotes' | 'layout'>,
-  warnings: TactileValidationIssue[],
-  keySepY: number,
-) {
-  const availableKeyH = PAGE_H - MARGIN - keySepY - KEY_HEADER_H
-  const usedKeyH = plan.key.reduce((s, e) => s + e.heightMm, 0)
-  if (usedKeyH > availableKeyH) {
-    warnings.push({
-      severity: 'warning',
-      code: 'TEXT_OVERFLOW',
-      message: `Key requires ${usedKeyH.toFixed(0)}mm but only ${availableKeyH.toFixed(0)}mm is available.`,
-    })
-  }
-  if (plan.key.length === 0) {
-    warnings.push({ severity: 'warning', code: 'NO_LEGEND', message: 'No key entries generated.' })
-  }
-  for (const entry of plan.key) {
-    const { unknownSymbols } = normalizeStemText(entry.normalizedText)
-    for (const sym of unknownSymbols) {
-      warnings.push({
-        severity: 'warning',
-        code: 'UNKNOWN_SYMBOL',
-        message: `Symbol '${sym}' in key entry '${entry.normalizedText}' could not be normalised for Braille.`,
-      })
-    }
-  }
-  if (plan.layout === 'cyclic-loop' && plan.transcriberNotes.length === 0) {
-    warnings.push({
-      severity: 'warning',
-      code: 'NORMALIZED_LAYOUT_WITHOUT_NOTE',
-      message: 'Cyclic layout used but no transcriber note was generated.',
-    })
-  }
-}
-
-// ── Layout: cyclic (loop perimeter) ──────────────────────────────────────────
+// ── Layout: cyclic (loop perimeter) ───────────────────────────────────────────
 
 function planCyclic(
-  analysis: DiagramAnalysis,
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
   warnings: TactileValidationIssue[],
-  dynLayout: DynLayout,
+  { drawY, drawH }: DynLayout,
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const { drawY, drawH } = dynLayout
   const loopL = DRAW_X + 20
   const loopT = drawY + 10
   const loopR = DRAW_X + DRAW_W - 20
   const loopB = drawY + drawH - 10
 
-  const meaningful = analysis.elements.filter(el => !isNoise(el.type))
-  const topology = detectTopology(meaningful, analysis.relationships)
+  const meaningful = elements.filter(el => !isNoise(el.type))
+  const topology = detectTopology(meaningful, relationships)
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
   const transcriberNotes: string[] = []
 
   if (meaningful.length >= 2 && meaningful.length <= 12) {
-    const ordered = orderLoopComponents(meaningful, analysis.relationships)
+    const ordered = orderLoopComponents(meaningful, relationships)
     const loopPoints = distributeOnLoop(ordered.length, loopL, loopT, loopR, loopB)
 
-    // Pre-build compsOnSide and wires so their bboxes enter occupied before marker placement
     const compsOnSide: CompOnSide[] = ordered.map((el, idx) => ({
       xMm: loopPoints[idx].xMm,
       yMm: loopPoints[idx].yMm,
@@ -430,34 +411,38 @@ function planCyclic(
       const pt = loopPoints[idx]
       const marker = String(idx + 1)
       const label = elementLabel(el)
+      const shape = resolveShape(el)
 
       const compObj: TactileObject = {
         id: `comp-${el.id}`,
         sourceElementId: el.id,
         role: 'component',
-        shape: resolveShape(el.visualShape),
+        shape,
         xMm: pt.xMm,
         yMm: pt.yMm,
         label,
         marker,
         markerSide: pt.side,
+        labelMethod: el.labelMethod,
         bboxMm: undefined,
       }
+      if (shape === 'bond-line') {
+        const hint = normalizeSymbolHint(el.symbolHint ?? el.type ?? '')
+        compObj.extra = { bondOrder: hint === 'bond-triple' ? 3 : hint === 'bond-double' ? 2 : 1 }
+      }
+      if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
       compObj.bboxMm = componentBboxMm(compObj)
       objects.push(compObj)
       key.push(buildKeyEntry(marker, el))
     })
 
     objects.push(...loopWires)
-
     transcriberNotes.push(
       'Diagram rearranged into a rectangle to make the cyclic connection easier to trace by touch. Follow the numbered components in order around the loop.'
     )
-
     return { layout: 'cyclic-loop', objects, connections: [], key, transcriberNotes }
   }
 
-  // Fallback for very small or large cyclic diagrams
   if (topology === 'parallel') {
     warnings.push({
       severity: 'warning',
@@ -466,7 +451,6 @@ function planCyclic(
     })
   }
 
-  // Pre-compute positions so connection paths can be built before markers are placed
   const positions = meaningful.map((el, idx) =>
     el.position
       ? { xMm: DRAW_X + el.position.x * DRAW_W, yMm: drawY + el.position.y * drawH }
@@ -474,7 +458,7 @@ function planCyclic(
   )
 
   const connections: TactileConnection[] = []
-  for (const rel of analysis.relationships) {
+  for (const rel of relationships) {
     const fi = meaningful.findIndex(e => e.id === rel.from)
     const ti = meaningful.findIndex(e => e.id === rel.to)
     if (fi < 0 || ti < 0) continue
@@ -485,20 +469,22 @@ function planCyclic(
   meaningful.forEach((el, idx) => {
     const pos = positions[idx]
     const marker = String(idx + 1)
-    const label = elementLabel(el)
+    const shape = resolveShape(el)
 
     const compObj: TactileObject = {
       id: `comp-${el.id}`,
       sourceElementId: el.id,
       role: 'component',
-      shape: resolveShape(el.visualShape),
+      shape,
       xMm: pos.xMm,
       yMm: pos.yMm,
-      label,
+      label: elementLabel(el),
       marker,
       markerSide: 'top',
+      labelMethod: el.labelMethod,
       bboxMm: undefined,
     }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
     compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
     key.push(buildKeyEntry(marker, el))
@@ -507,14 +493,12 @@ function planCyclic(
   return { layout: 'cyclic-loop', objects, connections, key, transcriberNotes }
 }
 
-// ── Layout: axial (chart with axes) ───────────────────────────────────────────
+// ── Layout: axial (chart with axes) ──────────────────────────────────────────
 
 function planAxial(
-  analysis: DiagramAnalysis,
-  dynLayout: DynLayout,
+  elements: AdaptedDiagramElement[],
+  { drawY, drawH }: DynLayout,
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const { drawY, drawH } = dynLayout
-  const { elements } = analysis
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
@@ -549,12 +533,11 @@ function planAxial(
       const deg = (mid * 180 / Math.PI + 360) % 360
       const markerSide: Dir = deg < 45 || deg >= 315 ? 'right' : deg < 135 ? 'bottom' : deg < 225 ? 'left' : 'top'
 
-      // Anchor at the arc midpoint — no rendered shape, just a collision zone for marker placement
       const arcX = cx + Math.cos(mid) * r
       const arcY = cy + Math.sin(mid) * r
       const compBbox: Bbox = { x: arcX - 5, y: arcY - 5, w: 10, h: 10 }
 
-      const compObj: TactileObject = {
+      objects.push({
         id: `sector-${idx}`,
         role: 'component',
         shape: 'pie-sector',
@@ -565,8 +548,7 @@ function planAxial(
         marker,
         markerSide,
         bboxMm: compBbox,
-      }
-      objects.push(compObj)
+      })
       key.push(buildKeyEntry(marker, el))
       startAngle = end
     })
@@ -577,32 +559,12 @@ function planAxial(
     const step = axisW / Math.max(elements.length - 1, 1)
     const pts  = elements.map((_, i) => ({ xMm: axisX + i * step, yMm: axisY - (vals[i] / maxV) * axisH }))
 
-    const linePts = pts
-    objects.push({
-      id: 'line-chart',
-      role: 'component',
-      shape: 'line-chart',
-      xMm: pts[0]?.xMm ?? axisX,
-      yMm: pts[0]?.yMm ?? axisY,
-      points: linePts,
-      bboxMm: pathBbox(linePts, 2),
-    })
+    objects.push({ id: 'line-chart', role: 'component', shape: 'line-chart', xMm: pts[0]?.xMm ?? axisX, yMm: pts[0]?.yMm ?? axisY, points: pts, bboxMm: pathBbox(pts, 2) })
 
-    // One invisible anchor per data point so placeAllMarkers can place a braille marker at each
     elements.forEach((el, i) => {
       const marker = String(i + 1)
       const compBbox: Bbox = { x: pts[i].xMm - 5, y: pts[i].yMm - 5, w: 10, h: 10 }
-      objects.push({
-        id: `data-pt-${i}`,
-        role: 'component',
-        shape: 'anchor',
-        xMm: pts[i].xMm,
-        yMm: pts[i].yMm,
-        label: elementLabel(el),
-        marker,
-        markerSide: 'bottom',
-        bboxMm: compBbox,
-      })
+      objects.push({ id: `data-pt-${i}`, role: 'component', shape: 'anchor', xMm: pts[i].xMm, yMm: pts[i].yMm, label: elementLabel(el), marker, markerSide: 'bottom', bboxMm: compBbox })
       key.push(buildKeyEntry(marker, el))
     })
 
@@ -613,7 +575,6 @@ function planAxial(
     }
 
   } else {
-    // Bar chart (default)
     const vals = elements.map(e => parseFloat(e.value ?? '1') || 1)
     const maxV = Math.max(...vals, 1)
     const barW = Math.max(8, Math.floor((axisW / elements.length) * 0.6))
@@ -625,8 +586,7 @@ function planAxial(
       const by    = axisY - barH
       const marker = String(i + 1)
 
-      const compBbox: Bbox = { x: bx, y: by, w: barW, h: barH }
-      const compObj: TactileObject = {
+      objects.push({
         id: `bar-${i}`,
         role: 'component',
         shape: 'bar',
@@ -637,9 +597,8 @@ function planAxial(
         label: elementLabel(el),
         marker,
         markerSide: 'bottom',
-        bboxMm: compBbox,
-      }
-      objects.push(compObj)
+        bboxMm: { x: bx, y: by, w: barW, h: barH },
+      })
       key.push(buildKeyEntry(marker, el))
     })
 
@@ -653,7 +612,7 @@ function planAxial(
   return { layout: 'axial-chart', objects, connections: [], key, transcriberNotes: [] }
 }
 
-// ── Layout: positional (preserve spatial positions) ───────────────────────────
+// ── Layout: positional ────────────────────────────────────────────────────────
 
 const DIRECTION_MAP: Record<string, [number, number]> = {
   up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
@@ -662,11 +621,10 @@ const DIRECTION_MAP: Record<string, [number, number]> = {
 }
 
 function planPositional(
-  analysis: DiagramAnalysis,
-  dynLayout: DynLayout,
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
+  { drawY, drawH }: DynLayout,
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const { drawY, drawH } = dynLayout
-  const { elements, relationships } = analysis
   const meaningful = elements.filter(el => !isNoise(el.type))
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
@@ -680,36 +638,36 @@ function planPositional(
     positions.set(el.id, pos)
   })
 
-  // Non-arrow components
   meaningful.forEach(el => {
     const t = el.type.toLowerCase()
-    const isArrow = el.visualShape === 'arrow' || t.includes('force') || t.includes('vector') || t.includes('arrow') || t.includes('ray')
+    const isArrow = el.visualShape === 'arrow' || el.componentShape === 'force-arrow-scaled' || t.includes('force') || t.includes('vector') || t.includes('arrow') || t.includes('ray')
     if (isArrow) return
 
     const pos = positions.get(el.id)!
     const marker = String(markerIdx++)
-    const label = elementLabel(el)
+    const shape = resolveShape(el)
 
     const compObj: TactileObject = {
       id: `obj-${el.id}`,
       sourceElementId: el.id,
       role: 'component',
-      shape: resolveShape(el.visualShape),
+      shape,
       xMm: pos.xMm,
       yMm: pos.yMm,
       widthMm: 32,
       heightMm: 22,
-      label,
+      label: elementLabel(el),
       marker,
       markerSide: 'top',
+      labelMethod: el.labelMethod,
       bboxMm: undefined,
     }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
     compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
     key.push(buildKeyEntry(marker, el))
   })
 
-  // Arrow / vector objects — bboxMm set so placeAllMarkers can avoid and label them
   for (const rel of relationships) {
     const from = positions.get(rel.from)
     if (!from) continue
@@ -734,11 +692,15 @@ function planPositional(
     const forceEl = meaningful.find(e => e.id === rel.to) ?? meaningful.find(e => e.id === rel.from)
     const label = forceEl ? elementLabel(forceEl) : rel.label ?? rel.type
 
+    // Determine if force-arrow-scaled should be used
+    const fromEl = meaningful.find(e => e.id === rel.from)
+    const useScaledArrow = fromEl?.componentShape === 'force-arrow-scaled' || rel.type === 'force-arrow'
+
     const arrowPts = [{ xMm: from.xMm, yMm: from.yMm }, { xMm: ex, yMm: ey }]
-    objects.push({
+    const arrowObj: TactileObject = {
       id: `arrow-${rel.from}-${rel.to}`,
       role: 'component',
-      shape: 'arrow',
+      shape: useScaledArrow ? 'force-arrow-scaled' : 'arrow',
       xMm: from.xMm,
       yMm: from.yMm,
       points: arrowPts,
@@ -746,28 +708,31 @@ function planPositional(
       marker,
       markerSide: 'right',
       bboxMm: pathBbox(arrowPts, 2),
-    })
+    }
+    if (useScaledArrow && forceEl) {
+      const mag = parseFloat(forceEl.value ?? '50') || 50
+      arrowObj.extra = { magnitude: mag, maxMagnitude: 100 }
+    }
+    objects.push(arrowObj)
     if (forceEl) key.push(buildKeyEntry(marker, forceEl))
   }
 
   return { layout: 'positional', objects, connections: [], key, transcriberNotes: [] }
 }
 
-// ── Layout: directional (flow / DAG) ──────────────────────────────────────────
+// ── Layout: directional (flow / DAG) ─────────────────────────────────────────
 
 function planDirectional(
-  analysis: DiagramAnalysis,
-  dynLayout: DynLayout,
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
+  { drawY, drawH }: DynLayout,
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const { drawY, drawH } = dynLayout
-  const { elements, relationships } = analysis
   const meaningful = elements.filter(el => !isNoise(el.type))
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
   const sorted = [...meaningful].sort((a, b) => (a.position?.x ?? 0.5) - (b.position?.x ?? 0.5))
 
-  // Pass 1: resolve all positions
   const posMap = new Map<string, { xMm: number; yMm: number }>()
   sorted.forEach((el, idx) => {
     const pos = el.position
@@ -776,7 +741,6 @@ function planDirectional(
     posMap.set(el.id, pos)
   })
 
-  // Pass 2: build connections (paths known before marker placement)
   const connections: TactileConnection[] = []
   for (const rel of relationships) {
     const fp = posMap.get(rel.from)
@@ -788,23 +752,25 @@ function planDirectional(
     connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path })
   }
 
-  // Pass 3: create component objects with marker/markerSide (placeAllMarkers runs after)
   sorted.forEach((el, idx) => {
     const pos = posMap.get(el.id)!
     const marker = String(idx + 1)
-    const label = elementLabel(el)
+    const shape = resolveShape(el)
+
     const compObj: TactileObject = {
       id: `el-${el.id}`,
       sourceElementId: el.id,
       role: 'component',
-      shape: resolveShape(el.visualShape),
+      shape,
       xMm: pos.xMm,
       yMm: pos.yMm,
-      label,
+      label: elementLabel(el),
       marker,
       markerSide: 'top',
+      labelMethod: el.labelMethod,
       bboxMm: undefined,
     }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
     compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
     key.push(buildKeyEntry(marker, el))
@@ -813,27 +779,120 @@ function planDirectional(
   return { layout: 'directional', objects, connections, key, transcriberNotes: [] }
 }
 
+// ── Layout: elkjs flow-sequence ───────────────────────────────────────────────
+
+async function planFlowSequence(
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
+  { drawY, drawH }: DynLayout,
+): Promise<Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'>> {
+  const meaningful = elements.filter(el => !isNoise(el.type))
+  if (meaningful.length === 0) {
+    return planDirectional(meaningful, relationships, { drawY, drawH })
+  }
+
+  const elk = new ELK()
+  const NODE_W = 28
+  const NODE_H = 14
+
+  const elkGraph = {
+    id: 'root',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.spacing.nodeNode': '8',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '15',
+    },
+    children: meaningful.map(el => ({ id: el.id, width: NODE_W, height: NODE_H })),
+    edges: relationships
+      .filter(r => meaningful.some(e => e.id === r.from) && meaningful.some(e => e.id === r.to))
+      .map((rel, i) => ({ id: `e${i}`, sources: [rel.from], targets: [rel.to] })),
+  }
+
+  type LaidNode = { id: string; x?: number; y?: number; width?: number; height?: number }
+  type LaidGraph = { children?: LaidNode[] }
+
+  let laidChildren: LaidNode[]
+  try {
+    const result = await elk.layout(elkGraph) as LaidGraph
+    laidChildren = result.children ?? []
+  } catch {
+    // Fallback to directional layout if elkjs fails
+    return planDirectional(meaningful, relationships, { drawY, drawH })
+  }
+
+  // Scale elk coords to our drawing area
+  const nodes = laidChildren
+  const maxElkX = Math.max(...nodes.map(n => (n.x ?? 0) + NODE_W), 1)
+  const maxElkY = Math.max(...nodes.map(n => (n.y ?? 0) + NODE_H), 1)
+  const scaleX = DRAW_W / (maxElkX + 20)
+  const scaleY = drawH / (maxElkY + 20)
+
+  const posMap = new Map<string, { xMm: number; yMm: number }>()
+  for (const node of nodes) {
+    posMap.set(node.id, {
+      xMm: DRAW_X + ((node.x ?? 0) + NODE_W / 2) * scaleX,
+      yMm: drawY + ((node.y ?? 0) + NODE_H / 2) * scaleY,
+    })
+  }
+
+  const objects: TactileObject[] = []
+  const key: TactileKeyEntry[] = []
+  const connections: TactileConnection[] = []
+
+  meaningful.forEach((el, idx) => {
+    const pos = posMap.get(el.id) ?? gridPosMm(idx, meaningful.length, drawY, drawH)
+    const marker = String(idx + 1)
+    const shape = resolveShape(el)
+
+    const compObj: TactileObject = {
+      id: `el-${el.id}`,
+      sourceElementId: el.id,
+      role: 'component',
+      shape,
+      xMm: pos.xMm,
+      yMm: pos.yMm,
+      label: elementLabel(el),
+      marker,
+      markerSide: 'top',
+      labelMethod: el.labelMethod,
+      bboxMm: undefined,
+    }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
+    compObj.bboxMm = componentBboxMm(compObj)
+    objects.push(compObj)
+    key.push(buildKeyEntry(marker, el))
+  })
+
+  for (const rel of relationships) {
+    const fp = posMap.get(rel.from)
+    const tp = posMap.get(rel.to)
+    if (!fp || !tp) continue
+    connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
+  }
+
+  return { layout: 'directional', objects, connections, key, transcriberNotes: [] }
+}
+
 // ── Layout: grid fallback ─────────────────────────────────────────────────────
 
 function planGrid(
-  analysis: DiagramAnalysis,
-  dynLayout: DynLayout,
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
+  { drawY, drawH }: DynLayout,
 ): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const { drawY, drawH } = dynLayout
-  const meaningful = analysis.elements.filter(el => !isNoise(el.type))
+  const meaningful = elements.filter(el => !isNoise(el.type))
   const objects: TactileObject[] = []
   const key: TactileKeyEntry[] = []
 
-  // Pass 1: resolve all positions
   const positions = meaningful.map((el, idx) =>
     el.position
       ? { xMm: DRAW_X + el.position.x * DRAW_W, yMm: drawY + el.position.y * drawH }
       : gridPosMm(idx, meaningful.length, drawY, drawH)
   )
 
-  // Pass 2: build connections (paths known before marker placement)
   const connections: TactileConnection[] = []
-  for (const rel of analysis.relationships) {
+  for (const rel of relationships) {
     const fi = meaningful.findIndex(e => e.id === rel.from)
     const ti = meaningful.findIndex(e => e.id === rel.to)
     if (fi < 0 || ti < 0) continue
@@ -841,24 +900,25 @@ function planGrid(
     connections.push({ from: rel.from, to: rel.to, directed: rel.directed, path: [fp, { xMm: tp.xMm, yMm: fp.yMm }, tp] })
   }
 
-  // Pass 3: create component objects (placeAllMarkers runs after)
   meaningful.forEach((el, idx) => {
     const pos = positions[idx]
     const marker = String(idx + 1)
-    const label = elementLabel(el)
+    const shape = resolveShape(el)
 
     const compObj: TactileObject = {
       id: `el-${el.id}`,
       sourceElementId: el.id,
       role: 'component',
-      shape: resolveShape(el.visualShape),
+      shape,
       xMm: pos.xMm,
       yMm: pos.yMm,
-      label,
+      label: elementLabel(el),
       marker,
       markerSide: 'top',
+      labelMethod: el.labelMethod,
       bboxMm: undefined,
     }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
     compObj.bboxMm = componentBboxMm(compObj)
     objects.push(compObj)
     key.push(buildKeyEntry(marker, el))
@@ -867,66 +927,118 @@ function planGrid(
   return { layout: 'grid', objects, connections, key, transcriberNotes: [] }
 }
 
+// ── Strategy → layout inference ───────────────────────────────────────────────
+
+function inferLayoutHint(domain: TactileDomain, strategy: TactileStrategy): 'cyclic' | 'axial' | 'positional' | 'directional' | 'none' {
+  if (strategy === 'chart-reconstruction') return 'axial'
+  if (strategy === 'flow-sequence') return 'directional'
+  if (strategy === 'labelled-region-map' || strategy === 'simplified-spatial-diagram') return 'positional'
+  if (strategy === 'fallback-locator-map') return 'none'
+  // direct-symbol-diagram: use domain
+  if (domain === 'circuit' || domain === 'process') return 'cyclic'
+  if (domain === 'fbd' || domain === 'physics' || domain === 'geometry' || domain === 'anatomy' || domain === 'biology' || domain === 'spatial' || domain === 'map') return 'positional'
+  return 'directional'
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+
+function validate(
+  objects: TactileObject[],
+  key: TactileKeyEntry[],
+  warnings: TactileValidationIssue[],
+  layout: string,
+  keyZone: ZoneRect,
+) {
+  const usedKeyH = key.reduce((s, e) => s + e.heightMm, 0)
+  if (usedKeyH > keyZone.heightMm) {
+    warnings.push({ severity: 'warning', code: 'TEXT_OVERFLOW', message: `Key requires ${usedKeyH.toFixed(0)}mm but only ${keyZone.heightMm.toFixed(0)}mm is available.` })
+  }
+  if (key.length === 0) {
+    warnings.push({ severity: 'warning', code: 'NO_LEGEND', message: 'No key entries generated.' })
+  }
+  if (layout === 'cyclic-loop' && objects.filter(o => o.role === 'component').length === 0) {
+    warnings.push({ severity: 'warning', code: 'NORMALIZED_LAYOUT_WITHOUT_NOTE', message: 'Cyclic layout used but no transcriber note was generated.' })
+  }
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
-export function buildTactilePlan(analysis: DiagramAnalysis): TactilePlan {
-  const warnings: TactileValidationIssue[] = []
+export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<TactilePlan> {
+  const warnings: TactileValidationIssue[] = [...(pageSpec.warnings?.map(w => ({ severity: 'warning' as const, code: 'UNKNOWN_SYMBOL' as const, message: w })) ?? [])]
 
-  // 1. Compute title braille footprint
-  const { normalized: normTitle } = normalizeStemText(analysis.title)
+  const { elements, relationships, domain, tactileStrategy, pageType } = pageSpec
+
+  // 1. Compute title zone
+  const { normalized: normTitle } = normalizeStemText(pageSpec.title)
   const actualTitleH = brailleFootprintMm(normTitle, PAGE_W - 2 * MARGIN).heightMm
+  const titleH = Math.max(actualTitleH, LINE_H)
+  const titleZone: ZoneRect = { xMm: MARGIN, yMm: MARGIN, widthMm: PAGE_W - 2 * MARGIN, heightMm: titleH + 4 }
 
-  // 2. Pre-compute key entry heights from analysis elements to derive dynamic layout
-  const meaningful = analysis.elements.filter(el => !isNoise(el.type))
+  // 2. Compute instructions zone height
+  const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
+  const instrH = maxInstrLines * LINE_H
+
+  // 3. Compute key entries to derive key zone height
+  const meaningful = elements.filter(el => !isNoise(el.type))
   const keyEntryHeights = meaningful.map((el, idx) => {
     const marker = String(idx + 1)
     const { normalized } = normalizeStemText(elementLabel(el))
-    const lineText = `${marker} ${normalized}`
-    return brailleFootprintMm(lineText, PAGE_W - 2 * MARGIN).heightMm
+    return brailleFootprintMm(`${marker} ${normalized}`, PAGE_W - 2 * MARGIN).heightMm
   })
-  const KEY_ENTRY_TOTAL = keyEntryHeights.reduce((s, h) => s + h, 0)
+  const keyH = Math.max(keyEntryHeights.reduce((s, h) => s + h, 0), LINE_H)
 
-  // 3. Derive dynamic layout constants
-  const drawY = MARGIN + Math.max(actualTitleH, KEY_LINE_H) + 4
-  let keySepY = PAGE_H - MARGIN - KEY_ENTRY_TOTAL - KEY_HEADER_H - 5
-  let drawH = keySepY - 5 - drawY
-
+  // 4. Compute drawing area height
+  const drawY = titleZone.yMm + titleZone.heightMm
+  let drawH = PAGE_H - MARGIN - drawY - 5 - instrH - 5 - keyH
   if (drawH < 80) {
-    warnings.push({
-      severity: 'warning',
-      code: 'TEXT_OVERFLOW',
-      message: `Drawing area is only ${drawH.toFixed(0)}mm tall — diagram may be cramped.`,
-    })
+    warnings.push({ severity: 'warning', code: 'SYMBOL_TOO_DENSE', message: `Drawing area is only ${drawH.toFixed(0)}mm — diagram may be cramped.` })
     drawH = Math.max(drawH, 80)
-    // Recompute keySepY so the renderer, occupied zones, and validation all agree
-    keySepY = drawY + drawH + 5
   }
 
-  const dynLayout: DynLayout = { drawY, drawH, keySepY }
+  const drawingArea: ZoneRect = { xMm: MARGIN, yMm: drawY, widthMm: DRAW_W, heightMm: drawH }
+  const instructionsZone: ZoneRect = { xMm: MARGIN, yMm: drawY + drawH + 5, widthMm: DRAW_W, heightMm: instrH }
+  const keyZone: ZoneRect = { xMm: MARGIN, yMm: instructionsZone.yMm + instrH + 5, widthMm: DRAW_W, heightMm: PAGE_H - MARGIN - (instructionsZone.yMm + instrH + 5) }
 
-  // 4. Build initialOccupied with permanent zones
+  // 5. Build initial occupied zones
   const initialOccupied: Bbox[] = [
-    { x: 0, y: 0, w: PAGE_W, h: drawY },                         // title zone
-    { x: 0, y: keySepY, w: PAGE_W, h: PAGE_H - keySepY },        // key zone
-    { x: 0, y: 0, w: MARGIN, h: PAGE_H },                        // left margin
-    { x: PAGE_W - MARGIN, y: 0, w: MARGIN, h: PAGE_H },          // right margin
+    { x: 0, y: 0, w: PAGE_W, h: drawY },
+    { x: 0, y: drawY + drawH, w: PAGE_W, h: PAGE_H - drawY - drawH },
+    { x: 0, y: 0, w: MARGIN, h: PAGE_H },
+    { x: PAGE_W - MARGIN, y: 0, w: MARGIN, h: PAGE_H },
   ]
 
-  // 5. Call layout function
+  // 6. Call layout function based on strategy
+  const layoutHint = inferLayoutHint(domain, tactileStrategy)
+  const dynLayout: DynLayout = { drawY, drawH }
+
   let partial: Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'>
-  switch (analysis.layoutHint) {
-    case 'cyclic':      partial = planCyclic(analysis, warnings, dynLayout); break
-    case 'axial':       partial = planAxial(analysis, dynLayout); break
-    case 'positional':  partial = planPositional(analysis, dynLayout); break
-    case 'directional': partial = planDirectional(analysis, dynLayout); break
-    default:            partial = planGrid(analysis, dynLayout); break
+
+  if (tactileStrategy === 'flow-sequence') {
+    partial = await planFlowSequence(elements, relationships, dynLayout)
+  } else {
+    switch (layoutHint) {
+      case 'cyclic':
+        partial = planCyclic(elements, relationships, warnings, dynLayout)
+        break
+      case 'axial':
+        partial = planAxial(elements, dynLayout)
+        break
+      case 'positional':
+        partial = planPositional(elements, relationships, dynLayout)
+        break
+      case 'directional':
+        partial = planDirectional(elements, relationships, dynLayout)
+        break
+      default:
+        partial = planGrid(elements, relationships, dynLayout)
+    }
   }
 
-  // 6. Universal marker placement — runs after all geometry is known
-  const markerObjects = placeAllMarkers(partial.objects, partial.connections, initialOccupied)
+  // 7. Universal marker placement
+  const markerObjects = placeAllMarkers(partial.objects, partial.connections, initialOccupied, PAGE_W, MARGIN)
   partial.objects.push(...markerObjects)
 
-  // 7. Set actual heightMm on key entries using computed text
+  // 8. Finalize key entry heights
   for (const entry of partial.key) {
     const lineText = `${entry.marker} ${entry.normalizedText}`
     entry.heightMm = brailleFootprintMm(lineText, PAGE_W - 2 * MARGIN).heightMm
@@ -934,15 +1046,24 @@ export function buildTactilePlan(analysis: DiagramAnalysis): TactilePlan {
 
   const plan: TactilePlan = {
     page: { widthMm: PAGE_W, heightMm: PAGE_H, marginMm: MARGIN, orientation: 'portrait' },
-    drawingArea: { xMm: DRAW_X, yMm: drawY, widthMm: DRAW_W, heightMm: drawH },
-    layoutHint: analysis.layoutHint,
-    title: analysis.title,
-    ...partial,
+    titleZone,
+    drawingArea,
+    instructionsZone,
+    keyZone,
+    layoutHint,
+    layout: partial.layout,
+    title: pageSpec.title,
+    explorationInstructions: pageSpec.explorationInstructions,
+    objects: partial.objects,
+    connections: partial.connections,
+    key: partial.key,
+    transcriberNotes: partial.transcriberNotes,
     warnings,
   }
 
-  validate(plan, warnings, keySepY)
+  validate(partial.objects, partial.key, warnings, partial.layout, keyZone)
   return plan
 }
 
-export { KEY_LINE_H, TITLE_Y, MARGIN, PAGE_W, PAGE_H, WIRE_SW, KEY_SEP_Y_DEFAULT as KEY_SEP_Y }
+// Legacy constants still used by tests / renderer
+export { KEY_LINE_H, MARGIN as TITLE_Y }
