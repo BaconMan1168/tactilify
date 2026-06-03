@@ -178,7 +178,7 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo`:
   - No color — pure black strokes on white
   - Every element rendered as its `visualShape` (or `rect` by default): circle, diamond, arc, arrow, path
   - English label printed in readable text beside or inside each shape (for sighted reviewers)
-  - Braille label encoded via `braille.ts` placed outside the shape, below or to the right
+  - Short numeric marker (e.g. braille '1', '2') placed outside the component in the first collision-free candidate position; full label in the keyed legend at the bottom of the page (BANA keyed-label approach)
   - No domain-specific symbols (no IEC circuit glyphs, no scientific icons) — generic shapes only
   - ViewBox sized to A4 (794×1123px at 96dpi)
 - Run output through `svgo`

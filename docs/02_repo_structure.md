@@ -51,12 +51,15 @@ tactilify/
 │   │   ├── anthropic.ts               # Anthropic client initialisation (server-only)
 │   │   ├── openai.ts                  # OpenAI client initialisation (server-only)
 │   │   ├── braille.ts                 # ASCII → Unicode Grade 1 Braille encoder
+│   │   ├── brailleMetrics.ts          # Braille cell/line footprint calculation (mm)
 │   │   ├── prompts.ts                 # All Claude prompt templates (analysis, narration)
 │   │   └── svg/
-│   │       └── tactileRenderer.ts     # Tactile/braille SVG generator
+│   │       ├── tactilePlanner.ts      # DiagramAnalysis → collision-resolved TactilePlan
+│   │       └── tactileRenderer.ts     # TactilePlan → A4 SVG string
 │   │
 │   └── types/
-│       └── diagram.ts                 # All TypeScript types: DiagramAnalysis, DiagramElement, etc.
+│       ├── diagram.ts                 # All TypeScript types: DiagramAnalysis, DiagramElement, etc.
+│       └── tactile.ts                 # TactilePlan, TactileObject, Bbox, and related types
 │
 ├── .env.local                         # ANTHROPIC_API_KEY, OPENAI_API_KEY (never committed)
 ├── .env.example                       # Template showing required env vars
@@ -79,7 +82,7 @@ All AI calls go through `/api/` routes. The client never calls Anthropic or Open
 - `ui/` — reusable generic UI primitives
 
 ### lib/svg/
-- `tactileRenderer.ts` — exports `renderTactile(analysis: DiagramAnalysis): string`, returning the A4-sized braille/outline SVG string
+`tactilePlanner.ts` converts a `DiagramAnalysis` into a `TactilePlan` — a collision-resolved intermediate representation with all positions and bounding boxes in mm. `tactileRenderer.ts` consumes the plan and emits the final SVG string. No layout decisions happen in the renderer.
 
 ### types/diagram.ts
 Single source of truth for all TypeScript types. Both the API route and client components import from here.
