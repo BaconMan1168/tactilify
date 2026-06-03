@@ -270,7 +270,7 @@ export default function HomePage() {
                 <div>
                   <p className="text-[15px] text-[#d0d6e0]">diagram.{image?.mimeType.split('/')[1]}</p>
                   <p className="text-[13px] text-[#62666d] mt-1">
-                    {analysis.type} · {analysis.elements.length} component{analysis.elements.length !== 1 ? 's' : ''}
+                    {analysis.layoutHint} · {analysis.elements.length} component{analysis.elements.length !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -528,7 +528,7 @@ export default function HomePage() {
             className="w-full flex items-center justify-between px-4 py-3 text-[11px] font-mono text-[#62666d] hover:text-[#8a8f98] transition-colors"
             aria-expanded={debugOpen}
           >
-            <span>DiagramAnalysis — {analysis.type} — {analysis.elements.length} elements</span>
+            <span>DiagramAnalysis — {analysis.layoutHint} — {analysis.elements.length} elements</span>
             <span>{debugOpen ? '▼' : '▶'}</span>
           </button>
           <AnimatePresence>
