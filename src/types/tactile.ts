@@ -198,6 +198,7 @@ export type TactileObject = {
   yMm: number
   widthMm?: number
   heightMm?: number
+  rotationDeg?: number
   marker?: string
   markerSide?: 'top' | 'right' | 'bottom' | 'left'
   label?: string

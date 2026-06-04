@@ -1,5 +1,6 @@
 // Server-only — do not import from client components
-import ELK from 'elkjs'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ELK = require('elkjs/lib/elk.bundled.js')
 import type { Relationship } from '@/types/diagram'
 import type {
   TactilePlan,
@@ -34,6 +35,9 @@ const HALF_ALONG = 13
 const KEY_LINE_H = LINE_H
 const INSTRUCTIONS_MAX_LINES_SINGLE = 2
 const INSTRUCTIONS_MAX_LINES_OVERVIEW = 4
+const GAP = 4
+const MIN_DRAW_H = 80
+const KEY_ZONE_MAX_H = 60
 
 // ── Dynamic layout context ────────────────────────────────────────────────────
 
@@ -87,6 +91,11 @@ function pathBbox(path: { xMm: number; yMm: number }[], pad = 1): Bbox {
   return { x: minX, y: minY, w: Math.max(...xs) + pad - minX, h: Math.max(...ys) + pad - minY }
 }
 
+function circuitBbox(x: number, y: number, W: number, H: number, rotationDeg?: number): Bbox {
+  if (rotationDeg === 90) return { x: x - H / 2, y: y - W / 2, w: H, h: W }
+  return { x: x - W / 2, y: y - H / 2, w: W, h: H }
+}
+
 function componentBboxMm(obj: TactileObject): Bbox {
   const x = obj.xMm, y = obj.yMm
   switch (obj.shape) {
@@ -100,14 +109,14 @@ function componentBboxMm(obj: TactileObject): Bbox {
       const pts = obj.points ?? [{ xMm: x, yMm: y }]
       return pathBbox(pts, 1)
     }
-    // Domain symbols — approximate footprint
-    case 'battery-symbol':   return { x: x - 10, y: y - 5,  w: 20, h: 10 }
-    case 'resistor-symbol':  return { x: x - 10, y: y - 4,  w: 20, h: 8  }
-    case 'capacitor-symbol': return { x: x - 6,  y: y - 8,  w: 12, h: 16 }
-    case 'switch-symbol':    return { x: x - 10, y: y - 5,  w: 20, h: 10 }
-    case 'lamp-symbol':      return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
-    case 'inductor-symbol':  return { x: x - 10, y: y - 4,  w: 20, h: 8  }
-    case 'diode-symbol':     return { x: x - 8,  y: y - 6,  w: 16, h: 12 }
+    // Domain symbols — rotation-aware footprint for the 7 circuit symbols
+    case 'battery-symbol':   return circuitBbox(x, y, 20, 10, obj.rotationDeg)
+    case 'resistor-symbol':  return circuitBbox(x, y, 20, 8,  obj.rotationDeg)
+    case 'capacitor-symbol': return circuitBbox(x, y, 12, 16, obj.rotationDeg)
+    case 'switch-symbol':    return circuitBbox(x, y, 20, 10, obj.rotationDeg)
+    case 'lamp-symbol':      return circuitBbox(x, y, 16, 16, obj.rotationDeg)
+    case 'inductor-symbol':  return circuitBbox(x, y, 20, 8,  obj.rotationDeg)
+    case 'diode-symbol':     return circuitBbox(x, y, 16, 12, obj.rotationDeg)
     case 'atom-circle':      return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
     case 'bond-line':        return { x: x - 10, y: y - 3,  w: 20, h: 6  }
     case 'angle-arc':        return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
@@ -147,7 +156,7 @@ function placeMarkerLabel(
   compBbox: Bbox,
   footprint: { widthMm: number; heightMm: number },
   occupied: Bbox[],
-  clearance = 10,
+  clearance = 5,
 ): { xMm: number; yMm: number; bboxMm: Bbox } | null {
   const { widthMm: fw, heightMm: fh } = footprint
   for (const dir of CANDIDATE_ORDER[side]) {
@@ -218,8 +227,36 @@ function placeAllMarkers(
 
 // ── Key entry builder ─────────────────────────────────────────────────────────
 
+const UNIT_WORDS = new Set([
+  'volt', 'volts', 'ohm', 'ohms', 'farad', 'farads', 'amp', 'amps', 'ampere', 'amperes',
+  'watt', 'watts', 'henry', 'henries', 'uf', 'pf', 'nf', 'kilo', 'micro', 'milli',
+  'nano', 'μ', 'ω', 'hz', 'db', 'pa', 'n',
+])
+
+function buildKeyLabel(el: AdaptedDiagramElement): string {
+  const rawType = el.type.toLowerCase().trim()
+  const canonicalType = rawType.replace(/_|\s+/g, ' ').trim()
+
+  if (!canonicalType) return el.label.trim()
+
+  const identifierTokens = el.label.trim().split(/\s+/).filter(tok => {
+    const lower = tok.toLowerCase()
+    if (canonicalType.includes(lower)) return false
+    if (/^\d+(\.\d+)?$/.test(tok)) return false
+    if (UNIT_WORDS.has(lower)) return false
+    return true
+  })
+  const identifier = identifierTokens.join(' ').trim()
+  const value = el.value?.trim()
+
+  const parts: string[] = [canonicalType]
+  if (identifier) parts.push(identifier)
+  if (value) parts.push(value)
+  return parts.join(', ')
+}
+
 function buildKeyEntry(marker: string, el: AdaptedDiagramElement): TactileKeyEntry {
-  const rawText = elementLabel(el)
+  const rawText = buildKeyLabel(el)
   const { normalized } = normalizeStemText(rawText)
   return { marker, elementId: el.id, text: rawText, normalizedText: normalized, heightMm: KEY_LINE_H }
 }
@@ -287,6 +324,39 @@ function orderLoopComponents(elements: AdaptedDiagramElement[], relationships: R
     if (!visited.has(el.id)) ordered.push(el)
   }
   return ordered
+}
+
+function spatialClockwiseOrder(elements: AdaptedDiagramElement[]): AdaptedDiagramElement[] {
+  const positioned = elements.filter(el => el.position != null)
+  const unpositioned = elements.filter(el => el.position == null)
+
+  if (positioned.length < 2) return elements
+
+  const cx = positioned.reduce((s, el) => s + el.position!.x, 0) / positioned.length
+  const cy = positioned.reduce((s, el) => s + el.position!.y, 0) / positioned.length
+
+  const withAngles = positioned.map(el => {
+    const rawAngle = Math.atan2(el.position!.y - cy, el.position!.x - cx)
+    const angle = (rawAngle + Math.PI / 2 + 2 * Math.PI) % (2 * Math.PI)
+    return { el, angle }
+  })
+
+  // Stable sort ascending by angle (clockwise from top)
+  withAngles.sort((a, b) => a.angle - b.angle)
+
+  return [...withAngles.map(({ el }) => el), ...unpositioned]
+}
+
+function augmentTitle(title: string, elements: AdaptedDiagramElement[]): string {
+  if (elements.length > 8) return title
+
+  const canonicalTypes = [...new Set(
+    elements.map(el => el.type.toLowerCase().trim().replace(/_|\s+/g, ' ').trim()).filter(t => t)
+  )]
+  const missing = canonicalTypes.filter(type => !title.toLowerCase().includes(type))
+
+  if (missing.length === 0 || missing.length > 3) return title
+  return `${title}, ${missing.join(', ')}`
 }
 
 // ── Loop perimeter distribution ───────────────────────────────────────────────
@@ -395,9 +465,15 @@ function planCyclic(
   const key: TactileKeyEntry[] = []
   const transcriberNotes: string[] = []
 
+  const ROTATABLE_CIRCUIT_SYMBOLS = new Set([
+    'battery-symbol', 'resistor-symbol', 'capacitor-symbol',
+    'switch-symbol', 'lamp-symbol', 'inductor-symbol', 'diode-symbol',
+  ])
+
   if (meaningful.length >= 2 && meaningful.length <= 12) {
-    const ordered = orderLoopComponents(meaningful, relationships)
-    const loopPoints = distributeOnLoop(ordered.length, loopL, loopT, loopR, loopB)
+    const ordered = spatialClockwiseOrder(meaningful)
+    const n = ordered.length
+    const loopPoints = distributeOnLoop(n, loopL, loopT, loopR, loopB)
 
     const compsOnSide: CompOnSide[] = ordered.map((el, idx) => ({
       xMm: loopPoints[idx].xMm,
@@ -431,15 +507,22 @@ function planCyclic(
         compObj.extra = { bondOrder: hint === 'bond-triple' ? 3 : hint === 'bond-double' ? 2 : 1 }
       }
       if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
+
+      // Wire-angle rotation for circuit symbols
+      if (ROTATABLE_CIRCUIT_SYMBOLS.has(shape)) {
+        const prev = loopPoints[(idx - 1 + n) % n]
+        const next = loopPoints[(idx + 1) % n]
+        const dx = next.xMm - prev.xMm
+        const dy = next.yMm - prev.yMm
+        compObj.rotationDeg = (dx === 0 && dy === 0) ? 0 : (Math.abs(dy) > Math.abs(dx) ? 90 : 0)
+      }
+
       compObj.bboxMm = componentBboxMm(compObj)
       objects.push(compObj)
       key.push(buildKeyEntry(marker, el))
     })
 
     objects.push(...loopWires)
-    transcriberNotes.push(
-      'Diagram rearranged into a rectangle to make the cyclic connection easier to trace by touch. Follow the numbered components in order around the loop.'
-    )
     return { layout: 'cyclic-loop', objects, connections: [], key, transcriberNotes }
   }
 
@@ -968,36 +1051,50 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
 
   const { elements, relationships, domain, tactileStrategy, pageType } = pageSpec
 
-  // 1. Compute title zone
-  const { normalized: normTitle } = normalizeStemText(pageSpec.title)
+  // Pre-filter meaningful elements and augment title with any missing component types
+  const meaningful = elements.filter(el => !isNoise(el.type))
+  const finalTitle = augmentTitle(pageSpec.title, meaningful)
+
+  // 1. Title zone
+  const { normalized: normTitle } = normalizeStemText(finalTitle)
   const actualTitleH = brailleFootprintMm(normTitle, PAGE_W - 2 * MARGIN).heightMm
   const titleH = Math.max(actualTitleH, LINE_H)
   const titleZone: ZoneRect = { xMm: MARGIN, yMm: MARGIN, widthMm: PAGE_W - 2 * MARGIN, heightMm: titleH + 4 }
 
-  // 2. Compute instructions zone height
+  // 2. Instructions zone (immediately below title — BANA order: title → instructions → key → drawing)
   const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
   const instrH = maxInstrLines * LINE_H
-
-  // 3. Compute key entries to derive key zone height
-  const meaningful = elements.filter(el => !isNoise(el.type))
-  const keyEntryHeights = meaningful.map((el, idx) => {
-    const marker = String(idx + 1)
-    const { normalized } = normalizeStemText(elementLabel(el))
-    return brailleFootprintMm(`${marker} ${normalized}`, PAGE_W - 2 * MARGIN).heightMm
-  })
-  const keyH = Math.max(keyEntryHeights.reduce((s, h) => s + h, 0), LINE_H)
-
-  // 4. Compute drawing area height
-  const drawY = titleZone.yMm + titleZone.heightMm
-  let drawH = PAGE_H - MARGIN - drawY - 5 - instrH - 5 - keyH
-  if (drawH < 80) {
-    warnings.push({ severity: 'warning', code: 'SYMBOL_TOO_DENSE', message: `Drawing area is only ${drawH.toFixed(0)}mm — diagram may be cramped.` })
-    drawH = Math.max(drawH, 80)
+  const instructionsZone: ZoneRect = {
+    xMm: MARGIN,
+    yMm: titleZone.yMm + titleZone.heightMm + GAP,
+    widthMm: DRAW_W,
+    heightMm: instrH,
   }
 
+  // 3. Key zone (below instructions, height capped at KEY_ZONE_MAX_H)
+  const rawKeyH = Math.max(
+    meaningful.reduce((s, el, idx) => {
+      const marker = String(idx + 1)
+      const { normalized } = normalizeStemText(buildKeyLabel(el))
+      return s + brailleFootprintMm(`${marker} ${normalized}`, PAGE_W - 2 * MARGIN).heightMm
+    }, 0),
+    LINE_H,
+  )
+  const keyZone: ZoneRect = {
+    xMm: MARGIN,
+    yMm: instructionsZone.yMm + instructionsZone.heightMm + GAP,
+    widthMm: DRAW_W,
+    heightMm: Math.min(rawKeyH, KEY_ZONE_MAX_H),
+  }
+
+  // 4. Drawing area gets remaining page space below key zone
+  const drawY = keyZone.yMm + keyZone.heightMm + GAP
+  const naturalDrawH = PAGE_H - MARGIN - drawY
+  if (naturalDrawH < MIN_DRAW_H) {
+    warnings.push({ severity: 'warning', code: 'SYMBOL_TOO_DENSE', message: `Drawing area is only ${naturalDrawH.toFixed(0)}mm — diagram may be cramped.` })
+  }
+  const drawH = Math.max(naturalDrawH, MIN_DRAW_H)
   const drawingArea: ZoneRect = { xMm: MARGIN, yMm: drawY, widthMm: DRAW_W, heightMm: drawH }
-  const instructionsZone: ZoneRect = { xMm: MARGIN, yMm: drawY + drawH + 5, widthMm: DRAW_W, heightMm: instrH }
-  const keyZone: ZoneRect = { xMm: MARGIN, yMm: instructionsZone.yMm + instrH + 5, widthMm: DRAW_W, heightMm: PAGE_H - MARGIN - (instructionsZone.yMm + instrH + 5) }
 
   // 5. Build initial occupied zones
   const initialOccupied: Bbox[] = [
@@ -1052,7 +1149,7 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
     keyZone,
     layoutHint,
     layout: partial.layout,
-    title: pageSpec.title,
+    title: finalTitle,
     explorationInstructions: pageSpec.explorationInstructions,
     objects: partial.objects,
     connections: partial.connections,

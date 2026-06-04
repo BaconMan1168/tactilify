@@ -122,12 +122,13 @@ describe('key hard-stop', () => {
     }
   })
 
-  it('no marker appears below the key zone start', async () => {
+  it('no marker appears in the key zone (drawing area is below key in BANA layout)', async () => {
     const plan = await buildTactilePlan(makeCyclicPageSpec(4))
-    const { keyZone } = plan
+    const { drawingArea } = plan
     const markers = plan.objects.filter(o => o.role === 'marker' && o.bboxMm)
     for (const m of markers) {
-      expect(m.bboxMm!.y).toBeLessThan(keyZone.yMm)
+      // BANA order: title → instructions → key → drawing; markers must be in drawing area
+      expect(m.bboxMm!.y).toBeGreaterThanOrEqual(drawingArea.yMm - 5)
     }
   })
 })

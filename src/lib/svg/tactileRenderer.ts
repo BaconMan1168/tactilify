@@ -347,6 +347,15 @@ function drawRightAngleMark(svg: El, obj: TactileObject) {
   }).up()
 }
 
+// ── Rotation wrapper ──────────────────────────────────────────────────────────
+
+function withRotation(svg: El, obj: TactileObject, drawFn: (g: El) => void): void {
+  if (!obj.rotationDeg) { drawFn(svg); return }
+  const g = svg.ele('g', { transform: `rotate(${obj.rotationDeg}, ${f(obj.xMm)}, ${f(obj.yMm)})` })
+  drawFn(g)
+  g.up()
+}
+
 // ── Organic primitive draw functions ──────────────────────────────────────────
 
 function drawRoundedLobe(svg: El, cx: number, cy: number, w: number, h: number) {
@@ -639,14 +648,14 @@ function drawObject(
     case 'bar':           drawBar(svg, obj); break
     case 'line-chart':    drawLineChart(svg, obj); break
     case 'pie-sector':    drawPieSector(svg, obj); break
-    // Domain symbols
-    case 'battery-symbol':    drawBatterySymbol(svg, obj); break
-    case 'resistor-symbol':   drawResistorSymbol(svg, obj); break
-    case 'capacitor-symbol':  drawCapacitorSymbol(svg, obj); break
-    case 'switch-symbol':     drawSwitchSymbol(svg, obj); break
-    case 'lamp-symbol':       drawLampSymbol(svg, obj); break
-    case 'inductor-symbol':   drawInductorSymbol(svg, obj); break
-    case 'diode-symbol':      drawDiodeSymbol(svg, obj); break
+    // Domain symbols — 7 circuit symbols use withRotation; others are directional/symmetric
+    case 'battery-symbol':   withRotation(svg, obj, g => drawBatterySymbol(g, obj)); break
+    case 'resistor-symbol':  withRotation(svg, obj, g => drawResistorSymbol(g, obj)); break
+    case 'capacitor-symbol': withRotation(svg, obj, g => drawCapacitorSymbol(g, obj)); break
+    case 'switch-symbol':    withRotation(svg, obj, g => drawSwitchSymbol(g, obj)); break
+    case 'lamp-symbol':      withRotation(svg, obj, g => drawLampSymbol(g, obj)); break
+    case 'inductor-symbol':  withRotation(svg, obj, g => drawInductorSymbol(g, obj)); break
+    case 'diode-symbol':     withRotation(svg, obj, g => drawDiodeSymbol(g, obj)); break
     case 'atom-circle':       drawAtomCircle(svg, obj); break
     case 'bond-line':         drawBondLine(svg, obj); break
     case 'force-arrow-scaled': drawForceArrowScaled(svg, obj); break
