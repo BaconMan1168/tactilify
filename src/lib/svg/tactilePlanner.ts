@@ -37,7 +37,8 @@ const INSTRUCTIONS_MAX_LINES_SINGLE = 2
 const INSTRUCTIONS_MAX_LINES_OVERVIEW = 4
 const GAP = 4
 const MIN_DRAW_H = 80
-const KEY_ZONE_MAX_H = 60
+const KEY_ZONE_MAX_H = 80
+const KEY_HEADER_H = LINE_H
 
 // ── Dynamic layout context ────────────────────────────────────────────────────
 
@@ -91,6 +92,14 @@ function pathBbox(path: { xMm: number; yMm: number }[], pad = 1): Bbox {
   return { x: minX, y: minY, w: Math.max(...xs) + pad - minX, h: Math.max(...ys) + pad - minY }
 }
 
+function mapPositionToDrawing(
+  position: NonNullable<AdaptedDiagramElement['position']>,
+  drawY: number,
+  drawH: number,
+): { xMm: number; yMm: number } {
+  return { xMm: DRAW_X + position.x * DRAW_W, yMm: drawY + position.y * drawH }
+}
+
 function circuitBbox(x: number, y: number, W: number, H: number, rotationDeg?: number): Bbox {
   if (rotationDeg === 90) return { x: x - H / 2, y: y - W / 2, w: H, h: W }
   return { x: x - W / 2, y: y - H / 2, w: W, h: H }
@@ -123,6 +132,45 @@ function componentBboxMm(obj: TactileObject): Bbox {
     case 'right-angle-mark': return { x: x - 3,  y: y - 3,  w: 6,  h: 6  }
     default:                 return { x: x - 14, y: y - 7,  w: 28, h: 14 }
   }
+}
+
+function isRotatableCircuitShape(shape: ComponentShape): boolean {
+  return (
+    shape === 'battery-symbol' ||
+    shape === 'resistor-symbol' ||
+    shape === 'capacitor-symbol' ||
+    shape === 'switch-symbol' ||
+    shape === 'lamp-symbol' ||
+    shape === 'inductor-symbol' ||
+    shape === 'diode-symbol'
+  )
+}
+
+function rotationFromIncidentPaths(elementId: string, paths: TactileConnection[]): number {
+  let horizontal = 0
+  let vertical = 0
+
+  for (const conn of paths) {
+    if (conn.path.length < 2) continue
+
+    let dx = 0
+    let dy = 0
+    if (conn.from === elementId) {
+      dx = conn.path[1].xMm - conn.path[0].xMm
+      dy = conn.path[1].yMm - conn.path[0].yMm
+    } else if (conn.to === elementId) {
+      const last = conn.path.length - 1
+      dx = conn.path[last - 1].xMm - conn.path[last].xMm
+      dy = conn.path[last - 1].yMm - conn.path[last].yMm
+    } else {
+      continue
+    }
+
+    horizontal += Math.abs(dx)
+    vertical += Math.abs(dy)
+  }
+
+  return vertical > horizontal ? 90 : 0
 }
 
 type Dir = 'top' | 'right' | 'bottom' | 'left'
@@ -446,6 +494,69 @@ function buildLoopWires(
   return wires
 }
 
+function planSpatialCyclic(
+  elements: AdaptedDiagramElement[],
+  relationships: Relationship[],
+  { drawY, drawH }: DynLayout,
+): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
+  const objects: TactileObject[] = []
+  const key: TactileKeyEntry[] = []
+  const posMap = new Map<string, { xMm: number; yMm: number }>()
+
+  elements.forEach(el => {
+    if (el.position) posMap.set(el.id, mapPositionToDrawing(el.position, drawY, drawH))
+  })
+
+  const connections = relationships.reduce<TactileConnection[]>((acc, rel) => {
+      const fp = posMap.get(rel.from)
+      const tp = posMap.get(rel.to)
+      if (!fp || !tp) return acc
+
+      const waypoints = rel.waypoints?.map(w => mapPositionToDrawing(w, drawY, drawH)) ?? []
+      acc.push({
+        from: rel.from,
+        to: rel.to,
+        directed: rel.directed,
+        path: [fp, ...waypoints, tp],
+      })
+      return acc
+    }, [])
+
+  elements.forEach((el, idx) => {
+    const pos = posMap.get(el.id)
+    if (!pos) return
+
+    const marker = String(idx + 1)
+    const shape = resolveShape(el)
+    const compObj: TactileObject = {
+      id: `comp-${el.id}`,
+      sourceElementId: el.id,
+      role: 'component',
+      shape,
+      xMm: pos.xMm,
+      yMm: pos.yMm,
+      label: elementLabel(el),
+      marker,
+      markerSide: 'top',
+      labelMethod: el.labelMethod,
+      bboxMm: undefined,
+    }
+
+    if (shape === 'bond-line') {
+      const hint = normalizeSymbolHint(el.symbolHint ?? el.type ?? '')
+      compObj.extra = { bondOrder: hint === 'bond-triple' ? 3 : hint === 'bond-double' ? 2 : 1 }
+    }
+    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
+    if (isRotatableCircuitShape(shape)) compObj.rotationDeg = rotationFromIncidentPaths(el.id, connections)
+
+    compObj.bboxMm = componentBboxMm(compObj)
+    objects.push(compObj)
+    key.push(buildKeyEntry(marker, el))
+  })
+
+  return { layout: 'cyclic-loop', objects, connections, key, transcriberNotes: [] }
+}
+
 // ── Layout: cyclic (loop perimeter) ───────────────────────────────────────────
 
 function planCyclic(
@@ -465,10 +576,13 @@ function planCyclic(
   const key: TactileKeyEntry[] = []
   const transcriberNotes: string[] = []
 
-  const ROTATABLE_CIRCUIT_SYMBOLS = new Set([
-    'battery-symbol', 'resistor-symbol', 'capacitor-symbol',
-    'switch-symbol', 'lamp-symbol', 'inductor-symbol', 'diode-symbol',
-  ])
+  if (
+    meaningful.length >= 2 &&
+    relationships.length > 0 &&
+    meaningful.every(el => el.position)
+  ) {
+    return planSpatialCyclic(meaningful, relationships, { drawY, drawH })
+  }
 
   if (meaningful.length >= 2 && meaningful.length <= 12) {
     const ordered = spatialClockwiseOrder(meaningful)
@@ -509,7 +623,7 @@ function planCyclic(
       if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
 
       // Wire-angle rotation for circuit symbols
-      if (ROTATABLE_CIRCUIT_SYMBOLS.has(shape)) {
+      if (isRotatableCircuitShape(shape)) {
         const prev = loopPoints[(idx - 1 + n) % n]
         const next = loopPoints[(idx + 1) % n]
         const dx = next.xMm - prev.xMm
@@ -1032,7 +1146,7 @@ function validate(
   layout: string,
   keyZone: ZoneRect,
 ) {
-  const usedKeyH = key.reduce((s, e) => s + e.heightMm, 0)
+  const usedKeyH = key.reduce((s, e) => s + e.heightMm, KEY_HEADER_H)
   if (usedKeyH > keyZone.heightMm) {
     warnings.push({ severity: 'warning', code: 'TEXT_OVERFLOW', message: `Key requires ${usedKeyH.toFixed(0)}mm but only ${keyZone.heightMm.toFixed(0)}mm is available.` })
   }
@@ -1077,8 +1191,8 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
       const marker = String(idx + 1)
       const { normalized } = normalizeStemText(buildKeyLabel(el))
       return s + brailleFootprintMm(`${marker} ${normalized}`, PAGE_W - 2 * MARGIN).heightMm
-    }, 0),
-    LINE_H,
+    }, KEY_HEADER_H),
+    KEY_HEADER_H,
   )
   const keyZone: ZoneRect = {
     xMm: MARGIN,
