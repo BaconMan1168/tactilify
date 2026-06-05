@@ -194,9 +194,9 @@ function drawBatterySymbol(svg: El, obj: TactileObject) {
   svg.ele('line', { x1: f(cx - 3), y1: f(cy - 2), x2: f(cx - 3), y2: f(cy + 2), stroke: INK, 'stroke-width': '1.5' }).up()
   // Long thin plate (negative, right)
   svg.ele('line', { x1: f(cx + 3), y1: f(cy - 5), x2: f(cx + 3), y2: f(cy + 5), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Connection wires
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(cx - 3), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
-  svg.ele('line', { x1: f(cx + 3), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Connection wires (extend to ±13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(cx - 3), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(cx + 3), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawResistorSymbol(svg: El, obj: TactileObject) {
@@ -221,21 +221,21 @@ function drawCapacitorSymbol(svg: El, obj: TactileObject) {
   // Two parallel vertical plates, 3mm gap
   svg.ele('line', { x1: f(cx - 1.5), y1: f(cy - 6), x2: f(cx - 1.5), y2: f(cy + 6), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
   svg.ele('line', { x1: f(cx + 1.5), y1: f(cy - 6), x2: f(cx + 1.5), y2: f(cy + 6), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Connection wires
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(cx - 1.5), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
-  svg.ele('line', { x1: f(cx + 1.5), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Connection wires (extend to ±13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(cx - 1.5), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(cx + 1.5), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawSwitchSymbol(svg: El, obj: TactileObject) {
   const cx = obj.xMm, cy = obj.yMm
-  // Left wire and contact point
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(cx - 2), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Left wire and contact point (extend to -13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(cx - 2), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
   svg.ele('circle', { cx: f(cx - 2), cy: f(cy), r: '0.8', fill: INK }).up()
   // Lever at 45°
   svg.ele('line', { x1: f(cx - 2), y1: f(cy), x2: f(cx + 6), y2: f(cy - 5), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Right contact and wire
+  // Right contact and wire (extend to +13mm)
   svg.ele('circle', { cx: f(cx + 6), cy: f(cy), r: '0.8', fill: INK }).up()
-  svg.ele('line', { x1: f(cx + 6), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(cx + 6), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawLampSymbol(svg: El, obj: TactileObject) {
@@ -245,9 +245,9 @@ function drawLampSymbol(svg: El, obj: TactileObject) {
   const d = r * 0.65
   svg.ele('line', { x1: f(cx - d), y1: f(cy - d), x2: f(cx + d), y2: f(cy + d), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
   svg.ele('line', { x1: f(cx + d), y1: f(cy - d), x2: f(cx - d), y2: f(cy + d), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Connection wires
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(cx - r), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
-  svg.ele('line', { x1: f(cx + r), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Connection wires (extend to ±13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(cx - r), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(cx + r), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawInductorSymbol(svg: El, obj: TactileObject) {
@@ -258,7 +258,8 @@ function drawInductorSymbol(svg: El, obj: TactileObject) {
   const totalW = numBumps * bumpR * 2
   const startX = cx - totalW / 2
 
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(startX), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Connection wires (extend to ±13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(startX), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 
   for (let i = 0; i < numBumps; i++) {
     const bx = startX + i * bumpR * 2 + bumpR
@@ -269,7 +270,7 @@ function drawInductorSymbol(svg: El, obj: TactileObject) {
     }).up()
   }
 
-  svg.ele('line', { x1: f(startX + totalW), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(startX + totalW), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawDiodeSymbol(svg: El, obj: TactileObject) {
@@ -281,9 +282,9 @@ function drawDiodeSymbol(svg: El, obj: TactileObject) {
   }).up()
   // Bar at tip
   svg.ele('line', { x1: f(cx + 4), y1: f(cy - 5), x2: f(cx + 4), y2: f(cy + 5), stroke: INK, 'stroke-width': SW_COMPONENT }).up()
-  // Connection wires
-  svg.ele('line', { x1: f(cx - 10), y1: f(cy), x2: f(cx - 6), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
-  svg.ele('line', { x1: f(cx + 4), y1: f(cy), x2: f(cx + 10), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  // Connection wires (extend to ±13mm to meet loop wires at HALF_ALONG boundary)
+  svg.ele('line', { x1: f(cx - 13), y1: f(cy), x2: f(cx - 6), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
+  svg.ele('line', { x1: f(cx + 4), y1: f(cy), x2: f(cx + 13), y2: f(cy), stroke: INK, 'stroke-width': SW_WIRE }).up()
 }
 
 function drawAtomCircle(svg: El, obj: TactileObject) {

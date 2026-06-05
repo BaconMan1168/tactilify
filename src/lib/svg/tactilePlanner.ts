@@ -120,14 +120,14 @@ function componentBboxMm(obj: TactileObject): Bbox {
       const pts = obj.points ?? [{ xMm: x, yMm: y }]
       return pathBbox(pts, 1)
     }
-    // Domain symbols — rotation-aware footprint for the 7 circuit symbols
-    case 'battery-symbol':   return circuitBbox(x, y, 20, 10, obj.rotationDeg)
-    case 'resistor-symbol':  return circuitBbox(x, y, 20, 8,  obj.rotationDeg)
-    case 'capacitor-symbol': return circuitBbox(x, y, 12, 16, obj.rotationDeg)
-    case 'switch-symbol':    return circuitBbox(x, y, 20, 10, obj.rotationDeg)
-    case 'lamp-symbol':      return circuitBbox(x, y, 16, 16, obj.rotationDeg)
-    case 'inductor-symbol':  return circuitBbox(x, y, 20, 8,  obj.rotationDeg)
-    case 'diode-symbol':     return circuitBbox(x, y, 16, 12, obj.rotationDeg)
+    // Domain symbols — width 26 matches stub extent of ±HALF_ALONG (13mm)
+    case 'battery-symbol':   return circuitBbox(x, y, 26, 10, obj.rotationDeg)
+    case 'resistor-symbol':  return circuitBbox(x, y, 26, 8,  obj.rotationDeg)
+    case 'capacitor-symbol': return circuitBbox(x, y, 26, 16, obj.rotationDeg)
+    case 'switch-symbol':    return circuitBbox(x, y, 26, 10, obj.rotationDeg)
+    case 'lamp-symbol':      return circuitBbox(x, y, 26, 16, obj.rotationDeg)
+    case 'inductor-symbol':  return circuitBbox(x, y, 26, 8,  obj.rotationDeg)
+    case 'diode-symbol':     return circuitBbox(x, y, 26, 12, obj.rotationDeg)
     case 'atom-circle':      return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
     case 'bond-line':        return { x: x - 10, y: y - 3,  w: 20, h: 6  }
     case 'angle-arc':        return { x: x - 8,  y: y - 8,  w: 16, h: 16 }
@@ -498,6 +498,34 @@ function buildLoopWires(
   return wires
 }
 
+// ── Position-based loop placement ────────────────────────────────────────────
+// When every element has a normalised position from Claude, project it onto the
+// nearest loop edge. This preserves the original diagram's spatial layout.
+
+function positionedDistributeOnLoop(
+  elements: AdaptedDiagramElement[],
+  loopL: number,
+  loopT: number,
+  loopR: number,
+  loopB: number,
+): LoopPoint[] {
+  const W = loopR - loopL - 2 * CORNER_GUARD
+  const H = loopB - loopT - 2 * CORNER_GUARD
+  const cl = (v: number) => Math.max(0, Math.min(1, v))
+
+  return elements.map(el => {
+    if (!el.position) return { xMm: (loopL + loopR) / 2, yMm: loopT, side: 'top' as Dir }
+    const { x, y } = el.position
+    const dTop = y, dRight = 1 - x, dBottom = 1 - y, dLeft = x
+    const min = Math.min(dTop, dRight, dBottom, dLeft)
+
+    if (min === dTop)    return { xMm: loopL + CORNER_GUARD + cl(x) * W, yMm: loopT,  side: 'top' as Dir }
+    if (min === dRight)  return { xMm: loopR,                             yMm: loopT + CORNER_GUARD + cl(y) * H, side: 'right' as Dir }
+    if (min === dBottom) return { xMm: loopL + CORNER_GUARD + cl(x) * W, yMm: loopB,  side: 'bottom' as Dir }
+    /* left */           return { xMm: loopL,                             yMm: loopT + CORNER_GUARD + cl(y) * H, side: 'left' as Dir }
+  })
+}
+
 // ── Layout: cyclic (loop perimeter) ───────────────────────────────────────────
 
 function planCyclic(
@@ -518,13 +546,22 @@ function planCyclic(
   const transcriberNotes: string[] = []
 
   if (meaningful.length >= 2 && meaningful.length <= 12) {
-    // Use BFS-from-source ordering when relationships are available (circuit paths),
-    // otherwise fall back to clockwise spatial ordering.
-    const ordered = relationships.length > 0
-      ? orderLoopComponents(meaningful, relationships)
-      : spatialClockwiseOrder(meaningful)
+    // When every element has a position from Claude, use it to preserve the original
+    // spatial layout. Otherwise fall back to BFS/clockwise ordering with even spacing.
+    const allHavePositions = meaningful.every(el => el.position != null)
+    let ordered: AdaptedDiagramElement[]
+    let loopPoints: LoopPoint[]
+
+    if (allHavePositions) {
+      ordered = meaningful
+      loopPoints = positionedDistributeOnLoop(ordered, loopL, loopT, loopR, loopB)
+    } else {
+      ordered = relationships.length > 0
+        ? orderLoopComponents(meaningful, relationships)
+        : spatialClockwiseOrder(meaningful)
+      loopPoints = distributeOnLoop(ordered.length, loopL, loopT, loopR, loopB)
+    }
     const n = ordered.length
-    const loopPoints = distributeOnLoop(n, loopL, loopT, loopR, loopB)
 
     const compsOnSide: CompOnSide[] = ordered.map((el, idx) => ({
       xMm: loopPoints[idx].xMm,
@@ -561,11 +598,16 @@ function planCyclic(
 
       // Wire-angle rotation for circuit symbols
       if (isRotatableCircuitShape(shape)) {
-        const prev = loopPoints[(idx - 1 + n) % n]
-        const next = loopPoints[(idx + 1) % n]
-        const dx = next.xMm - prev.xMm
-        const dy = next.yMm - prev.yMm
-        compObj.rotationDeg = (dx === 0 && dy === 0) ? 0 : (Math.abs(dy) > Math.abs(dx) ? 90 : 0)
+        if (allHavePositions) {
+          // Derive rotation directly from which loop edge the element sits on
+          compObj.rotationDeg = (pt.side === 'left' || pt.side === 'right') ? 90 : 0
+        } else {
+          const prev = loopPoints[(idx - 1 + n) % n]
+          const next = loopPoints[(idx + 1) % n]
+          const dx = next.xMm - prev.xMm
+          const dy = next.yMm - prev.yMm
+          compObj.rotationDeg = (dx === 0 && dy === 0) ? 0 : (Math.abs(dy) > Math.abs(dx) ? 90 : 0)
+        }
       }
 
       compObj.bboxMm = componentBboxMm(compObj)
