@@ -31,16 +31,29 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       body: JSON.stringify({ analysis, imageBase64, imageMimeType }),
     })
       .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json() as { error?: string }
-          throw new Error(data.error ?? `Server error ${res.status}`)
+        const data = await res.json() as {
+          error?: string
+          errors?: string[]
+          status?: string
+          pages?: string[]
+          pageTitles?: string[]
+          artifacts?: { svgPages: string[]; pageTitles: string[] }
         }
-        return res.json() as Promise<{ pages: string[]; pageTitles: string[] }>
+        if (!res.ok || data.status === 'failed') {
+          throw new Error(data.error ?? data.errors?.[0] ?? `Server error ${res.status}`)
+        }
+        return data
       })
       .then((data) => {
         if (!cancelled) {
-          setPages(data.pages)
-          setPageTitles(data.pageTitles ?? data.pages.map((_, i) => `Page ${i + 1}`))
+          const svgPages = data.artifacts?.svgPages ?? data.pages ?? []
+          const titles = data.artifacts?.pageTitles ?? data.pageTitles ?? svgPages.map((_, i) => `Page ${i + 1}`)
+          if (svgPages.length === 0) {
+            setError('No tactile pages were generated.')
+            return
+          }
+          setPages(svgPages)
+          setPageTitles(titles)
         }
       })
       .catch((err) => {
