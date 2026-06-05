@@ -291,15 +291,19 @@ function buildKeyLabel(el: AdaptedDiagramElement): string {
 
   if (!canonicalType) return el.label.trim()
 
+  const value = el.value?.trim()
+  const normalizedValue = value ? normalizeStemText(value).normalized.toLowerCase() : ''
+
   const identifierTokens = el.label.trim().split(/\s+/).filter(tok => {
     const lower = tok.toLowerCase()
     if (canonicalType.includes(lower)) return false
     if (/^\d+(\.\d+)?$/.test(tok)) return false
     if (UNIT_WORDS.has(lower)) return false
+    // Drop tokens that restate what the value field already says
+    if (normalizedValue && normalizedValue.includes(normalizeStemText(tok).normalized.toLowerCase())) return false
     return true
   })
   const identifier = identifierTokens.join(' ').trim()
-  const value = el.value?.trim()
 
   const parts: string[] = [canonicalType]
   if (identifier) parts.push(identifier)
