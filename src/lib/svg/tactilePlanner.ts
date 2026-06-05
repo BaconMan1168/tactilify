@@ -19,6 +19,8 @@ import type {
 import { normalizeStemText } from '@/lib/braille'
 import { brailleFootprintMm, CELL_W, LINE_H } from '@/lib/brailleMetrics'
 import { normalizeSymbolHint } from '@/lib/svg/tactileAdaptor'
+import type { PageProfile } from '@/lib/tactile/layout/page-profiles'
+import type { RepairParams } from '@/lib/tactile/repair/repairer'
 
 // ── Page constants (A4 portrait, all in mm) ───────────────────────────────────
 
@@ -205,12 +207,13 @@ function placeMarkerLabel(
   footprint: { widthMm: number; heightMm: number },
   occupied: Bbox[],
   clearance = 5,
+  collisionPad = 2,
 ): { xMm: number; yMm: number; bboxMm: Bbox } | null {
   const { widthMm: fw, heightMm: fh } = footprint
   for (const dir of CANDIDATE_ORDER[side]) {
     const { xMm, yMm } = markerCandidatePos(dir, compBbox, fw, fh, clearance)
     const bboxMm: Bbox = { x: xMm, y: yMm, w: fw, h: fh }
-    if (!occupied.some(o => bboxOverlaps(o, bboxMm))) {
+    if (!occupied.some(o => bboxOverlaps(o, bboxMm, collisionPad))) {
       return { xMm, yMm, bboxMm }
     }
   }
@@ -225,6 +228,7 @@ function placeAllMarkers(
   initialOccupied: Bbox[],
   pageW: number,
   pageMm: number,
+  clearanceMm = 2,
 ): TactileObject[] {
   const occupied: Bbox[] = [...initialOccupied]
   for (const obj of objects) {
@@ -247,7 +251,7 @@ function placeAllMarkers(
     const footprint = brailleFootprintMm(normMarker, pageW - 2 * pageMm)
     const side: Dir = (obj.markerSide as Dir | undefined) ?? 'top'
 
-    const placed = placeMarkerLabel(side, obj.bboxMm, footprint, occupied)
+    const placed = placeMarkerLabel(side, obj.bboxMm, footprint, occupied, 5, clearanceMm)
     if (placed) {
       const markerObj: TactileObject = {
         id: `marker-${obj.id}`,
@@ -1160,10 +1164,28 @@ function validate(
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<TactilePlan> {
+export async function buildTactilePlan(
+  pageSpec: TactilePageSpec,
+  profile?: PageProfile,
+  repairParams?: RepairParams,
+): Promise<TactilePlan> {
   const warnings: TactileValidationIssue[] = [...(pageSpec.warnings?.map(w => ({ severity: 'warning' as const, code: 'UNKNOWN_SYMBOL' as const, message: w })) ?? [])]
 
-  const { elements, relationships, domain, tactileStrategy, pageType } = pageSpec
+  const pageW = profile?.widthMm ?? PAGE_W
+  const pageH = profile?.heightMm ?? PAGE_H
+  const margin = profile?.marginMm ?? MARGIN
+  const drawW = pageW - 2 * margin
+  const minClearance = repairParams?.minClearanceMm ?? 2
+
+  const { relationships, domain, tactileStrategy, pageType } = pageSpec
+
+  const rawElements = pageSpec.elements
+  const elements = repairParams && repairParams.omitBelowImportance > 0
+    ? rawElements.filter(el => {
+        if (repairParams.omitBelowImportance >= 2) return el.importance === 'essential'
+        return el.importance !== 'optional'
+      })
+    : rawElements
 
   // Pre-filter meaningful elements and augment title with any missing component types
   const meaningful = elements.filter(el => !isNoise(el.type))
@@ -1171,17 +1193,17 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
 
   // 1. Title zone
   const { normalized: normTitle } = normalizeStemText(finalTitle)
-  const actualTitleH = brailleFootprintMm(normTitle, PAGE_W - 2 * MARGIN).heightMm
+  const actualTitleH = brailleFootprintMm(normTitle, pageW - 2 * margin).heightMm
   const titleH = Math.max(actualTitleH, LINE_H)
-  const titleZone: ZoneRect = { xMm: MARGIN, yMm: MARGIN, widthMm: PAGE_W - 2 * MARGIN, heightMm: titleH + 4 }
+  const titleZone: ZoneRect = { xMm: margin, yMm: margin, widthMm: pageW - 2 * margin, heightMm: titleH + 4 }
 
   // 2. Instructions zone (immediately below title — BANA order: title → instructions → key → drawing)
   const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
   const instrH = maxInstrLines * LINE_H
   const instructionsZone: ZoneRect = {
-    xMm: MARGIN,
+    xMm: margin,
     yMm: titleZone.yMm + titleZone.heightMm + GAP,
-    widthMm: DRAW_W,
+    widthMm: drawW,
     heightMm: instrH,
   }
 
@@ -1190,32 +1212,32 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
     meaningful.reduce((s, el, idx) => {
       const marker = String(idx + 1)
       const { normalized } = normalizeStemText(buildKeyLabel(el))
-      return s + brailleFootprintMm(`${marker} ${normalized}`, PAGE_W - 2 * MARGIN).heightMm
+      return s + brailleFootprintMm(`${marker} ${normalized}`, pageW - 2 * margin).heightMm
     }, KEY_HEADER_H),
     KEY_HEADER_H,
   )
   const keyZone: ZoneRect = {
-    xMm: MARGIN,
+    xMm: margin,
     yMm: instructionsZone.yMm + instructionsZone.heightMm + GAP,
-    widthMm: DRAW_W,
+    widthMm: drawW,
     heightMm: Math.min(rawKeyH, KEY_ZONE_MAX_H),
   }
 
   // 4. Drawing area gets remaining page space below key zone
   const drawY = keyZone.yMm + keyZone.heightMm + GAP
-  const naturalDrawH = PAGE_H - MARGIN - drawY
+  const naturalDrawH = pageH - margin - drawY
   if (naturalDrawH < MIN_DRAW_H) {
     warnings.push({ severity: 'warning', code: 'SYMBOL_TOO_DENSE', message: `Drawing area is only ${naturalDrawH.toFixed(0)}mm — diagram may be cramped.` })
   }
   const drawH = Math.max(naturalDrawH, MIN_DRAW_H)
-  const drawingArea: ZoneRect = { xMm: MARGIN, yMm: drawY, widthMm: DRAW_W, heightMm: drawH }
+  const drawingArea: ZoneRect = { xMm: margin, yMm: drawY, widthMm: drawW, heightMm: drawH }
 
   // 5. Build initial occupied zones
   const initialOccupied: Bbox[] = [
-    { x: 0, y: 0, w: PAGE_W, h: drawY },
-    { x: 0, y: drawY + drawH, w: PAGE_W, h: PAGE_H - drawY - drawH },
-    { x: 0, y: 0, w: MARGIN, h: PAGE_H },
-    { x: PAGE_W - MARGIN, y: 0, w: MARGIN, h: PAGE_H },
+    { x: 0, y: 0, w: pageW, h: drawY },
+    { x: 0, y: drawY + drawH, w: pageW, h: pageH - drawY - drawH },
+    { x: 0, y: 0, w: margin, h: pageH },
+    { x: pageW - margin, y: 0, w: margin, h: pageH },
   ]
 
   // 6. Call layout function based on strategy
@@ -1246,17 +1268,17 @@ export async function buildTactilePlan(pageSpec: TactilePageSpec): Promise<Tacti
   }
 
   // 7. Universal marker placement
-  const markerObjects = placeAllMarkers(partial.objects, partial.connections, initialOccupied, PAGE_W, MARGIN)
+  const markerObjects = placeAllMarkers(partial.objects, partial.connections, initialOccupied, pageW, margin, minClearance)
   partial.objects.push(...markerObjects)
 
   // 8. Finalize key entry heights
   for (const entry of partial.key) {
     const lineText = `${entry.marker} ${entry.normalizedText}`
-    entry.heightMm = brailleFootprintMm(lineText, PAGE_W - 2 * MARGIN).heightMm
+    entry.heightMm = brailleFootprintMm(lineText, pageW - 2 * margin).heightMm
   }
 
   const plan: TactilePlan = {
-    page: { widthMm: PAGE_W, heightMm: PAGE_H, marginMm: MARGIN, orientation: 'portrait' },
+    page: { widthMm: pageW, heightMm: pageH, marginMm: margin, orientation: 'portrait' },
     titleZone,
     drawingArea,
     instructionsZone,
