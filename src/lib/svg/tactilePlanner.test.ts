@@ -69,10 +69,13 @@ describe('buildTactilePlan cyclic loop distribution', () => {
 })
 
 describe('buildTactilePlan key sizing', () => {
-  it('includes the key heading in the reserved key zone height', async () => {
-    const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
+  it('reference page (pageType key) has an expanded key zone that fits all entries', async () => {
+    const refSpec = { ...makeSpatialCyclicPageSpec(), pageType: 'key' as const }
+    const plan = await buildTactilePlan(refSpec)
     const requiredKeyHeight = plan.key.reduce((sum, entry) => sum + entry.heightMm, 10)
 
     expect(plan.keyZone.heightMm).toBeGreaterThanOrEqual(requiredKeyHeight)
+    expect(plan.objects).toHaveLength(0)
+    expect(plan.connections).toHaveLength(0)
   })
 })

@@ -273,39 +273,23 @@ function buildLocalPageSpecs(
   const instructions =
     analysis.explorationInstructions ?? fallbackExplorationInstructions(domain, strategy, 'single')
 
-  // flow-sequence always produces 2 pages
-  if (strategy === 'flow-sequence') {
-    return [
-      {
-        pageType: 'overview',
-        purpose: 'Overview',
-        domain,
-        tactileStrategy: strategy,
-        elements: adaptedElements,
-        relationships: analysis.relationships,
-        title: `${analysis.title} — Overview`,
-        summary: analysis.summary,
-        explorationInstructions: instructions,
-        pageNumber: 1,
-        totalPages: 2,
-      },
-      {
-        pageType: 'exploration',
-        purpose: 'Step by step',
-        domain,
-        tactileStrategy: strategy,
-        elements: adaptedElements,
-        relationships: analysis.relationships,
-        title: `${analysis.title} — Steps`,
-        summary: analysis.summary,
-        explorationInstructions: instructions,
-        pageNumber: 2,
-        totalPages: 2,
-      },
-    ]
-  }
-
+  // Always produce 2 pages: reference page (text) + diagram page (drawing).
+  // This separates the key/exploration guide from the tactile graphic so each
+  // page can be printed at full A4 size on a swell-paper or embossing printer.
   return [
+    {
+      pageType: 'key',
+      purpose: 'Reference',
+      domain,
+      tactileStrategy: strategy,
+      elements: adaptedElements,
+      relationships: analysis.relationships,
+      title: analysis.title,
+      summary: analysis.summary,
+      explorationInstructions: instructions,
+      pageNumber: 1,
+      totalPages: 2,
+    },
     {
       pageType: 'single',
       purpose: analysis.title,
@@ -316,8 +300,8 @@ function buildLocalPageSpecs(
       title: analysis.title,
       summary: analysis.summary,
       explorationInstructions: instructions,
-      pageNumber: 1,
-      totalPages: 1,
+      pageNumber: 2,
+      totalPages: 2,
     },
   ]
 }
@@ -372,9 +356,7 @@ function buildPageSpecsFromPlan(
   plan: AITactileAdaptationPlan,
   adaptedElements: AdaptedDiagramElement[],
 ): TactilePageSpec[] {
-  const totalPages = plan.pagePlan.length
-
-  return plan.pagePlan.map((page, idx) => {
+  const diagramPages = plan.pagePlan.map((page, idx) => {
     const includedIds = new Set(page.includedElementIds)
     const pageElements = adaptedElements.filter(e => includedIds.has(e.id))
     const pageRelationships = analysis.relationships.filter(
@@ -382,7 +364,7 @@ function buildPageSpecsFromPlan(
     )
 
     const pageTitle =
-      totalPages > 1 ? `${analysis.title} — ${page.purpose}` : analysis.title
+      plan.pagePlan.length > 1 ? `${analysis.title} — ${page.purpose}` : analysis.title
 
     return {
       pageType: page.pageType,
@@ -394,11 +376,29 @@ function buildPageSpecsFromPlan(
       title: pageTitle,
       summary: analysis.summary,
       explorationInstructions: plan.explorationInstructions,
-      pageNumber: idx + 1,
-      totalPages,
+      pageNumber: idx + 2,         // diagram pages start at 2 (reference is page 1)
+      totalPages: plan.pagePlan.length + 1,
       warnings: plan.warnings,
     }
   })
+
+  // Reference page always goes first — lists ALL adapted elements in the key.
+  const referencePage: TactilePageSpec = {
+    pageType: 'key',
+    purpose: 'Reference',
+    domain: plan.domain,
+    tactileStrategy: plan.tactileStrategy,
+    elements: adaptedElements,
+    relationships: analysis.relationships,
+    title: analysis.title,
+    summary: analysis.summary,
+    explorationInstructions: plan.explorationInstructions,
+    pageNumber: 1,
+    totalPages: plan.pagePlan.length + 1,
+    warnings: plan.warnings,
+  }
+
+  return [referencePage, ...diagramPages]
 }
 
 // ── Claude call for adaptation plan ───────────────────────────────────────────

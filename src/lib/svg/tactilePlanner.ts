@@ -1149,40 +1149,60 @@ export async function buildTactilePlan(
     }
   }
 
-  // 2. Instructions zone (immediately below description — BANA order: title → description → exploration guide → key → drawing)
+  // 2. Instructions zone (immediately below description)
   const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
   const instrH = maxInstrLines * LINE_H
-  const instructionsZone: ZoneRect = {
-    xMm: margin,
-    yMm: titleZone.yMm + titleZone.heightMm + GAP + shortDescOffset,
-    widthMm: drawW,
-    heightMm: instrH,
+  const instrZoneY = titleZone.yMm + titleZone.heightMm + GAP + shortDescOffset
+  const instructionsZone: ZoneRect = { xMm: margin, yMm: instrZoneY, widthMm: drawW, heightMm: instrH }
+
+  // ── REFERENCE PAGE (pageType === 'key') ────────────────────────────────────
+  // Text-only page: title → description → exploration guide → full key.
+  // All meaningful elements appear in the key regardless of importance level.
+  if (pageSpec.pageType === 'key') {
+    const keyStart = instructionsZone.yMm + instructionsZone.heightMm + GAP
+    const expandedKeyH = Math.max(pageH - margin - keyStart, KEY_HEADER_H)
+    const referenceKeyZone: ZoneRect = { xMm: margin, yMm: keyStart, widthMm: drawW, heightMm: expandedKeyH }
+
+    const fullKey: TactileKeyEntry[] = rawElements
+      .filter(el => !isNoise(el.type))
+      .map((el, idx) => {
+        const entry = buildKeyEntry(String(idx + 1), el)
+        entry.heightMm = brailleFootprintMm(`${entry.marker} ${entry.normalizedText}`, drawW).heightMm
+        return entry
+      })
+
+    return {
+      page: { widthMm: pageW, heightMm: pageH, marginMm: margin, orientation: 'portrait' },
+      titleZone,
+      shortDescriptionZone,
+      shortDescription,
+      drawingArea: { xMm: margin, yMm: pageH - margin, widthMm: drawW, heightMm: 0 },
+      instructionsZone,
+      keyZone: referenceKeyZone,
+      layoutHint: 'none',
+      layout: 'grid',
+      title: finalTitle,
+      explorationInstructions: pageSpec.explorationInstructions,
+      objects: [],
+      connections: [],
+      key: fullKey,
+      transcriberNotes: [],
+      warnings,
+    }
   }
 
-  // 3. Key zone (below instructions, height capped at KEY_ZONE_MAX_H)
-  const rawKeyH = Math.max(
-    meaningful.reduce((s, el, idx) => {
-      const marker = String(idx + 1)
-      const { normalized } = normalizeStemText(buildKeyLabel(el))
-      return s + brailleFootprintMm(`${marker} ${normalized}`, pageW - 2 * margin).heightMm
-    }, KEY_HEADER_H),
-    KEY_HEADER_H,
-  )
-  const keyZone: ZoneRect = {
-    xMm: margin,
-    yMm: instructionsZone.yMm + instructionsZone.heightMm + GAP,
-    widthMm: drawW,
-    heightMm: Math.min(rawKeyH, KEY_ZONE_MAX_H),
-  }
-
-  // 4. Drawing area gets remaining page space below key zone
-  const drawY = keyZone.yMm + keyZone.heightMm + GAP
+  // ── DIAGRAM PAGE ───────────────────────────────────────────────────────────
+  // Drawing fills the page below the title (no instructions/key — those are on the reference page).
+  const drawY = titleZone.yMm + titleZone.heightMm + shortDescOffset + GAP
   const naturalDrawH = pageH - margin - drawY
   if (naturalDrawH < MIN_DRAW_H) {
     warnings.push({ severity: 'warning', code: 'SYMBOL_TOO_DENSE', message: `Drawing area is only ${naturalDrawH.toFixed(0)}mm — diagram may be cramped.` })
   }
   const drawH = Math.max(naturalDrawH, MIN_DRAW_H)
   const drawingArea: ZoneRect = { xMm: margin, yMm: drawY, widthMm: drawW, heightMm: drawH }
+
+  // Dummy zones — renderer skips them because key=[] and explorationInstructions=''.
+  const keyZone: ZoneRect = { xMm: margin, yMm: drawY + drawH, widthMm: drawW, heightMm: 0 }
 
   // 5. Build initial occupied zones
   const initialOccupied: Bbox[] = [
@@ -1240,15 +1260,17 @@ export async function buildTactilePlan(
     layoutHint,
     layout: partial.layout,
     title: finalTitle,
-    explorationInstructions: pageSpec.explorationInstructions,
+    // Diagram page: instructions/key are on the reference page — suppress them here.
+    explorationInstructions: '',
     objects: partial.objects,
     connections: partial.connections,
-    key: partial.key,
+    key: [],
     transcriberNotes: partial.transcriberNotes,
     warnings,
   }
 
-  validate(partial.objects, partial.key, warnings, partial.layout, keyZone)
+  // Skip validate() NO_LEGEND check for diagram pages (key lives on the reference page).
+  validate(partial.objects, [], warnings, partial.layout, keyZone)
   return plan
 }
 
