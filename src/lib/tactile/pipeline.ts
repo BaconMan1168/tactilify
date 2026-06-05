@@ -179,9 +179,14 @@ export async function runTactilePipeline(
   }
 
   if (status !== 'failed' && ctx.svgPages && ctx.svgPages.length > 0) {
+    // Use plan titles (which reflect any splitPageForMultipage rename) rather than
+    // the original adaptation titles which may have fewer entries after a repair split.
+    const pageTitles = ctx.pagePlans
+      ? ctx.pagePlans.map(p => p.title)
+      : ctx.adaptation!.pageTitles
     response.artifacts = {
       svgPages: ctx.svgPages,
-      pageTitles: ctx.adaptation!.pageTitles,
+      pageTitles,
       pageCount: ctx.svgPages.length,
       profileId: ctx.profile.id,
       profileName: ctx.profile.name,

@@ -779,6 +779,14 @@ export function renderTactile(plan: TactilePlan): string {
   const { normalized: normTitle } = normalizeStemText(plan.title)
   renderBrailleText(doc, normTitle, plan.titleZone.xMm, plan.titleZone.yMm, plan.titleZone.widthMm, 2)
 
+  // Short description zone (summary)
+  if (plan.shortDescription && plan.shortDescriptionZone) {
+    const { normalized: normDesc } = normalizeStemText(plan.shortDescription)
+    if (normDesc) {
+      renderBrailleText(doc, normDesc, plan.shortDescriptionZone.xMm, plan.shortDescriptionZone.yMm, plan.shortDescriptionZone.widthMm, 2)
+    }
+  }
+
   // Diagram objects
   for (const obj of plan.objects) {
     drawObject(doc, obj, textBboxes, renderWarnings)

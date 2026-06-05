@@ -152,6 +152,7 @@ export type TactilePageSpec = {
   elements: AdaptedDiagramElement[]
   relationships: Relationship[]
   title: string
+  summary?: string
   explorationInstructions: string
   pageNumber: number
   totalPages: number
@@ -255,6 +256,8 @@ export type TactileValidationIssue = {
 export type TactilePlan = {
   page: PageDimensions
   titleZone: ZoneRect
+  shortDescriptionZone?: ZoneRect
+  shortDescription?: string
   drawingArea: ZoneRect
   instructionsZone: ZoneRect
   keyZone: ZoneRect

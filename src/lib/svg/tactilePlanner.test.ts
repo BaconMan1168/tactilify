@@ -29,34 +29,42 @@ function makeSpatialCyclicPageSpec(): TactilePageSpec {
   }
 }
 
-describe('buildTactilePlan cyclic spatial preservation', () => {
-  it('preserves analyzed component positions instead of redistributing them on a normalized loop', async () => {
+describe('buildTactilePlan cyclic loop distribution', () => {
+  it('places all components on the loop perimeter (not at original schematic positions)', async () => {
     const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
     const battery = plan.objects.find(o => o.sourceElementId === 'bat')
-    const resistor = plan.objects.find(o => o.sourceElementId === 'res')
 
-    expect(battery?.xMm).toBeCloseTo(plan.drawingArea.xMm + 0.12 * plan.drawingArea.widthMm, 1)
-    expect(battery?.yMm).toBeCloseTo(plan.drawingArea.yMm + 0.50 * plan.drawingArea.heightMm, 1)
-    expect(resistor?.xMm).toBeCloseTo(plan.drawingArea.xMm + 0.35 * plan.drawingArea.widthMm, 1)
-    expect(resistor?.yMm).toBeCloseTo(plan.drawingArea.yMm + 0.15 * plan.drawingArea.heightMm, 1)
+    // Battery's original position maps to (drawing.x + 0.12*w, drawing.y + 0.50*h).
+    // Loop distribution should NOT land exactly there.
+    expect(battery?.xMm).not.toBeCloseTo(plan.drawingArea.xMm + 0.12 * plan.drawingArea.widthMm, 0)
+
+    // All components must be within drawing-area bounds (with symbol half-width tolerance).
+    const components = plan.objects.filter(o => o.role === 'component')
+    for (const comp of components) {
+      expect(comp.xMm).toBeGreaterThanOrEqual(plan.drawingArea.xMm - 20)
+      expect(comp.xMm).toBeLessThanOrEqual(plan.drawingArea.xMm + plan.drawingArea.widthMm + 20)
+      expect(comp.yMm).toBeGreaterThanOrEqual(plan.drawingArea.yMm - 10)
+      expect(comp.yMm).toBeLessThanOrEqual(plan.drawingArea.yMm + plan.drawingArea.heightMm + 10)
+    }
   })
 
-  it('preserves relationship waypoints as tactile connection bends', async () => {
+  it('uses loop wire objects rather than relationship connection edges', async () => {
     const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
-    const batteryToResistor = plan.connections.find(c => c.from === 'bat' && c.to === 'res')
 
-    expect(batteryToResistor?.path).toHaveLength(3)
-    expect(batteryToResistor?.path[1].xMm).toBeCloseTo(plan.drawingArea.xMm + 0.12 * plan.drawingArea.widthMm, 1)
-    expect(batteryToResistor?.path[1].yMm).toBeCloseTo(plan.drawingArea.yMm + 0.15 * plan.drawingArea.heightMm, 1)
+    // Cyclic loop layout encodes connectivity in wire objects, not in plan.connections.
+    expect(plan.connections).toHaveLength(0)
+
+    const loopWires = plan.objects.filter(o => o.role === 'wire')
+    expect(loopWires.length).toBeGreaterThan(0)
   })
 
-  it('uses preserved wire geometry to orient vertical circuit symbols', async () => {
+  it('orients circuit symbols to 0° or 90° based on loop-side wire direction', async () => {
     const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
-    const battery = plan.objects.find(o => o.sourceElementId === 'bat')
-    const resistor = plan.objects.find(o => o.sourceElementId === 'res')
+    const components = plan.objects.filter(o => o.role === 'component' && o.rotationDeg !== undefined)
 
-    expect(battery?.rotationDeg).toBe(90)
-    expect(resistor?.rotationDeg).toBe(0)
+    for (const comp of components) {
+      expect([0, 90]).toContain(comp.rotationDeg)
+    }
   })
 })
 

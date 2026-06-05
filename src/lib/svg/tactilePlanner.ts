@@ -498,69 +498,6 @@ function buildLoopWires(
   return wires
 }
 
-function planSpatialCyclic(
-  elements: AdaptedDiagramElement[],
-  relationships: Relationship[],
-  { drawY, drawH }: DynLayout,
-): Pick<TactilePlan, 'layout' | 'objects' | 'connections' | 'key' | 'transcriberNotes'> {
-  const objects: TactileObject[] = []
-  const key: TactileKeyEntry[] = []
-  const posMap = new Map<string, { xMm: number; yMm: number }>()
-
-  elements.forEach(el => {
-    if (el.position) posMap.set(el.id, mapPositionToDrawing(el.position, drawY, drawH))
-  })
-
-  const connections = relationships.reduce<TactileConnection[]>((acc, rel) => {
-      const fp = posMap.get(rel.from)
-      const tp = posMap.get(rel.to)
-      if (!fp || !tp) return acc
-
-      const waypoints = rel.waypoints?.map(w => mapPositionToDrawing(w, drawY, drawH)) ?? []
-      acc.push({
-        from: rel.from,
-        to: rel.to,
-        directed: rel.directed,
-        path: [fp, ...waypoints, tp],
-      })
-      return acc
-    }, [])
-
-  elements.forEach((el, idx) => {
-    const pos = posMap.get(el.id)
-    if (!pos) return
-
-    const marker = String(idx + 1)
-    const shape = resolveShape(el)
-    const compObj: TactileObject = {
-      id: `comp-${el.id}`,
-      sourceElementId: el.id,
-      role: 'component',
-      shape,
-      xMm: pos.xMm,
-      yMm: pos.yMm,
-      label: elementLabel(el),
-      marker,
-      markerSide: 'top',
-      labelMethod: el.labelMethod,
-      bboxMm: undefined,
-    }
-
-    if (shape === 'bond-line') {
-      const hint = normalizeSymbolHint(el.symbolHint ?? el.type ?? '')
-      compObj.extra = { bondOrder: hint === 'bond-triple' ? 3 : hint === 'bond-double' ? 2 : 1 }
-    }
-    if (el.tactileSymbolRecipe) compObj.recipe = el.tactileSymbolRecipe
-    if (isRotatableCircuitShape(shape)) compObj.rotationDeg = rotationFromIncidentPaths(el.id, connections)
-
-    compObj.bboxMm = componentBboxMm(compObj)
-    objects.push(compObj)
-    key.push(buildKeyEntry(marker, el))
-  })
-
-  return { layout: 'cyclic-loop', objects, connections, key, transcriberNotes: [] }
-}
-
 // ── Layout: cyclic (loop perimeter) ───────────────────────────────────────────
 
 function planCyclic(
@@ -580,16 +517,12 @@ function planCyclic(
   const key: TactileKeyEntry[] = []
   const transcriberNotes: string[] = []
 
-  if (
-    meaningful.length >= 2 &&
-    relationships.length > 0 &&
-    meaningful.every(el => el.position)
-  ) {
-    return planSpatialCyclic(meaningful, relationships, { drawY, drawH })
-  }
-
   if (meaningful.length >= 2 && meaningful.length <= 12) {
-    const ordered = spatialClockwiseOrder(meaningful)
+    // Use BFS-from-source ordering when relationships are available (circuit paths),
+    // otherwise fall back to clockwise spatial ordering.
+    const ordered = relationships.length > 0
+      ? orderLoopComponents(meaningful, relationships)
+      : spatialClockwiseOrder(meaningful)
     const n = ordered.length
     const loopPoints = distributeOnLoop(n, loopL, loopT, loopR, loopB)
 
@@ -1197,12 +1130,31 @@ export async function buildTactilePlan(
   const titleH = Math.max(actualTitleH, LINE_H)
   const titleZone: ZoneRect = { xMm: margin, yMm: margin, widthMm: pageW - 2 * margin, heightMm: titleH + 4 }
 
-  // 2. Instructions zone (immediately below title — BANA order: title → instructions → key → drawing)
+  // 1.5. Short description zone — rendered between title and exploration guide
+  let shortDescriptionZone: ZoneRect | undefined
+  let shortDescription: string | undefined
+  let shortDescOffset = 0
+  if (pageSpec.summary) {
+    const { normalized: normSummary } = normalizeStemText(pageSpec.summary)
+    if (normSummary) {
+      const descH = Math.min(brailleFootprintMm(normSummary, pageW - 2 * margin).heightMm, 2 * LINE_H)
+      shortDescriptionZone = {
+        xMm: margin,
+        yMm: titleZone.yMm + titleZone.heightMm + GAP,
+        widthMm: pageW - 2 * margin,
+        heightMm: descH,
+      }
+      shortDescription = pageSpec.summary
+      shortDescOffset = descH + GAP
+    }
+  }
+
+  // 2. Instructions zone (immediately below description — BANA order: title → description → exploration guide → key → drawing)
   const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
   const instrH = maxInstrLines * LINE_H
   const instructionsZone: ZoneRect = {
     xMm: margin,
-    yMm: titleZone.yMm + titleZone.heightMm + GAP,
+    yMm: titleZone.yMm + titleZone.heightMm + GAP + shortDescOffset,
     widthMm: drawW,
     heightMm: instrH,
   }
@@ -1280,6 +1232,8 @@ export async function buildTactilePlan(
   const plan: TactilePlan = {
     page: { widthMm: pageW, heightMm: pageH, marginMm: margin, orientation: 'portrait' },
     titleZone,
+    shortDescriptionZone,
+    shortDescription,
     drawingArea,
     instructionsZone,
     keyZone,
