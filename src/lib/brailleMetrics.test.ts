@@ -78,7 +78,7 @@ function makeCyclicPageSpec(n: number): TactilePageSpec {
 
 describe('placeAllMarkers — collision guarantees', () => {
   it('no marker bbox overlaps any component bbox in a cyclic diagram', async () => {
-    const plan = await buildTactilePlan(makeCyclicPageSpec(4))
+    const [plan] = await buildTactilePlan(makeCyclicPageSpec(4))
     const components = plan.objects.filter(o => o.role === 'component' && o.bboxMm)
     const markers = plan.objects.filter(o => o.role === 'marker' && o.bboxMm)
 
@@ -90,7 +90,7 @@ describe('placeAllMarkers — collision guarantees', () => {
   })
 
   it('no marker bbox overlaps any wire bbox in a cyclic diagram', async () => {
-    const plan = await buildTactilePlan(makeCyclicPageSpec(4))
+    const [plan] = await buildTactilePlan(makeCyclicPageSpec(4))
     const wires = plan.objects.filter(o => o.role === 'wire' && o.bboxMm)
     const markers = plan.objects.filter(o => o.role === 'marker' && o.bboxMm)
 
@@ -102,7 +102,7 @@ describe('placeAllMarkers — collision guarantees', () => {
   })
 
   it('markers are placed for all components', async () => {
-    const plan = await buildTactilePlan(makeCyclicPageSpec(5))
+    const [plan] = await buildTactilePlan(makeCyclicPageSpec(5))
     const componentCount = plan.objects.filter(o => o.role === 'component' && o.marker).length
     const markerCount = plan.objects.filter(o => o.role === 'marker').length
     expect(markerCount).toBe(componentCount)
@@ -113,7 +113,7 @@ describe('placeAllMarkers — collision guarantees', () => {
 
 describe('key hard-stop', () => {
   it('key entries do not exceed page bottom margin', async () => {
-    const plan = await buildTactilePlan(makeCyclicPageSpec(8))
+    const [plan] = await buildTactilePlan(makeCyclicPageSpec(8))
     const { keyZone } = plan
     const usedH = plan.key.reduce((s, e) => s + e.heightMm, 0)
     const hasOverflowWarning = plan.warnings.some(w => w.code === 'TEXT_OVERFLOW')
@@ -123,7 +123,7 @@ describe('key hard-stop', () => {
   })
 
   it('no marker appears in the key zone (drawing area is below key in BANA layout)', async () => {
-    const plan = await buildTactilePlan(makeCyclicPageSpec(4))
+    const [plan] = await buildTactilePlan(makeCyclicPageSpec(4))
     const { drawingArea } = plan
     const markers = plan.objects.filter(o => o.role === 'marker' && o.bboxMm)
     for (const m of markers) {

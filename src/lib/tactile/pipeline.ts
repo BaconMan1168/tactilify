@@ -131,9 +131,9 @@ export async function runTactilePipeline(
       pageTitles = pagesToPlan.map(p => p.title)
     }
 
-    // Stage 2: Plan — one TactilePlan per page
-    ctx.pagePlans = await time(`plan-${attempt}`, () =>
-      Promise.all(pagesToPlan.map(p => buildTactilePlan(p, ctx.profile, currentRepair))),
+    // Stage 2: Plan — one or more TactilePlans per page spec (reference page may paginate)
+    ctx.pagePlans = await time(`plan-${attempt}`, async () =>
+      (await Promise.all(pagesToPlan.map(p => buildTactilePlan(p, ctx.profile, currentRepair)))).flat(),
     )
 
     // Stage 3: Render — one SVG string per page

@@ -1147,7 +1147,7 @@ export async function buildTactilePlan(
   pageSpec: TactilePageSpec,
   profile?: PageProfile,
   repairParams?: RepairParams,
-): Promise<TactilePlan> {
+): Promise<TactilePlan[]> {
   const warnings: TactileValidationIssue[] = [...(pageSpec.warnings?.map(w => ({ severity: 'warning' as const, code: 'UNKNOWN_SYMBOL' as const, message: w })) ?? [])]
 
   const pageW = profile?.widthMm ?? PAGE_W
@@ -1196,18 +1196,25 @@ export async function buildTactilePlan(
   }
 
   // 2. Instructions zone (immediately below description)
-  const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
-  const instrH = maxInstrLines * LINE_H
+  // Reference pages use actual content height so the full exploration guide is never truncated.
   const instrZoneY = titleZone.yMm + titleZone.heightMm + GAP + shortDescOffset
+  let instrH: number
+  if (pageSpec.pageType === 'key') {
+    const { normalized: normInstr } = normalizeStemText(pageSpec.explorationInstructions ?? '')
+    instrH = normInstr ? brailleFootprintMm(normInstr, drawW).heightMm : LINE_H
+  } else {
+    const maxInstrLines = pageType === 'overview' ? INSTRUCTIONS_MAX_LINES_OVERVIEW : INSTRUCTIONS_MAX_LINES_SINGLE
+    instrH = maxInstrLines * LINE_H
+  }
   const instructionsZone: ZoneRect = { xMm: margin, yMm: instrZoneY, widthMm: drawW, heightMm: instrH }
 
   // ── REFERENCE PAGE (pageType === 'key') ────────────────────────────────────
-  // Text-only page: title → description → exploration guide → full key.
-  // All meaningful elements appear in the key regardless of importance level.
+  // Text-only page: title → description → exploration guide → key entries.
+  // If the key overflows one page, continuation pages are emitted automatically.
+  // The exploration guide always lives entirely on the first page.
   if (pageSpec.pageType === 'key') {
+    const bottomLimit = pageH - margin
     const keyStart = instructionsZone.yMm + instructionsZone.heightMm + GAP
-    const expandedKeyH = Math.max(pageH - margin - keyStart, KEY_HEADER_H)
-    const referenceKeyZone: ZoneRect = { xMm: margin, yMm: keyStart, widthMm: drawW, heightMm: expandedKeyH }
 
     const fullKey: TactileKeyEntry[] = rawElements
       .filter(el => !isNoise(el.type))
@@ -1217,24 +1224,74 @@ export async function buildTactilePlan(
         return entry
       })
 
-    return {
-      page: { widthMm: pageW, heightMm: pageH, marginMm: margin, orientation: 'portrait' },
-      titleZone,
-      shortDescriptionZone,
-      shortDescription,
-      drawingArea: { xMm: margin, yMm: pageH - margin, widthMm: drawW, heightMm: 0 },
-      instructionsZone,
-      keyZone: referenceKeyZone,
-      layoutHint: 'none',
-      layout: 'grid',
-      title: finalTitle,
-      explorationInstructions: pageSpec.explorationInstructions,
-      objects: [],
-      connections: [],
-      key: fullKey,
-      transcriberNotes: [],
-      warnings,
-    }
+    const plans: TactilePlan[] = []
+    let remaining = [...fullKey]
+    let iteration = 0
+
+    do {
+      iteration++
+      const isFirst = iteration === 1
+
+      let pageTitleZone: ZoneRect
+      let pageTitle: string
+      let pageShortDescZone: ZoneRect | undefined
+      let pageShortDesc: string | undefined
+      let pageInstrZone: ZoneRect
+      let pageExplorationInstr: string
+      let pageKeyY: number
+
+      if (isFirst) {
+        pageTitleZone = titleZone
+        pageTitle = finalTitle
+        pageShortDescZone = shortDescriptionZone
+        pageShortDesc = shortDescription
+        pageInstrZone = instructionsZone
+        pageExplorationInstr = pageSpec.explorationInstructions
+        pageKeyY = keyStart
+      } else {
+        pageTitle = `${pageSpec.title} (key continued)`
+        const { normalized: normContTitle } = normalizeStemText(pageTitle)
+        const contTitleH = Math.max(brailleFootprintMm(normContTitle, drawW).heightMm, LINE_H)
+        pageTitleZone = { xMm: margin, yMm: margin, widthMm: drawW, heightMm: contTitleH + 4 }
+        pageShortDescZone = undefined
+        pageShortDesc = undefined
+        pageKeyY = pageTitleZone.yMm + pageTitleZone.heightMm + GAP
+        pageInstrZone = { xMm: margin, yMm: pageKeyY, widthMm: drawW, heightMm: 0 }
+        pageExplorationInstr = ''
+      }
+
+      // Greedily assign entries that fit; always take at least one to prevent an infinite loop
+      const availableH = bottomLimit - pageKeyY - KEY_HEADER_H
+      let usedH = 0
+      const pageEntries: TactileKeyEntry[] = []
+      while (remaining.length > 0) {
+        const next = remaining[0]
+        if (usedH + next.heightMm > availableH && pageEntries.length > 0) break
+        pageEntries.push(remaining.shift()!)
+        usedH += next.heightMm
+      }
+
+      plans.push({
+        page: { widthMm: pageW, heightMm: pageH, marginMm: margin, orientation: 'portrait' },
+        titleZone: pageTitleZone,
+        shortDescriptionZone: pageShortDescZone,
+        shortDescription: pageShortDesc,
+        drawingArea: { xMm: margin, yMm: pageH - margin, widthMm: drawW, heightMm: 0 },
+        instructionsZone: pageInstrZone,
+        keyZone: { xMm: margin, yMm: pageKeyY, widthMm: drawW, heightMm: Math.max(bottomLimit - pageKeyY, KEY_HEADER_H) },
+        layoutHint: 'none',
+        layout: 'grid',
+        title: pageTitle,
+        explorationInstructions: pageExplorationInstr,
+        objects: [],
+        connections: [],
+        key: pageEntries,
+        transcriberNotes: [],
+        warnings: isFirst ? warnings : [],
+      })
+    } while (remaining.length > 0)
+
+    return plans
   }
 
   // ── DIAGRAM PAGE ───────────────────────────────────────────────────────────
@@ -1317,7 +1374,7 @@ export async function buildTactilePlan(
 
   // Skip validate() NO_LEGEND check for diagram pages (key lives on the reference page).
   validate(partial.objects, [], warnings, partial.layout, keyZone)
-  return plan
+  return [plan]
 }
 
 // Legacy constants still used by tests / renderer

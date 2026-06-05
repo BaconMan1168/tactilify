@@ -31,7 +31,7 @@ function makeSpatialCyclicPageSpec(): TactilePageSpec {
 
 describe('buildTactilePlan cyclic loop distribution', () => {
   it('places all components on the loop perimeter (not at original schematic positions)', async () => {
-    const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
+    const [plan] = await buildTactilePlan(makeSpatialCyclicPageSpec())
     const battery = plan.objects.find(o => o.sourceElementId === 'bat')
 
     // Battery's original position maps to (drawing.x + 0.12*w, drawing.y + 0.50*h).
@@ -49,7 +49,7 @@ describe('buildTactilePlan cyclic loop distribution', () => {
   })
 
   it('uses loop wire objects rather than relationship connection edges', async () => {
-    const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
+    const [plan] = await buildTactilePlan(makeSpatialCyclicPageSpec())
 
     // Cyclic loop layout encodes connectivity in wire objects, not in plan.connections.
     expect(plan.connections).toHaveLength(0)
@@ -59,7 +59,7 @@ describe('buildTactilePlan cyclic loop distribution', () => {
   })
 
   it('orients circuit symbols to 0° or 90° based on loop-side wire direction', async () => {
-    const plan = await buildTactilePlan(makeSpatialCyclicPageSpec())
+    const [plan] = await buildTactilePlan(makeSpatialCyclicPageSpec())
     const components = plan.objects.filter(o => o.role === 'component' && o.rotationDeg !== undefined)
 
     for (const comp of components) {
@@ -71,7 +71,7 @@ describe('buildTactilePlan cyclic loop distribution', () => {
 describe('buildTactilePlan key sizing', () => {
   it('reference page (pageType key) has an expanded key zone that fits all entries', async () => {
     const refSpec = { ...makeSpatialCyclicPageSpec(), pageType: 'key' as const }
-    const plan = await buildTactilePlan(refSpec)
+    const [plan] = await buildTactilePlan(refSpec)
     const requiredKeyHeight = plan.key.reduce((sum, entry) => sum + entry.heightMm, 10)
 
     expect(plan.keyZone.heightMm).toBeGreaterThanOrEqual(requiredKeyHeight)
