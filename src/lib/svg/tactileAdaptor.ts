@@ -151,6 +151,16 @@ export function classifyDomain(analysis: DiagramAnalysis): TactileDomain {
 
 // ── Strategy selection ────────────────────────────────────────────────────────
 
+// Human-readable explanations for why certain diagram types cannot be made tactile.
+// Shown directly to the user in the UI — keep concise and educational.
+export const UNSUPPORTED_REASONS: Partial<Record<TactileDomain, string>> = {
+  biology: 'Cell biology diagrams convey structure through filled color regions (e.g. cytoplasm surrounding organelles). Tactile graphics can only represent outlines and raised boundaries — the spatial meaning encoded in colored fill areas cannot be reliably translated.',
+  anatomy: 'Anatomical diagrams encode tissue layers and organ boundaries through color-filled regions. These cannot be converted to outline-only tactile form without losing the structural information the diagram conveys.',
+  map: 'Geographic and topographic maps use color-coded fill regions to encode data such as elevation, population density, or biomes. This information has no equivalent in a black-and-white raised-line format.',
+  spatial: 'Three-dimensional spatial diagrams (orbital models, crystal lattices, molecular geometry) use perspective and depth cues that do not translate to a flat 2D tactile surface.',
+  unknown: 'The diagram type could not be identified with enough confidence to generate a reliable tactile output.',
+}
+
 export function selectStrategy(domain: TactileDomain): TactileStrategy {
   switch (domain) {
     case 'circuit':
@@ -166,10 +176,10 @@ export function selectStrategy(domain: TactileDomain): TactileStrategy {
       return 'flow-sequence'
     case 'biology':
     case 'anatomy':
-      return 'labelled-region-map'
     case 'map':
     case 'spatial':
-      return 'simplified-spatial-diagram'
+    case 'unknown':
+      return 'unsupported'
     default:
       return 'direct-symbol-diagram'
   }
@@ -471,13 +481,25 @@ async function callClaudeForAdaptation(
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+export type TactileAdaptationResult =
+  | { status: 'ok'; pages: TactilePageSpec[]; pageTitles: string[] }
+  | { status: 'unsupported'; reason: string; domain: TactileDomain }
+
 export async function buildTactileAdaptation(
   analysis: DiagramAnalysis,
   imageBase64?: string,
   imageMimeType?: string,
-): Promise<{ pages: TactilePageSpec[]; pageTitles: string[] }> {
+): Promise<TactileAdaptationResult> {
   const domain = classifyDomain(analysis)
   const strategy = selectStrategy(domain)
+
+  if (strategy === 'unsupported') {
+    return {
+      status: 'unsupported',
+      reason: UNSUPPORTED_REASONS[domain] ?? 'This diagram type cannot be reliably converted to a tactile graphic.',
+      domain,
+    }
+  }
 
   let pages: TactilePageSpec[]
 
@@ -496,6 +518,7 @@ export async function buildTactileAdaptation(
   }
 
   return {
+    status: 'ok',
     pages,
     pageTitles: pages.map(p => p.purpose),
   }

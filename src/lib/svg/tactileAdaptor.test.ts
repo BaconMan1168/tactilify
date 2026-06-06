@@ -171,9 +171,12 @@ describe('selectStrategy', () => {
     expect(selectStrategy('process')).toBe('flow-sequence')
   })
 
-  it('maps biology/anatomy to labelled-region-map', () => {
-    expect(selectStrategy('biology')).toBe('labelled-region-map')
-    expect(selectStrategy('anatomy')).toBe('labelled-region-map')
+  it('returns unsupported for biology/anatomy/map/spatial/unknown', () => {
+    expect(selectStrategy('biology')).toBe('unsupported')
+    expect(selectStrategy('anatomy')).toBe('unsupported')
+    expect(selectStrategy('map')).toBe('unsupported')
+    expect(selectStrategy('spatial')).toBe('unsupported')
+    expect(selectStrategy('unknown')).toBe('unsupported')
   })
 })
 

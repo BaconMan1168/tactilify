@@ -17,6 +17,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const [pageTitles, setPageTitles] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [unsupportedReason, setUnsupportedReason] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
     setPages(null)
     setCurrentPage(0)
     setError(null)
+    setUnsupportedReason(null)
 
     fetch('/api/tactile', {
       method: 'POST',
@@ -35,9 +37,14 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
           error?: string
           errors?: string[]
           status?: string
+          reason?: string
           pages?: string[]
           pageTitles?: string[]
           artifacts?: { svgPages: string[]; pageTitles: string[] }
+        }
+        if (data.status === 'unsupported') {
+          if (!cancelled) setUnsupportedReason(data.reason ?? 'This diagram type cannot be converted to a tactile graphic.')
+          return null
         }
         if (!res.ok || data.status === 'failed') {
           throw new Error(data.error ?? data.errors?.[0] ?? `Server error ${res.status}`)
@@ -45,6 +52,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         return data
       })
       .then((data) => {
+        if (data === null || cancelled) return
         if (!cancelled) {
           const svgPages = data.artifacts?.svgPages ?? data.pages ?? []
           const titles = data.artifacts?.pageTitles ?? data.pageTitles ?? svgPages.map((_, i) => `Page ${i + 1}`)
@@ -99,6 +107,26 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       toast.success(`Downloaded ${pages.length} tactile pages as ZIP`)
     }
   }, [pages, pageTitles, analysis.title])
+
+  if (unsupportedReason) {
+    return (
+      <div
+        role="status"
+        aria-label="Tactile diagram not available for this diagram type"
+        style={{ background: '#18191a', border: '1px solid #2d2f36', borderRadius: 8, padding: '20px 18px' }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#c9ccd4', marginBottom: 10 }}>
+          Tactile diagram not available
+        </div>
+        <div style={{ fontSize: 13, color: '#8a8f98', lineHeight: 1.65 }}>
+          {unsupportedReason}
+        </div>
+        <div style={{ marginTop: 14, fontSize: 12, color: '#555860', lineHeight: 1.5 }}>
+          The audio walkthrough and diagram map are still available on the other tabs.
+        </div>
+      </div>
+    )
+  }
 
   if (error) {
     return (

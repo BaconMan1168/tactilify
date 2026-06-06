@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { buildTactileAdaptation } from '@/lib/svg/tactileAdaptor'
+import { buildTactileAdaptation, type TactileAdaptationResult } from '@/lib/svg/tactileAdaptor'
 import { buildTactilePlan } from '@/lib/svg/tactilePlanner'
 import { renderTactile } from '@/lib/svg/tactileRenderer'
 import { validateTactile, type ValidationReport } from './validation/validator'
@@ -45,7 +45,8 @@ export interface TactileContext {
 
 export interface TactileResponse {
   pipelineRunId: string
-  status: 'success' | 'partial' | 'failed'
+  status: 'success' | 'partial' | 'failed' | 'unsupported'
+  unsupportedReason?: string
   artifacts?: {
     svgPages: string[]
     pageTitles: string[]
@@ -112,10 +113,26 @@ export async function runTactilePipeline(
     return result
   }
 
-  // Stage 1: Adapt — uses existing proven adaptor, no changes
-  ctx.adaptation = await time('adapt', () =>
+  // Stage 1: Adapt — check feasibility before any further work
+  const adaptResult: TactileAdaptationResult = await time('adapt', () =>
     buildTactileAdaptation(ctx.analysis, ctx.imageBase64, ctx.imageMimeType),
   )
+
+  if (adaptResult.status === 'unsupported') {
+    return {
+      pipelineRunId: ctx.pipelineRunId,
+      status: 'unsupported',
+      unsupportedReason: adaptResult.reason,
+      validationReport: { overallStatus: 'passed', checks: [], hardFailures: [], softWarnings: [] },
+      warnings: [],
+      errors: [],
+      retryCount: 0,
+      repairsApplied: [],
+      stageTimings: ctx.stageTimings,
+    }
+  }
+
+  ctx.adaptation = { pages: adaptResult.pages, pageTitles: adaptResult.pageTitles }
 
   let repairParams = { ...DEFAULT_REPAIR_PARAMS }
   let retryCount = 0

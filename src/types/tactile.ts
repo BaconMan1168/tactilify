@@ -48,6 +48,7 @@ export type TactileStrategy =
   | 'flow-sequence'
   | 'chart-reconstruction'
   | 'fallback-locator-map'
+  | 'unsupported'
 
 // ── Recipe system ─────────────────────────────────────────────────────────────
 

@@ -22,6 +22,13 @@ export async function POST(req: NextRequest) {
       pageProfileId: typeof body.pageProfileId === 'string' ? body.pageProfileId : 'a4',
     })
 
+    if (result.status === 'unsupported') {
+      return NextResponse.json({
+        status: 'unsupported',
+        reason: result.unsupportedReason,
+      })
+    }
+
     if (result.status === 'failed') {
       return NextResponse.json({
         status: result.status,
