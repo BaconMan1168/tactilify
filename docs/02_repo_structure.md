@@ -2,22 +2,25 @@
 
 ```
 tactilify/
-├── claude.md                          # Instructions for Claude (you are here)
+├── CLAUDE.md                          # Instructions for Claude (you are here)
 ├── docs/
 │   ├── 00_build_spec.md
 │   ├── 01_build_phases.md
 │   ├── 02_repo_structure.md
 │   ├── 03_tech_stack.md
 │   ├── 04_user_flow.md
-│   └── 05_current_phase.md
+│   ├── 05_current_phase.md
+│   ├── 06_design.md
+│   └── superpowers/
+│       ├── plans/
+│       │   └── 2026-06-05-tactile-simplified-pipeline.md
+│       └── specs/
+│           └── *.md                   # Historical design specs per phase
 │
 ├── public/
 │   ├── favicon.ico
-│   ├── og-image.png
 │   └── samples/
-│       ├── circuit-sample.jpg         # Demo: series circuit diagram
-│       ├── graph-sample.jpg           # Demo: bar chart (e.g. population data)
-│       └── freebody-sample.jpg        # Demo: block on a surface with forces
+│       └── circuit-sample.png         # Demo: series circuit diagram (others deferred to Phase 7)
 │
 ├── src/
 │   ├── app/                           # Next.js App Router
@@ -27,25 +30,37 @@ tactilify/
 │   │   └── api/
 │   │       ├── analyze/
 │   │       │   └── route.ts           # POST: accepts base64 image → returns DiagramAnalysis JSON
+│   │       ├── preprocess/
+│   │       │   └── route.ts           # POST: file-type validate, sharp resize, pdfjs-dist PDF→image
+│   │       ├── tactile/
+│   │       │   └── route.ts           # POST: runs runTactilePipeline(), returns svgPages[]
 │   │       └── tts/
 │   │           └── route.ts           # POST: accepts narration text → returns MP3 (OpenAI TTS fallback)
 │   │
 │   ├── components/
 │   │   ├── input/
 │   │   │   ├── ImageUploader.tsx      # Drag-and-drop + click-to-browse file upload
-│   │   │   ├── CameraCapture.tsx      # getUserMedia live feed + capture button
-│   │   │   └── SampleImages.tsx       # "Try this example" quick-load buttons
+│   │   │   └── CameraCapture.tsx      # getUserMedia live feed + capture button
+│   │   │   # SampleImages.tsx — deferred to Phase 7 (Polish & deploy)
 │   │   │
 │   │   ├── output/
 │   │   │   ├── AudioPlayer.tsx        # TTS narration: play/pause/stop, step list, Web Speech + OAI fallback
 │   │   │   ├── TactileSVG.tsx         # Tactile/braille SVG renderer + download button
-│   │   │   └── DiagramMap.tsx         # Keyboard-navigable element-by-element diagram explorer
+│   │   │   # HighContrastSVG.tsx — Phase 6
+│   │   │   # DiagramMap.tsx — Phase 5
 │   │   │
 │   │   └── ui/
-│   │       ├── LoadingSpinner.tsx     # Accessible loading indicator with aria-live
-│   │       ├── ErrorMessage.tsx       # Accessible error display
-│   │       ├── OutputPanel.tsx        # Wrapper card for each output section
-│   │       └── TabGroup.tsx           # Accessible tab interface for switching output panels
+│   │       ├── AxeCore.tsx            # Dev-mode axe-core/react accessibility scanner
+│   │       ├── CircuitBackground.tsx  # Decorative animated circuit background for landing
+│   │       ├── alert.tsx              # shadcn alert primitive
+│   │       ├── button.tsx             # shadcn button primitive
+│   │       ├── card.tsx               # shadcn card primitive
+│   │       ├── dialog.tsx             # shadcn dialog primitive
+│   │       ├── progress.tsx           # shadcn progress primitive
+│   │       └── tabs.tsx               # shadcn tabs primitive
+│   │
+│   ├── hooks/
+│   │   └── useNarration.ts            # Hook: drives AudioPlayer step state + Web Speech API
 │   │
 │   ├── lib/
 │   │   ├── anthropic.ts               # Anthropic client initialisation (server-only)
@@ -55,19 +70,33 @@ tactilify/
 │   │   ├── brailleMetrics.ts          # Braille cell/line footprint calculation (mm)
 │   │   ├── brailleMetrics.test.ts     # Vitest: footprint, collision placement, key hard-stop
 │   │   ├── prompts.ts                 # All Claude prompt templates (analysis, narration)
-│   │   └── svg/
-│   │       ├── tactilePlanner.ts      # DiagramAnalysis → TactilePlan (geometry pass + universal marker pass)
-│   │       └── tactileRenderer.ts     # TactilePlan → A4 SVG string
+│   │   ├── svg/
+│   │   │   ├── tactileAdaptor.ts      # DiagramAnalysis → TactilePageSpec[] (domain classification + strategy)
+│   │   │   ├── tactileAdaptor.test.ts # Vitest: adaptor unit tests
+│   │   │   ├── tactilePlanner.ts      # TactilePageSpec → TactilePlan (geometry + marker passes)
+│   │   │   ├── tactilePlanner.test.ts # Vitest: planner unit tests
+│   │   │   └── tactileRenderer.ts     # TactilePlan → SVG string
+│   │   └── tactile/
+│   │       ├── pipeline.ts            # runTactilePipeline(): TactileContext orchestrator (adapt→plan→render→validate→repair)
+│   │       ├── layout/
+│   │       │   ├── page-profiles.ts   # PageProfile type + a4/braille-11x11 profiles + getProfile()
+│   │       │   └── page-profiles.test.ts
+│   │       ├── repair/
+│   │       │   ├── repairer.ts        # RepairParams + dispatchRepairs() + applyRepairs()
+│   │       │   └── repairer.test.ts
+│   │       └── validation/
+│   │           ├── validator.ts       # ValidationReport + hard checks + warnings
+│   │           └── validator.test.ts
 │   │
 │   └── types/
-│       ├── diagram.ts                 # All TypeScript types: DiagramAnalysis, DiagramElement, etc.
-│       └── tactile.ts                 # TactilePlan, TactileObject, Bbox, and related types
+│       ├── diagram.ts                 # DiagramAnalysis, DiagramElement, LayoutHint, etc. (Zod schemas)
+│       └── tactile.ts                 # TactilePlan, TactilePageSpec, TactileObject, Bbox, etc.
 │
 ├── .env.local                         # ANTHROPIC_API_KEY, OPENAI_API_KEY (never committed)
 ├── .env.example                       # Template showing required env vars
 ├── .gitignore
 ├── next.config.ts
-├── tailwind.config.ts
+├── postcss.config.mjs                 # Tailwind CSS 4 PostCSS plugin (no tailwind.config.ts in v4)
 ├── tsconfig.json
 ├── vitest.config.ts                   # Vitest: resolves @/ path alias for test files
 ├── package.json
@@ -84,15 +113,18 @@ All AI calls go through `/api/` routes. The client never calls Anthropic or Open
 - `output/` — components that render accessible outputs
 - `ui/` — reusable generic UI primitives
 
-### lib/svg/
-`tactilePlanner.ts` converts a `DiagramAnalysis` into a `TactilePlan` in two phases:
-1. **Geometry pass** — each layout function (`planCyclic`, `planAxial`, `planPositional`, `planDirectional`, `planGrid`) creates all diagram objects (components, wires, connections, arrows, axes, bars) and sets `bboxMm` on every object. No braille marker labels are placed yet.
-2. **Marker pass** — `placeAllMarkers` runs after the layout function returns. It seeds `occupied` with every geometry bbox (including connection paths), then places a braille marker label for each object that carries a `marker` ref. This guarantees no braille label overlaps any diagram element regardless of layout type. New layout types automatically get collision-safe marker placement for free.
+### lib/svg/ — core tactile rendering trio
+- **`tactileAdaptor.ts`** — classifies `DiagramAnalysis` by domain and strategy, produces `TactilePageSpec[]` (one per output page).
+- **`tactilePlanner.ts`** — converts a `TactilePageSpec` into a `TactilePlan` in two passes:
+  1. **Geometry pass** — layout functions (`planCyclic`, `planAxial`, `planPositional`, `planDirectional`, `planGrid`) create all objects and set `bboxMm`. No braille markers yet.
+  2. **Marker pass** — `placeAllMarkers` seeds `occupied` with every geometry bbox, then places collision-safe braille markers. New layout types get collision-safe placement automatically.
+- **`tactileRenderer.ts`** — consumes a `TactilePlan` and emits the final SVG string. No layout decisions here.
 
-`tactileRenderer.ts` consumes the plan and emits the final SVG string. No layout decisions happen in the renderer.
+### lib/tactile/ — pipeline orchestration
+`pipeline.ts` runs the 5-stage pipeline: adapt → plan → render → validate → repair. It carries a `TactileContext` object through every stage, accumulating outputs without lossy conversions. One repair retry is allowed before the pipeline gives up.
 
 ### types/diagram.ts
-Single source of truth for all TypeScript types. Both the API route and client components import from here.
+Single source of truth for all TypeScript types. Both the API route and client components import from here. Uses `LayoutHintSchema` (`cyclic` | `axial` | `directional` | `positional` | `none`) to drive layout algorithm selection.
 
 ### Environment variables
 | Variable | Used in | Purpose |
