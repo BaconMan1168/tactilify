@@ -7,6 +7,7 @@ import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
 import { TactileSVG } from '@/components/output/TactileSVG'
+import { DiagramMap } from '@/components/output/DiagramMap'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 
@@ -353,21 +354,9 @@ export default function HomePage() {
                       />
                     </TabsContent>
 
-                    {/* Diagram map — Phase 5 placeholder */}
+                    {/* Diagram map — Phase 5 */}
                     <TabsContent value="diagram-map">
-                      <div
-                        style={{
-                          background: '#0f1011',
-                          border: '1px solid #23252a',
-                          borderRadius: 12,
-                          padding: 24,
-                        }}
-                      >
-                        <p className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px] mb-2">
-                          Diagram map
-                        </p>
-                        <p className="text-[14px] text-[#3e3e44]">Available in a future phase</p>
-                      </div>
+                      <DiagramMap analysis={analysis} />
                     </TabsContent>
                   </Tabs>
                 </div>
