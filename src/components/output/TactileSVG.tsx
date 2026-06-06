@@ -13,13 +13,15 @@ interface TactileSVGProps {
 }
 
 export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGProps) {
-  const [svg, setSvg] = useState<string | null>(null)
+  const [svgPages, setSvgPages] = useState<string[] | null>(null)
+  const [pageIdx, setPageIdx] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
 
   useEffect(() => {
     let cancelled = false
-    setSvg(null)
+    setSvgPages(null)
+    setPageIdx(0)
     setError(null)
 
     fetch('/api/llm-tactile', {
@@ -28,12 +30,12 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       body: JSON.stringify({ base64: imageBase64, mimeType: imageMimeType }),
     })
       .then(async (res) => {
-        const data = await res.json() as { svg?: string; error?: string }
-        if (!res.ok || !data.svg) throw new Error(data.error ?? `Server error ${res.status}`)
-        return data.svg
+        const data = await res.json() as { svgPages?: string[]; error?: string }
+        if (!res.ok || !data.svgPages?.length) throw new Error(data.error ?? `Server error ${res.status}`)
+        return data.svgPages
       })
-      .then((svgString) => {
-        if (!cancelled) setSvg(svgString)
+      .then((pages) => {
+        if (!cancelled) setSvgPages(pages)
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to generate tactile SVG')
@@ -45,19 +47,23 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const zoom = ZOOM_LEVELS[zoomIdx]
   const scaledW = Math.round(794 * zoom / 100)
   const scaledH = Math.round(1123 * zoom / 100)
+  const currentSvg = svgPages?.[pageIdx] ?? null
+  const totalPages = svgPages?.length ?? 0
 
   const handleDownload = useCallback(() => {
-    if (!svg) return
+    if (!svgPages) return
     const slug = analysis.title.toLowerCase().replace(/\s+/g, '-')
-    const blob = new Blob([svg], { type: 'image/svg+xml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tactile-${slug}.svg`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Tactile SVG downloaded')
-  }, [svg, analysis.title])
+    svgPages.forEach((page, i) => {
+      const blob = new Blob([page], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = svgPages.length === 1 ? `tactile-${slug}.svg` : `tactile-${slug}-p${i + 1}.svg`
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+    toast.success(svgPages.length === 1 ? 'Tactile SVG downloaded' : `${svgPages.length} tactile SVG pages downloaded`)
+  }, [svgPages, analysis.title])
 
   if (error) {
     return (
@@ -120,17 +126,40 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         </div>
       </div>
 
+      {/* Page navigation (only shown when multiple pages) */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between" style={{ background: '#141516', border: '1px solid #23252a', borderRadius: 6, padding: '4px 8px' }}>
+          <button
+            onClick={() => setPageIdx(i => Math.max(0, i - 1))}
+            disabled={pageIdx === 0}
+            aria-label="Previous page"
+            style={{ background: 'none', border: 'none', color: pageIdx === 0 ? '#3e3e44' : '#8a8f98', cursor: pageIdx === 0 ? 'default' : 'pointer', fontSize: 13, padding: '2px 6px' }}
+          >← Prev</button>
+
+          <span style={{ fontSize: 12, color: '#62666d' }}>
+            Page {pageIdx + 1} of {totalPages}
+          </span>
+
+          <button
+            onClick={() => setPageIdx(i => Math.min(totalPages - 1, i + 1))}
+            disabled={pageIdx === totalPages - 1}
+            aria-label="Next page"
+            style={{ background: 'none', border: 'none', color: pageIdx === totalPages - 1 ? '#3e3e44' : '#8a8f98', cursor: pageIdx === totalPages - 1 ? 'default' : 'pointer', fontSize: 13, padding: '2px 6px' }}
+          >Next →</button>
+        </div>
+      )}
+
       {/* SVG viewport */}
       <div
         style={{ background: '#ffffff', border: '1px solid #34343a', borderRadius: 8, height: 380, overflow: 'auto' }}
         role="img"
-        aria-label={`Tactile SVG for ${analysis.title}`}
-        aria-busy={!svg}
+        aria-label={`Tactile SVG for ${analysis.title}${totalPages > 1 ? `, page ${pageIdx + 1} of ${totalPages}` : ''}`}
+        aria-busy={!svgPages}
       >
-        {svg ? (
+        {currentSvg ? (
           <div
             style={{ width: scaledW, height: scaledH, transform: `scale(${zoom / 100})`, transformOrigin: 'top left', minWidth: scaledW, minHeight: scaledH }}
-            dangerouslySetInnerHTML={{ __html: svg }}
+            dangerouslySetInnerHTML={{ __html: currentSvg }}
           />
         ) : (
           <div className="flex items-center justify-center h-full" style={{ color: '#8a8f98', fontSize: 13 }}>
@@ -147,23 +176,23 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       {/* Download button */}
       <button
         onClick={handleDownload}
-        disabled={!svg}
+        disabled={!svgPages}
         aria-label="Download tactile SVG for printing"
         className="w-full flex items-center justify-center gap-2 font-medium transition-colors"
         style={{
-          background: svg ? '#5e6ad2' : '#23252a',
+          background: svgPages ? '#5e6ad2' : '#23252a',
           color: '#ffffff', borderRadius: 8, padding: '10px 16px', fontSize: 15, border: 'none',
-          cursor: svg ? 'pointer' : 'default', opacity: svg ? 1 : 0.5,
+          cursor: svgPages ? 'pointer' : 'default', opacity: svgPages ? 1 : 0.5,
         }}
-        onMouseEnter={e => { if (svg) (e.currentTarget as HTMLButtonElement).style.background = '#828fff' }}
-        onMouseLeave={e => { if (svg) (e.currentTarget as HTMLButtonElement).style.background = '#5e6ad2' }}
+        onMouseEnter={e => { if (svgPages) (e.currentTarget as HTMLButtonElement).style.background = '#828fff' }}
+        onMouseLeave={e => { if (svgPages) (e.currentTarget as HTMLButtonElement).style.background = '#5e6ad2' }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="7,10 12,15 17,10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
-        Download Tactile SVG
+        {totalPages > 1 ? `Download All ${totalPages} Pages` : 'Download Tactile SVG'}
       </button>
     </div>
   )
