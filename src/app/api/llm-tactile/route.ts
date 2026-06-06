@@ -83,7 +83,7 @@ Keyed labels:
   For the outermost boundary element, place its letter outside the boundary.
   No full-word labels anywhere in the diagram area.
   The 14mm × 12mm reserved zone around each letter must fall entirely within a blank (non-textured) area or outside the diagram boundary. If no blank area is available, draw a white filled <rect width="7" height="7"/> behind the letter before placing the <text>.
-  If an element is too small for an adjacent letter without ambiguity, a short lead line (10–15mm max) from the letter to the element is acceptable. Lead lines must be straight and must not cross each other.
+  If an element is too small for an adjacent letter without ambiguity, a short lead line (10–15mm max) from the letter to the element is acceptable. Lead lines must be straight and must not cross each other. A lead line must start exactly at the element's boundary (x1/y1 touching the shape edge) and end exactly at the letter's nearest edge (x2/y2 touching the letter bounding box) — a floating line that touches neither endpoint is invalid.
 
 If the diagram is too complex to fit clearly on one page, split it across multiple diagram pages, each with its own title (e.g. "Animal Cell (diagram 1 of 2)").
 
