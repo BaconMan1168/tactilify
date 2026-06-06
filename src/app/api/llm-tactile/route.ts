@@ -55,6 +55,12 @@ KEY (starts 4mm below separator)
 
   Texture swatch: an 8mm × 6mm <rect> using the exact same fill="url(#pattern-id)" as that element in the diagram. If the element has no texture, the swatch is an empty outlined rect (stroke="#000000", fill="none"). Define all <pattern> elements in a <defs> block at the top of this SVG — use the same pattern IDs as in the diagram SVG(s).
 
+  Key row vertical alignment — all three elements share a single rowCenterY:
+    <rect y="[rowCenterY - 3]" height="6" .../> (centers the 6mm rect on rowCenterY)
+    <text y="[rowCenterY + 1.5]" ...>A</text> (baseline offset for ~4mm cap-height)
+    <text y="[rowCenterY + 1.5]" ...>label text</text>
+  Never compute y independently for each element in the same row.
+
   Element name format — never repeat the same information twice:
     type, identifier (only if distinct from type), value (if present)
     Examples:
