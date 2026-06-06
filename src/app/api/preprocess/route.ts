@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
     outputMime = originalMime as SupportedMimeType
   }
 
+  const sharpFormat = outputMime === 'image/png' ? 'png' : 'jpeg'
+  outputMime = sharpFormat === 'png' ? 'image/png' : 'image/jpeg'
+
   let processedBuffer: Buffer
   try {
     processedBuffer = await sharp(imageBuffer)
@@ -94,9 +97,7 @@ export async function POST(req: NextRequest) {
         fit: 'inside',
         withoutEnlargement: true,
       })
-      .toFormat(outputMime === 'image/png' ? 'png' : 'jpeg', {
-        quality: 92,
-      })
+      .toFormat(sharpFormat, { quality: 92 })
       .toBuffer()
   } catch {
     return NextResponse.json(
