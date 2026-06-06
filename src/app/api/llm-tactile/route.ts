@@ -106,6 +106,9 @@ Overlap:
 
 Textures:
 * Leave the outermost container region blank (white, no texture) — texture only named inner structures that need tactile distinction
+* A region that contains other textured structures must itself be blank — if any child structure has texture, the parent region must not
+* Never texture a large background fill region (cytoplasm, stroma, matrix, cytosol, etc.) — leave it blank unless it is the only named structure on the page
+* If two adjacent or nested regions would both receive texture, remove the texture from the larger/outer one; only the smaller, more discrete structure keeps texture
 * Each structure type gets at most ONE texture; no two structure types share the same texture; limit 3 distinct textures total
 * Implement every texture as a <pattern> in <defs>, applied via fill="url(#id)" — never hand-draw individual dots, lines, or hatches as child elements
 * Use patternUnits="userSpaceOnUse" with a fixed tile size; lines must be evenly spaced; dots must be on a regular grid
