@@ -8,6 +8,7 @@ import { CameraCapture } from '@/components/input/CameraCapture'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
 import { TactileSVG } from '@/components/output/TactileSVG'
 import { DiagramMap } from '@/components/output/DiagramMap'
+import { HighContrastImage } from '@/components/output/HighContrastImage'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 
@@ -15,6 +16,7 @@ const OUTPUT_TABS = [
   { id: 'audio', label: 'Audio walkthrough' },
   { id: 'tactile', label: 'Tactile / braille' },
   { id: 'diagram-map', label: 'Diagram map' },
+  { id: 'high-contrast', label: 'Hi-contrast' },
 ] as const
 
 type AppState = 'idle' | 'preview' | 'processing' | 'results'
@@ -357,6 +359,17 @@ export default function HomePage() {
                     {/* Diagram map — Phase 5 */}
                     <TabsContent value="diagram-map">
                       <DiagramMap analysis={analysis} />
+                    </TabsContent>
+
+                    {/* High-contrast image — Phase 6 */}
+                    <TabsContent value="high-contrast">
+                      {image && (
+                        <HighContrastImage
+                          analysis={analysis}
+                          imageBase64={image.base64}
+                          imageMimeType={image.mimeType}
+                        />
+                      )}
                     </TabsContent>
                   </Tabs>
                 </div>
