@@ -356,7 +356,12 @@ function buildPageSpecsFromPlan(
   plan: AITactileAdaptationPlan,
   adaptedElements: AdaptedDiagramElement[],
 ): TactilePageSpec[] {
-  const diagramPages = plan.pagePlan.map((page, idx) => {
+  // Filter out any key pages from Claude's plan — the pipeline always adds its own
+  // reference page, so Claude-authored key pages would create duplicate content.
+  const filteredPlan = plan.pagePlan.filter(p => p.pageType !== 'key')
+  const totalPages = filteredPlan.length + 1  // +1 for the reference page
+
+  const diagramPages = filteredPlan.map((page, idx) => {
     const includedIds = new Set(page.includedElementIds)
     const pageElements = adaptedElements.filter(e => includedIds.has(e.id))
     const pageRelationships = analysis.relationships.filter(
@@ -364,7 +369,7 @@ function buildPageSpecsFromPlan(
     )
 
     const pageTitle =
-      plan.pagePlan.length > 1 ? `${analysis.title} — ${page.purpose}` : analysis.title
+      filteredPlan.length > 1 ? `${analysis.title} — ${page.purpose}` : analysis.title
 
     return {
       pageType: page.pageType,
@@ -377,7 +382,7 @@ function buildPageSpecsFromPlan(
       summary: analysis.summary,
       explorationInstructions: plan.explorationInstructions,
       pageNumber: idx + 2,         // diagram pages start at 2 (reference is page 1)
-      totalPages: plan.pagePlan.length + 1,
+      totalPages,
       warnings: plan.warnings,
     }
   })
@@ -394,7 +399,7 @@ function buildPageSpecsFromPlan(
     summary: analysis.summary,
     explorationInstructions: plan.explorationInstructions,
     pageNumber: 1,
-    totalPages: plan.pagePlan.length + 1,
+    totalPages,
     warnings: plan.warnings,
   }
 
