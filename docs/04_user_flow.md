@@ -82,7 +82,7 @@
           │  ┌─────────┬──────────┬──────────┬───────┐ │
           │  │  Audio  │Hi-Contra-│ Tactile  │ Map   │ │
           │  │ Walker- │ st SVG   │  SVG     │ Mode  │ │
-          │  │  through│          │          │       │ │
+          │  │  through│(Phase 6) │          │(Ph. 5)│ │
           │  └────┬────┴────┬─────┴─────┬────┴───┬───┘ │
           │       │         │           │        │      │
           └───────┼─────────┼───────────┼────────┼──────┘
@@ -92,26 +92,27 @@
 ┌────────────┐    ┌──────────────┐  ┌──────────────┐   ┌──────────────────┐
 │   AUDIO    │    │  HIGH-CON-   │  │   TACTILE    │   │   NAVIGABLE      │
 │  PLAYER    │    │  TRAST SVG   │  │  BRAILLE SVG │   │   DIAGRAM MAP    │
-│            │    │              │  │              │   │                  │
-│ Step 1/6:  │    │  xmlbuilder2 │  │  xmlbuilder2 │   │  @react-aria/    │
-│ "Starting  │    │  → svgo      │  │  → svgo      │   │  focus scope     │
-│  at the    │    │  [SVG render]│  │  [SVG render]│   │                  │
-│  battery"  │    │              │  │  Outline     │   │  ► Battery (9V)  │
-│            │    │  High-con-   │  │  only, no    │   │    Connected to  │
-│ [▶][⏸][⏹] │    │  trast, bold │  │  fill,       │   │    Resistor      │
-│            │    │  labels      │  │  braille.ts  │   │                  │
-│ Web Speech │    │              │  │  labels      │   │  [GSAP highlight]│
-│ API (or    │    │ [Download    │  │              │   │  → Resistor 100Ω │
-│ /api/tts   │    │  SVG]        │  │ [Download    │   │  → LED           │
-│ fallback)  │    │              │  │  Tactile SVG]│   │  → Wire (return) │
-│            │    │ sonner toast │  │              │   │                  │
-│ Motion:    │    │ on download  │  │  "Print on   │   │  ↑↓ arrow keys   │
-│ step high- │    │              │  │  swell paper"│   │  @react-aria/    │
-│ light anim │    │              │  │              │   │  live-announcer  │
-│            │    │              │  │ sonner toast │   │                  │
-│ @react-    │    │              │  │ on download  │   │  GSAP: node +    │
-│ aria live  │    │              │  │              │   │  connection line │
-│ announcer  │    │              │  │              │   │  animations      │
+│            │    │  (Phase 6)   │  │              │   │   (Phase 5)      │
+│ Step 1/6:  │    │              │  │  xmlbuilder2 │   │                  │
+│ "Starting  │    │  Bold stroke │  │  → svgo      │   │  @react-aria/    │
+│  at the    │    │  high-con-   │  │  [SVG render]│   │  focus scope     │
+│  battery"  │    │  trast fill, │  │              │   │                  │
+│            │    │  large labels│  │  Outline     │   │  ► Battery (9V)  │
+│ [▶][⏸][⏹] │    │              │  │  only, no    │   │    Connected to  │
+│            │    │ [Download    │  │  fill,       │   │    Resistor      │
+│ Web Speech │    │  SVG]        │  │  braille.ts  │   │                  │
+│ API (or    │    │              │  │  labels      │   │  [GSAP highlight]│
+│ /api/tts   │    │ sonner toast │  │              │   │  → Resistor 100Ω │
+│ fallback)  │    │ on download  │  │ [Download    │   │  → LED           │
+│            │    │              │  │  Tactile SVG]│   │  → Wire (return) │
+│ Motion:    │    │              │  │              │   │                  │
+│ step high- │    │              │  │  "Print on   │   │  ↑↓ arrow keys   │
+│ light anim │    │              │  │  swell paper"│   │  @react-aria/    │
+│            │    │              │  │              │   │  live-announcer  │
+│ @react-    │    │              │  │ sonner toast │   │                  │
+│ aria live  │    │              │  │ on download  │   │  GSAP: node +    │
+│ announcer  │    │              │  │              │   │  connection line │
+│            │    │              │  │              │   │  animations      │
 └────────────┘    └──────────────┘  └──────────────┘   └──────────────────┘
 ```
 
@@ -157,29 +158,27 @@ DiagramAnalysis (fully typed, validated)
       │ [client] stored in React state
       │ sonner: dismiss loading toast, show success
       │
-      ├─────────────────────────────────────────────┐
-      │                                             │
-      ▼                                             ▼
- AudioPlayer                                  HighContrastSVG
- reads narration[]                            reads elements[] + relationships[]
- → Web Speech API                             → circuitRenderer.ts / graphRenderer.ts
-   (+ @react-aria/live-announcer)               (xmlbuilder2)
-   or /api/tts → OpenAI TTS                   → svgo optimisation
- Motion: step highlight animation             → SVG string rendered inline
-      │                                             │
-      │                                       TactileSVG
-      │                                       reads elements[] + relationships[]
-      │                                       → tactileRenderer.ts (xmlbuilder2)
-      │                                       → braille.ts (label encoding)
-      │                                       → svgo optimisation
-      │                                       → SVG string for download
-      │                                             │
-      │                                       DiagramMap
-      │                                       reads elements[] + relationships[]
-      │                                       → @react-aria/focus (FocusScope)
-      │                                       → @react-aria/live-announcer
-      │                                       → GSAP node + connection animations
-      └─────────────────────────────────────────────┘
+      ├──────────────────────────────────────────────────────────┐
+      │                                                          │
+      ▼                                                          ▼
+ AudioPlayer                                               TactileSVG
+ reads narration[]                                         POST /api/tactile
+ → Web Speech API                                          → runTactilePipeline()
+   (+ @react-aria/live-announcer)                            adapt → plan → render
+   or /api/tts → OpenAI TTS                                  → validate → repair
+ Motion: step highlight animation                          → SVG string(s) for download
+      │                                                          │
+      │                                                    HighContrastSVG (Phase 6)
+      │                                                    reads elements[] + relationships[]
+      │                                                    → high-contrast SVG renderer
+      │                                                    → SVG string rendered inline
+      │                                                          │
+      │                                                    DiagramMap (Phase 5)
+      │                                                    reads elements[] + relationships[]
+      │                                                    → @react-aria/focus (FocusScope)
+      │                                                    → @react-aria/live-announcer
+      │                                                    → GSAP node + connection animations
+      └──────────────────────────────────────────────────────────┘
 ```
 
 ## TTS fallback flow
