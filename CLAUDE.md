@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+## MUST FOLLOW
+- Commit messages must always follow conventional commit format (`type(scope): description`) and be 1–2 sentences maximum — no bullet lists, no long bodies.
+
 You are building **Tactilify** — a STEM diagram accessibility engine for blind and low-vision students.
 
 ## What this project does
@@ -43,7 +46,7 @@ Any STEM diagram. Claude classifies uploads into a **rendering category** (not a
 The tactile renderer uses **generic shapes only** (rect, circle, diamond, arc, arrow) with an English label and a Braille label placed outside each shape. No IEC symbols or domain-specific icons.
 
 ## Key APIs
-- **Claude Vision** (`claude-opus-4-5` or `claude-sonnet-4-6`) — diagram parsing, object/relationship extraction, narration generation
+- **Claude Vision** (`claude-opus-4-8` or `claude-sonnet-4-6`) — diagram parsing, object/relationship extraction, narration generation
 - **Web Speech API** — primary TTS, in-browser, zero cost
 - **OpenAI TTS** (`tts-1`) — fallback if Web Speech API unavailable or for higher-quality export
 - **Next.js App Router** — full-stack framework
