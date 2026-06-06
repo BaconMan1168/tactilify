@@ -8,7 +8,7 @@
 | **Filesystem**  | Global | Read, write, and navigate the local repo directly                                             |
 | **shadcn/ui**   | Local  | Scaffold and add shadcn components via MCP rather than manual CLI                            |
 | **Motion**      | Local  | Framer Motion docs and component generation — use for UI transitions and output panel animations |
-| **GSAP**        | Local  | GSAP docs and animation generation — use for more complex SVG and diagram map animations      |
+| **GSAP**        | Local  | GSAP docs and animation generation — use for more complex SVG animations                      |
 
 > **Rule:** Before using any library in this stack, query Context7 for its current docs. Never rely on training-data knowledge for API signatures — libraries change.
 
@@ -68,7 +68,6 @@
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
 | Semantic HTML                | Foundation — use correct elements (`<button>`, `<nav>`, `<main>`, etc.)                   |
 | ARIA attributes              | `aria-label`, `aria-live`, `aria-describedby`, `role` where semantic HTML is insufficient |
-| `@react-aria/live-announcer` | Screen-reader announcements for the navigable diagram map                                 |
 | `@react-aria/focus`          | Focus management for keyboard navigation and output panels                                |
 | axe-core (dev only)          | Automated accessibility testing during development                                        |
 | `@axe-core/react`            | Dev-mode accessibility violations logged to console                                       |
@@ -86,9 +85,9 @@
 | Technology | Purpose                                                                                          |
 | ---------- | ------------------------------------------------------------------------------------------------ |
 | **Motion** (Framer Motion) | UI transitions: panel entrances, tab switches, loading states, output reveals |
-| **GSAP**   | Complex SVG animations: diagram element highlighting in the navigable map, tactile SVG draw-on effects |
+| **GSAP**   | Complex SVG animations: tactile SVG draw-on effects |
 
-> **Guidance:** Default to Motion for React component animations. Reach for GSAP when animating SVG paths or sequencing multi-step diagram traversals in the diagram map.
+> **Guidance:** Default to Motion for React component animations. Reach for GSAP when animating SVG paths.
 
 ## Dev tooling
 
@@ -99,7 +98,7 @@
 | `eslint-plugin-jsx-a11y`      | Accessibility linting rules for JSX                                                 |
 | Vitest                        | Unit testing for schemas, braille encoding, SVG renderers, and utility functions    |
 | `@testing-library/react`      | React component testing                                                             |
-| `@testing-library/user-event` | Keyboard interaction testing for the navigable diagram map                          |
+| `@testing-library/user-event` | Keyboard interaction testing for accessible UI components                           |
 | `vitest-axe`                  | Automated accessibility assertions in tests                                         |
 
 ## Reliability

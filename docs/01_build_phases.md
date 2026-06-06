@@ -224,39 +224,6 @@ Replace the ad-hoc adaptor/planner/renderer calls with a clean 5-stage pipeline 
 
 ---
 
-## Phase 5 — Navigable diagram map
-**Complexity:** High | **Risk:** Medium-High
-
-### Task
-Build a keyboard and screen-reader navigable interface using `@react-aria/focus` and `@react-aria/live-announcer`. Use GSAP to animate element highlighting as the user traverses the diagram.
-
-### Steps
-- Query Context7 for `@react-aria/live-announcer`, `@react-aria/focus`, and `gsap` docs before writing
-- Build `DiagramMap` component that takes `DiagramAnalysis`
-- Render elements as focusable nodes; use `element.position` for spatial layout where available, sequential list otherwise
-- Use `@react-aria/focus` for focus management — `FocusScope` to trap/manage focus within the map
-- Keyboard interactions:
-  - `Tab` / `Shift+Tab` — move between elements
-  - `Arrow keys` — move spatially when positions are available
-  - `Enter` / `Space` — expand element details (value, connected elements)
-  - `Escape` — exit map mode back to results view
-- Use `@react-aria/live-announcer` (not raw `aria-live`) to announce each element: label, type, value, relationships
-- Use GSAP to animate the active node highlight — draw a pulsing border around the focused element
-- Use GSAP to draw connection lines between the active element and its related elements on expand
-- "Map mode" toggle switches results panel to diagram map; toggle is keyboard accessible
-
-### Definition of done ✅
-- [ ] All diagram elements reachable by Tab navigation
-- [ ] Arrow key spatial navigation works when positions available
-- [ ] `@react-aria/live-announcer` announces element on focus — verified with VoiceOver or NVDA
-- [ ] `@react-aria/focus` manages focus scope correctly — no focus escaping the map unintentionally
-- [ ] Enter/Space expands element and shows connections, announced via live announcer
-- [ ] Escape exits map mode cleanly
-- [ ] GSAP animates active node highlight and connection lines on expand
-- [ ] Map mode toggle is keyboard accessible with visible focus indicator
-
----
-
 ## Phase 6 — High-contrast SVG
 **Complexity:** Medium | **Risk:** Low
 

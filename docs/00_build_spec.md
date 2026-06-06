@@ -14,7 +14,6 @@ Tactilify accepts a photo or file upload of a STEM diagram and returns four acce
 | Audio walkthrough | Blind students | Claude-generated narration, spoken via Web Speech API or OpenAI TTS, walking through each component and its relationships |
 | High-contrast SVG | Low-vision students | Simplified diagram with bold outlines, high-contrast fill, large labels — rendered in-browser |
 | Tactile/braille-print SVG | Blind students (physical) | Clean outline SVG using generic shapes (rect, circle, diamond, arc, arrow) with English labels inside and Braille dot labels outside each shape — suitable for swell-paper embossing or tactile printer output |
-| Navigable diagram map | Blind/low-vision students | Keyboard and screen-reader navigable interface; student moves through diagram elements one by one with arrow keys |
 
 ## Target users
 - **Primary:** Blind and low-vision K–12 and university students
@@ -42,7 +41,6 @@ Image input
   → Renderer: produce high-contrast SVG from JSON
   → Planner: convert DiagramAnalysis to TactilePlan (geometry pass: all objects + bboxes; marker pass: universal collision-resolved braille label placement)
   → Renderer: produce A4 SVG from TactilePlan
-  → UI: build navigable diagram map from JSON
   → TTS: speak narration via Web Speech API (fallback: OpenAI TTS)
 ```
 
@@ -50,7 +48,6 @@ Image input
 The LLM is only the narrator and extractor. The core technical work is:
 - Structured extraction of diagram semantics into a typed JSON schema
 - Programmatic SVG generation from that schema (two distinct render targets)
-- A keyboard-navigable spatial interface built from extracted node/edge data
 - Braille label encoding in SVG output
 
 ## Input methods
@@ -81,4 +78,4 @@ The LLM is only the narrator and extractor. The core technical work is:
 5. All four output panels visible and functional in one UI
 6. Audio plays without error on click
 7. Tactile SVG downloads as a valid `.svg` file — every element has an English label and a Braille label
-8. Navigable map responds to arrow keys and announces elements via screen reader
+8. High-contrast image enhancement is visible and downloadable

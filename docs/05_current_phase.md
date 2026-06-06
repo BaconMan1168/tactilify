@@ -26,37 +26,6 @@ Updated files:
 
 ---
 
-## Phase 5 task summary — Navigable diagram map
-
-**Status:** Complete
-
-### What was built
-A keyboard and screen-reader navigable `DiagramMap` component (`src/components/output/DiagramMap.tsx`) wired into the "Diagram map" tab.
-
-- Map mode toggle (Enter/Exit) — activates `FocusScope` (contain + restoreFocus + autoFocus)
-- `useFocusManager` for Tab/Shift-Tab within the scope
-- Spatial layout: elements positioned at `toGrid(pos.x)% / toGrid(pos.y)%` (10–90% safe zone), sequential list fallback
-- Arrow key spatial nav: nearest-in-direction algorithm using normalised positions
-- `@react-aria/live-announcer` announces label, type, value, and connections on focus
-- Enter/Space expands element showing connections, announced with assertive priority
-- GSAP `repeat: -1 / yoyo` pulse on focused node's `boxShadow`
-- GSAP `strokeDashoffset` draw animation on SVG `<line>` connection lines on expand
-- Escape exits map mode; `FocusScope restoreFocus` returns focus to the toggle button
-
-### Checklist (Phase 5 — completed)
-- [x] Query Context7 for `@react-aria/live-announcer`, `@react-aria/focus`, and `gsap` docs before writing
-- [x] Build `DiagramMap` component (`src/components/output/DiagramMap.tsx`) that accepts `DiagramAnalysis`
-- [x] Render elements as focusable nodes; use `element.position` for spatial layout where available, sequential list otherwise
-- [x] Use `@react-aria/focus` for focus management — `FocusScope` to trap/manage focus within the map
-- [x] Keyboard: Tab/Shift+Tab between elements, Arrow keys spatial, Enter/Space expand details, Escape exit
-- [x] Use `@react-aria/live-announcer` to announce each element: label, type, value, relationships
-- [x] GSAP pulsing border on focused element, connection lines on expand
-- [x] "Map mode" toggle keyboard accessible
-- [x] Wire `DiagramMap` into the results tab panel alongside Audio and Tactile SVG
-- [x] Zero TypeScript errors
-
----
-
 ## Phase 4.5 task summary — Simplified tactile pipeline
 
 **Status:** Complete
@@ -113,7 +82,6 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` 
 | Phase 3 — Audio walkthrough (TTS) | ✅ Done |
 | Phase 4 — Tactile / braille SVG | ✅ Done |
 | Phase 4.5 — Simplified tactile pipeline | ✅ Done |
-| Phase 5 — Navigable diagram map | ✅ Done |
 | Phase 6 — High-contrast image enhancement | ✅ Done |
 | Phase 7 — Polish, animations & deploy | ▶ Active |
 

@@ -10,7 +10,6 @@ A student or teacher uploads or photographs a STEM diagram. The app uses Claude 
 1. **Audio walkthrough** — a spoken narration of the diagram, component by component
 2. **High-contrast SVG** — a more visually accessible version for low-vision users with high contrast colors
 3. **Tactile/braille-print-ready SVG** — a clean outline SVG suitable for swell-paper or embossed printing, with braille labels
-4. **Navigable diagram map** — a keyboard/screen-reader navigable step-by-step interface where the student moves through parts one by one
 
 
 ## Only read the files that are necessary
@@ -29,7 +28,7 @@ A student or teacher uploads or photographs a STEM diagram. The app uses Claude 
 - **Always** include `aria-label`, `role`, and keyboard navigation on interactive elements
 - **Always** check `docs/05_current_phase.md` to confirm which phase is active before starting work
 - **Always** use shadcn/ui for UI primitives (buttons, cards, dialogs, tabs, inputs) — never build these from scratch
-- **Always** use Motion (Framer Motion) for React component animations; use GSAP for SVG path animations and multi-step diagram map sequences
+- **Always** use Motion (Framer Motion) for React component animations; use GSAP for SVG path animations
 - **Always** invoke the `frontend-design` skill before building any new page, section, or complex component — use `docs/06_design.md` as the source of truth for colors, spacing, typography, and tokens
 
 ## When a phase is complete

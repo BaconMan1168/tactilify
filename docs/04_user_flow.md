@@ -172,12 +172,6 @@ DiagramAnalysis (fully typed, validated)
       │                                                    reads elements[] + relationships[]
       │                                                    → high-contrast SVG renderer
       │                                                    → SVG string rendered inline
-      │                                                          │
-      │                                                    DiagramMap (Phase 5)
-      │                                                    reads elements[] + relationships[]
-      │                                                    → @react-aria/focus (FocusScope)
-      │                                                    → @react-aria/live-announcer
-      │                                                    → GSAP node + connection animations
       └──────────────────────────────────────────────────────────┘
 ```
 

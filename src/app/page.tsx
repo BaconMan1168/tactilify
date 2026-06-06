@@ -7,7 +7,6 @@ import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
 import { TactileSVG } from '@/components/output/TactileSVG'
-import { DiagramMap } from '@/components/output/DiagramMap'
 import { HighContrastImage } from '@/components/output/HighContrastImage'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
@@ -15,8 +14,7 @@ import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 const OUTPUT_TABS = [
   { id: 'audio', label: 'Audio walkthrough' },
   { id: 'tactile', label: 'Tactile / braille' },
-  { id: 'diagram-map', label: 'Diagram map' },
-  { id: 'high-contrast', label: 'Hi-contrast' },
+{ id: 'high-contrast', label: 'Hi-contrast' },
 ] as const
 
 type AppState = 'idle' | 'preview' | 'processing' | 'results'
@@ -356,11 +354,6 @@ export default function HomePage() {
                       />
                     </TabsContent>
 
-                    {/* Diagram map — Phase 5 */}
-                    <TabsContent value="diagram-map" forceMount className="data-[state=inactive]:hidden">
-                      <DiagramMap analysis={analysis} />
-                    </TabsContent>
-
                     {/* High-contrast image — Phase 6 */}
                     <TabsContent value="high-contrast" forceMount className="data-[state=inactive]:hidden">
                       {image && (
@@ -409,7 +402,7 @@ export default function HomePage() {
                 className="text-[17px] text-[#8a8f98] mt-7 max-w-[480px] leading-relaxed"
                 style={{ letterSpacing: '-0.1px' }}
               >
-                Upload or photograph a STEM diagram. Get audio narration, tactile braille, and a navigable diagram map.
+                Upload or photograph a STEM diagram. Get audio narration, tactile braille, and a high-contrast image.
               </p>
             </motion.div>
 

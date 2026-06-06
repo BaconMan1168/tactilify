@@ -259,7 +259,7 @@ components:
 This design system is implemented using:
 - **shadcn/ui** — all interactive primitives (buttons, cards, dialogs, tabs, inputs). Map the tokens above to shadcn's CSS variable layer.
 - **Motion (Framer Motion)** — React component transitions: panel entrances, tab switches, loading states, output reveals.
-- **GSAP** — SVG path animations, diagram element highlighting, multi-step diagram map sequencing.
+- **GSAP** — SVG path animations and tactile SVG draw-on effects.
 - **frontend-design skill** — invoke before building any new page, section, or complex component to enforce these tokens consistently.
 
 See `docs/03_tech_stack.md` for library versions and install commands.

@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Tactilify — STEM Diagram Accessibility',
   description:
-    'Upload or photograph a STEM diagram to receive audio walkthroughs, tactile braille prints, and keyboard-navigable diagram maps.',
+    'Upload or photograph a STEM diagram to receive audio walkthroughs, tactile braille prints, and high-contrast image enhancements.',
 }
 
 export default function RootLayout({
