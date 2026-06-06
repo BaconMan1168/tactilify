@@ -35,13 +35,15 @@
 
 ## Uploads / file processing
 
-| Technology       | Version | Purpose                                                                         |
-| ---------------- | ------- | ------------------------------------------------------------------------------- |
-| `react-dropzone` | latest  | Accessible drag-and-drop file upload                                            |
-| `file-type`      | latest  | Server-side file type validation                                                |
-| `sharp`          | latest  | Image preprocessing: resize, compress, normalize format before Claude Vision    |
-| `pdfjs-dist`     | latest  | PDF-to-image conversion for uploaded PDFs                                       |
-| `nanoid`         | latest  | Stable unique IDs for uploads, diagram elements, narration steps, and map nodes |
+| Technology        | Version | Purpose                                                                         |
+| ----------------- | ------- | ------------------------------------------------------------------------------- |
+| `react-dropzone`  | latest  | Accessible drag-and-drop file upload                                            |
+| `file-type`       | latest  | Server-side file type validation                                                |
+| `sharp`           | latest  | Image preprocessing: resize, compress, normalize format before Claude Vision    |
+| `pdfjs-dist`      | latest  | PDF-to-image conversion for uploaded PDFs                                       |
+| `nanoid`          | latest  | Stable unique IDs for uploads, diagram elements, narration steps, and map nodes |
+| `tesseract.js`    | latest  | OCR — text extraction from diagram images when needed                           |
+| `@napi-rs/canvas` | latest  | Server-side canvas rendering (Node-compatible canvas API)                       |
 
 ## Audio / TTS
 
@@ -56,6 +58,8 @@
 | ------------------------------------- | ---------------------------------------------------------------------------------- |
 | `xmlbuilder2`                         | Circuit, graph, free-body SVG generation. Safer than raw XML string concatenation. |
 | `svgo`                                | Optimize and clean generated SVGs before display/download                          |
+| `elkjs`                               | Graph layout engine — drives flow-sequence layout in the tactile pipeline          |
+| `jszip`                               | Zip multi-page tactile SVG downloads into a single archive                         |
 | Unicode Braille block (U+2800–U+28FF) | Braille label encoding in tactile SVG. Implemented in `src/lib/braille.ts`.        |
 
 ## Accessibility
@@ -71,10 +75,11 @@
 
 ## UI
 
-| Technology | Purpose                                                                          |
-| ---------- | -------------------------------------------------------------------------------- |
-| shadcn/ui  | Accessible UI primitives: buttons, cards, tabs, alerts, progress states, dialogs |
-| `sonner`   | Toast notifications for analysis status, download success, and errors            |
+| Technology  | Purpose                                                                          |
+| ----------- | -------------------------------------------------------------------------------- |
+| shadcn/ui   | Accessible UI primitives: buttons, cards, tabs, alerts, progress states, dialogs |
+| `radix-ui`  | Low-level headless primitives used by shadcn/ui internally                       |
+| `sonner`    | Toast notifications for analysis status, download success, and errors            |
 
 ## Animation
 
