@@ -348,7 +348,7 @@ export default function HomePage() {
                     </TabsContent>
 
                     {/* Tactile / braille SVG — Phase 4.5 */}
-                    <TabsContent value="tactile">
+                    <TabsContent value="tactile" forceMount className="data-[state=inactive]:hidden">
                       <TactileSVG
                         analysis={analysis}
                         imageBase64={image?.base64}
@@ -357,12 +357,12 @@ export default function HomePage() {
                     </TabsContent>
 
                     {/* Diagram map — Phase 5 */}
-                    <TabsContent value="diagram-map">
+                    <TabsContent value="diagram-map" forceMount className="data-[state=inactive]:hidden">
                       <DiagramMap analysis={analysis} />
                     </TabsContent>
 
                     {/* High-contrast image — Phase 6 */}
-                    <TabsContent value="high-contrast">
+                    <TabsContent value="high-contrast" forceMount className="data-[state=inactive]:hidden">
                       {image && (
                         <HighContrastImage
                           analysis={analysis}
