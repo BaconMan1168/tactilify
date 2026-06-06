@@ -1,0 +1,80 @@
+<h2>Implementation Approaches</h2>
+<p class="subtitle">Three ways to architect the BANA-compliant tactile pipeline upgrade</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding:12px;background:#f8f8f8;border-radius:6px;font-size:10px;font-family:monospace;">
+        <div style="color:#666;margin-bottom:6px;">PIPELINE</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <div style="background:#4a9eff;color:white;padding:4px 6px;border-radius:3px;">DiagramAnalysis<br/><span style="font-size:9px;">+ symbolHint<br/>+ explorationInstructions</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#22c55e;color:white;padding:4px 6px;border-radius:3px;">tactilePlanner<br/><span style="font-size:9px;">patched layouts<br/>+ domain symbols<br/>+ page zones<br/>+ split logic</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#8b5cf6;color:white;padding:4px 6px;border-radius:3px;">tactileRenderer<br/><span style="font-size:9px;">new shapes<br/>+ instr zone</span></div>
+        </div>
+        <div style="margin-top:8px;color:#888;font-size:9px;">Modifies existing files in place</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Layered patch</h3>
+      <p>Extend the existing planner and renderer in place. Add <code>symbolHint</code>/<code>explorationInstructions</code> to the schema, wire domain symbol logic into each layout function, restructure page zones, bolt on split logic.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Minimal new files</li><li>Least disruption to working code</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Planner grows very large</li><li>Domain logic mixed with layout logic</li><li>Harder to test domains independently</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding:12px;background:#f8f8f8;border-radius:6px;font-size:10px;font-family:monospace;">
+        <div style="color:#666;margin-bottom:6px;">PIPELINE</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <div style="background:#4a9eff;color:white;padding:4px 6px;border-radius:3px;">DiagramAnalysis<br/><span style="font-size:9px;">+ symbolHint<br/>+ explorationInstr</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#f59e0b;color:white;padding:4px 6px;border-radius:3px;font-weight:bold;">tactileAdaptor<br/><span style="font-size:9px;font-weight:normal;">NEW: domain classify<br/>symbol mapping<br/>page-split decision<br/>→ TactileAdaptation</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#22c55e;color:white;padding:4px 6px;border-radius:3px;">tactilePlanner<br/><span style="font-size:9px;">consumes TactileAdaptation<br/>→ TactilePlan[]</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#8b5cf6;color:white;padding:4px 6px;border-radius:3px;">tactileRenderer</div>
+        </div>
+        <div style="margin-top:8px;color:#888;font-size:9px;">New adaptor stage before planner — recommended</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — New adaptor stage <span style="color:#f59e0b;font-size:11px;">(Recommended)</span></h3>
+      <p>Insert a <code>tactileAdaptor.ts</code> between analysis and planner. It classifies the domain, maps elements to tactile symbols, and decides whether/how to split pages. The planner stays focused on geometry only.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Clean separation: domain logic vs geometry</li><li>Each stage testable in isolation</li><li>Multi-page falls out naturally (adaptor returns page specs)</li><li>Planner stays simple</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>New intermediate type <code>TactileAdaptation</code></li><li>One more file in the pipeline</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="padding:12px;background:#f8f8f8;border-radius:6px;font-size:10px;font-family:monospace;">
+        <div style="color:#666;margin-bottom:6px;">PIPELINE</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <div style="background:#4a9eff;color:white;padding:4px 6px;border-radius:3px;">DiagramAnalysis</div>
+          <div style="color:#999;">→</div>
+          <div style="background:#ef4444;color:white;padding:4px 6px;border-radius:3px;">DomainRegistry<br/><span style="font-size:9px;">circuit handler<br/>fbd handler<br/>chemistry handler<br/>chart handler<br/>generic handler</span></div>
+          <div style="color:#999;">→</div>
+          <div style="background:#8b5cf6;color:white;padding:4px 6px;border-radius:3px;">TactilePlan[]<br/>+ render</div>
+        </div>
+        <div style="margin-top:8px;color:#888;font-size:9px;">Each domain is a fully self-contained strategy</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Domain registry</h3>
+      <p>Replace the layout-function dispatch with a registry of domain handlers. Each domain (circuit, FBD, chemistry, chart, flowchart, generic) owns its full layout + symbol strategy. Maximally extensible.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Each domain fully isolated</li><li>Easy to add new domains later</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Most new code</li><li>Overkill for 5 domain types</li><li>Risk of divergence between handlers</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

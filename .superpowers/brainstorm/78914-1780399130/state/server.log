@@ -1,0 +1,5 @@
+{"type":"server-started","port":60062,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:60062","screen_dir":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/78914-1780399130/content","state_dir":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/78914-1780399130/state"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/78914-1780399130/content/results-layout.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/78914-1780399130/content/step-highlight.html"}
+{"type":"screen-added","file":"/Users/danielguirao/repos/tactilify/.superpowers/brainstorm/78914-1780399130/content/waiting-1.html"}
+{"type":"server-stopped","reason":"idle timeout"}

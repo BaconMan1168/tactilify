@@ -1,0 +1,51 @@
+<h2>Page Zone Layout</h2>
+<p class="subtitle">Where should exploration instructions live on the A4 tactile page? (All zones are braille-rendered.)</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#f8f8f8;border-radius:6px;font-size:11px;font-family:monospace;height:220px;">
+        <div style="background:#4a9eff;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">TITLE (braille)</div>
+        <div style="background:#22c55e;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;flex:1;">DRAWING AREA</div>
+        <div style="background:#f59e0b;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">INSTRUCTIONS (braille)</div>
+        <div style="background:#8b5cf6;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">KEY (braille)</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Instructions after drawing</h3>
+      <p>Title → Drawing → Instructions → Key. Instructions appear between the diagram and the key. Reader explores the diagram first, then reads "how to read it" before the key. BANA-standard order.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#f8f8f8;border-radius:6px;font-size:11px;font-family:monospace;height:220px;">
+        <div style="background:#4a9eff;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">TITLE (braille)</div>
+        <div style="background:#f59e0b;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">INSTRUCTIONS (braille)</div>
+        <div style="background:#22c55e;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;flex:1;">DRAWING AREA</div>
+        <div style="background:#8b5cf6;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">KEY (braille)</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Instructions before drawing</h3>
+      <p>Title → Instructions → Drawing → Key. Reader gets the exploration guide before touching the diagram. Better for novice readers — they know what to do before they start. APH-recommended for complex diagrams.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px;background:#f8f8f8;border-radius:6px;font-size:11px;font-family:monospace;height:220px;">
+        <div style="background:#4a9eff;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">TITLE (braille)</div>
+        <div style="background:#22c55e;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;flex:1;">DRAWING AREA</div>
+        <div style="background:#8b5cf6;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">KEY (braille)</div>
+        <div style="background:#f59e0b;color:white;padding:6px 8px;border-radius:3px;text-align:center;font-weight:bold;">INSTRUCTIONS (braille)</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Instructions at the very bottom</h3>
+      <p>Title → Drawing → Key → Instructions. Key stays adjacent to diagram (easiest cross-reference while exploring). Instructions become an optional appendix. Works well for experienced readers.</p>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,147 @@
+<style>
+  body { background: #010102; color: #f7f8f8; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif; }
+  h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .subtitle { color: #8a8f98; font-size: 14px; margin-bottom: 28px; }
+
+  .cards { display: flex; gap: 16px; }
+  .card { flex: 1; background: #0f1011; border: 1px solid #23252a; border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s; }
+  .card:hover { border-color: #5e6ad2; }
+  .card.selected { border-color: #5e6ad2; box-shadow: 0 0 0 1px #5e6ad244; }
+  .card-label { display: flex; align-items: center; gap: 10px; padding: 12px 14px 6px; }
+  .card-label .letter { background: #5e6ad2; color: #fff; font-size: 11px; font-weight: 600; width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-label h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; margin: 0; }
+  .card-label .tag { margin-left: auto; font-size: 10px; color: #8a8f98; background: #18191a; border: 1px solid #23252a; border-radius: 4px; padding: 2px 6px; }
+  .card-body { padding: 6px 14px 14px; }
+  .card-body .desc { color: #62666d; font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
+
+  /* Shared player chrome */
+  .player { background: #141516; border: 1px solid #23252a; border-radius: 9px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .controls { display: flex; align-items: center; gap: 6px; }
+  .play-btn { width: 30px; height: 30px; border-radius: 50%; background: #5e6ad2; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .play-btn svg { width: 10px; height: 10px; }
+  .ctrl-btn { width: 24px; height: 24px; border-radius: 50%; background: #18191a; border: 1px solid #23252a; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .progress-wrap { flex: 1; }
+  .progress-bar { height: 3px; background: #23252a; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 33%; background: linear-gradient(to right, #5e6ad2, #828fff); border-radius: 99px; }
+  .step-count { font-size: 10px; color: #62666d; white-space: nowrap; }
+
+  /* Current step text banner */
+  .current-text { background: #18191a; border: 1px solid #23252a; border-radius: 6px; padding: 7px 10px; font-size: 11px; color: #d0d6e0; line-height: 1.4; min-height: 32px; }
+
+  /* ── Option A: Sliding pill ── */
+  .steps-a { display: flex; flex-direction: column; gap: 0; position: relative; }
+  .step-a { padding: 6px 8px; border-radius: 6px; font-size: 11px; color: #62666d; position: relative; transition: color 0.25s; }
+  .step-a.active { color: #f7f8f8; font-weight: 500; }
+  .step-a.done { color: #3e3e44; }
+  .step-a.active::before { content: ''; position: absolute; inset: 0; border-radius: 6px; background: rgba(94,106,210,0.14); border: 1px solid rgba(94,106,210,0.28); }
+  /* Animated pill indicator on left */
+  .pill-track { position: relative; }
+  .pill-indicator { position: absolute; left: 0; width: 3px; border-radius: 2px; background: #5e6ad2; transition: top 0.3s cubic-bezier(0.16,1,0.3,1), height 0.3s; }
+
+  /* ── Option B: Crossfade background only ── */
+  .steps-b { display: flex; flex-direction: column; gap: 3px; }
+  .step-b { padding: 6px 8px; border-radius: 6px; font-size: 11px; color: #62666d; }
+  .step-b.active { background: rgba(94,106,210,0.13); border: 1px solid rgba(94,106,210,0.22); color: #f7f8f8; font-weight: 500; }
+  .step-b.done { color: #3e3e44; text-decoration: line-through; text-decoration-color: #3e3e44; }
+
+  /* ── Option C: Left accent bar ── */
+  .steps-c { display: flex; flex-direction: column; gap: 3px; }
+  .step-c { padding: 6px 8px 6px 12px; border-radius: 6px; font-size: 11px; color: #62666d; position: relative; }
+  .step-c.active { background: rgba(94,106,210,0.08); color: #f7f8f8; font-weight: 500; }
+  .step-c.active::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #5e6ad2; }
+  .step-c.done { color: #3e3e44; }
+  .step-c.done::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #27a644; opacity: 0.5; }
+</style>
+
+<h2>How should the active step be highlighted?</h2>
+<p class="subtitle">As the narration plays, the current step needs to stand out. Motion will animate whichever style you pick.</p>
+
+<div class="cards">
+
+  <!-- Option A: Sliding pill -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">A</div>
+      <h3>Sliding pill</h3>
+      <span class="tag">Recommended</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">A lavender background pill smoothly slides down to the next step. Left edge accent bar tracks position. Feels alive — you see it move.</p>
+      <div class="player">
+        <div class="controls">
+          <div class="play-btn"><svg viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8" fill="white"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="1" y="1" width="8" height="8" rx="1"/></svg></div>
+          <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill"></div></div></div>
+          <span class="step-count">2 / 5</span>
+        </div>
+        <div class="current-text">The battery provides 9V of EMF, connected in series with a switch on the left branch.</div>
+        <div class="steps-a pill-track" style="padding-left:10px">
+          <div class="pill-indicator" style="top:6px;height:24px"></div>
+          <div class="step-a done">1. This is a series circuit diagram with one closed loop.</div>
+          <div class="step-a active">2. The battery provides 9V of EMF, connected in series with a switch.</div>
+          <div class="step-a">3. A 100Ω resistor on the top branch limits current flow.</div>
+          <div class="step-a">4. The LED on the right emits light when current passes through it.</div>
+          <div class="step-a">5. Current flows clockwise: battery → switch → resistor → LED → back.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Crossfade -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">B</div>
+      <h3>Crossfade + strikethrough</h3>
+    </div>
+    <div class="card-body">
+      <p class="desc">Active step glows in with a lavender background. Done steps strike through. No movement — each step fades in-place. Calmer, more document-like.</p>
+      <div class="player">
+        <div class="controls">
+          <div class="play-btn"><svg viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8" fill="white"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="1" y="1" width="8" height="8" rx="1"/></svg></div>
+          <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill"></div></div></div>
+          <span class="step-count">2 / 5</span>
+        </div>
+        <div class="current-text">The battery provides 9V of EMF, connected in series with a switch on the left branch.</div>
+        <div class="steps-b">
+          <div class="step-b done">1. This is a series circuit diagram with one closed loop.</div>
+          <div class="step-b active">2. The battery provides 9V of EMF, connected in series with a switch.</div>
+          <div class="step-b">3. A 100Ω resistor on the top branch limits current flow.</div>
+          <div class="step-b">4. The LED on the right emits light when current passes through it.</div>
+          <div class="step-b">5. Current flows clockwise: battery → switch → resistor → LED → back.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Left accent bar -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">C</div>
+      <h3>Left accent bar</h3>
+    </div>
+    <div class="card-body">
+      <p class="desc">A lavender 3px left bar slides to the active step. Done steps get a green bar. Compact — no background fill, just the edge accent. Linear-flavored.</p>
+      <div class="player">
+        <div class="controls">
+          <div class="play-btn"><svg viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8" fill="white"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg></div>
+          <div class="ctrl-btn"><svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="1" y="1" width="8" height="8" rx="1"/></svg></div>
+          <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill"></div></div></div>
+          <span class="step-count">2 / 5</span>
+        </div>
+        <div class="current-text">The battery provides 9V of EMF, connected in series with a switch on the left branch.</div>
+        <div class="steps-c">
+          <div class="step-c done">1. This is a series circuit diagram with one closed loop.</div>
+          <div class="step-c active">2. The battery provides 9V of EMF, connected in series with a switch.</div>
+          <div class="step-c">3. A 100Ω resistor on the top branch limits current flow.</div>
+          <div class="step-c">4. The LED on the right emits light when current passes through it.</div>
+          <div class="step-c">5. Current flows clockwise: battery → switch → resistor → LED → back.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

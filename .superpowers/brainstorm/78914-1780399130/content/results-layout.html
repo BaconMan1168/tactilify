@@ -1,0 +1,247 @@
+<style>
+  body { background: #010102; color: #f7f8f8; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif; }
+  h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .subtitle { color: #8a8f98; font-size: 14px; margin-bottom: 28px; }
+
+  .cards { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: #0f1011; border: 1px solid #23252a; border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s; }
+  .card:hover { border-color: #5e6ad2; }
+  .card.selected { border-color: #5e6ad2; box-shadow: 0 0 0 1px #5e6ad244; }
+  .card-label { display: flex; align-items: center; gap: 10px; padding: 10px 14px 6px; }
+  .card-label .letter { background: #5e6ad2; color: #fff; font-size: 11px; font-weight: 600; width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-label h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; margin: 0; }
+  .card-label .tag { margin-left: auto; font-size: 11px; color: #8a8f98; background: #18191a; border: 1px solid #23252a; border-radius: 4px; padding: 2px 7px; }
+  .card-body { padding: 0 14px 14px; }
+  .card-body p { color: #62666d; font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+
+  /* Mockup shell */
+  .screen { background: #010102; border: 1px solid #34343a; border-radius: 10px; overflow: hidden; font-size: 12px; }
+  .screen-nav { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #23252a; }
+  .screen-nav .brand { font-size: 13px; font-weight: 600; letter-spacing: -0.3px; }
+  .screen-nav .status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #27a644; }
+  .screen-nav .dot { width: 7px; height: 7px; border-radius: 50%; background: #27a644; }
+  .screen-nav .btn { font-size: 11px; color: #8a8f98; background: #0f1011; border: 1px solid #23252a; border-radius: 5px; padding: 3px 8px; }
+  .screen-body { display: flex; height: 260px; }
+  .screen-left { width: 42%; border-right: 1px solid #23252a; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .screen-left .eyebrow { font-size: 10px; font-weight: 500; color: #62666d; text-transform: uppercase; letter-spacing: 0.4px; }
+  .diagram-img { flex: 1; border-radius: 6px; background: linear-gradient(135deg,#1a1d28,#0f1016); border: 1px solid #23252a; display: flex; align-items: center; justify-content: center; color: #3e3e44; font-size: 11px; }
+  .screen-right { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .screen-right .eyebrow { font-size: 10px; font-weight: 500; color: #62666d; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  /* Option A: Tabs */
+  .tab-bar { display: flex; gap: 2px; background: #0f1011; border: 1px solid #23252a; border-radius: 7px; padding: 3px; }
+  .tab { flex: 1; text-align: center; font-size: 10px; padding: 4px 4px; border-radius: 5px; color: #62666d; }
+  .tab.active { background: #18191a; color: #f7f8f8; font-weight: 500; }
+  .audio-panel { flex: 1; background: #0f1011; border: 1px solid #23252a; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .controls { display: flex; align-items: center; gap: 6px; }
+  .ctrl-btn { width: 28px; height: 28px; border-radius: 50%; background: #5e6ad2; display: flex; align-items: center; justify-content: center; }
+  .ctrl-btn svg { width: 10px; height: 10px; fill: white; }
+  .ctrl-btn.secondary { background: #18191a; border: 1px solid #23252a; }
+  .step-list { flex: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+  .step-row { padding: 5px 7px; border-radius: 5px; font-size: 11px; color: #62666d; }
+  .step-row.active { background: rgba(94,106,210,0.12); border: 1px solid rgba(94,106,210,0.25); color: #f7f8f8; font-weight: 500; }
+  .step-row.done { color: #3e3e44; }
+  .progress-bar { height: 3px; background: #23252a; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 35%; background: linear-gradient(to right, #5e6ad2, #828fff); border-radius: 99px; }
+  .coming-soon { flex: 1; display: flex; align-items: center; justify-content: center; color: #3e3e44; font-size: 11px; }
+
+  /* Option B: Expand-in-place */
+  .output-card { background: #0f1011; border: 1px solid #23252a; border-radius: 7px; }
+  .output-card-header { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; }
+  .output-card-title { font-size: 12px; color: #f7f8f8; font-weight: 500; }
+  .output-card-badge { font-size: 10px; color: #27a644; background: rgba(39,166,68,.1); border: 1px solid rgba(39,166,68,.2); border-radius: 4px; padding: 1px 6px; }
+  .output-card-expanded { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 5px; border-top: 1px solid #23252a; margin-top: 0; padding-top: 8px; }
+
+  /* Option C: Full screen */
+  .fullscreen-audio { flex: 1; display: flex; flex-direction: column; padding: 0; }
+  .fs-header { padding: 10px 12px; border-bottom: 1px solid #23252a; display: flex; align-items: center; gap: 8px; }
+  .fs-back { font-size: 10px; color: #8a8f98; background: #18191a; border: 1px solid #23252a; border-radius: 4px; padding: 2px 7px; }
+  .fs-title { font-size: 13px; font-weight: 600; letter-spacing: -0.3px; }
+  .fs-body { flex: 1; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .fs-controls { display: flex; align-items: center; gap: 8px; }
+  .fs-ctrl-play { width: 32px; height: 32px; border-radius: 50%; background: #5e6ad2; display: flex; align-items: center; justify-content: center; }
+  .fs-ctrl-btn { width: 24px; height: 24px; border-radius: 50%; background: #18191a; border: 1px solid #23252a; display: flex; align-items: center; justify-content: center; }
+  .fs-step-list { flex: 1; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+  .fs-step { padding: 7px 10px; border-radius: 6px; font-size: 11px; color: #62666d; }
+  .fs-step.active { background: rgba(94,106,210,0.12); border: 1px solid rgba(94,106,210,0.25); color: #f7f8f8; }
+  .fs-step.done { color: #3e3e44; }
+</style>
+
+<h2>Where does the AudioPlayer live in the results screen?</h2>
+<p class="subtitle">The current results screen has the diagram on the left, 4 output cards on the right. Pick the layout that feels right for Phase 3.</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">A</div>
+      <h3>Tabbed output panel</h3>
+      <span class="tag">Recommended</span>
+    </div>
+    <div class="card-body">
+      <p>Right panel becomes a tab group — Audio, SVG, Tactile, Map. Phase 3 fills in the Audio tab; other tabs show "coming soon". Sets up the permanent results layout for all phases.</p>
+      <div class="screen">
+        <div class="screen-nav">
+          <span class="brand">Tactilify</span>
+          <span class="status"><span class="dot"></span>Analysis complete</span>
+          <span class="btn">New diagram</span>
+        </div>
+        <div class="screen-body">
+          <div class="screen-left">
+            <span class="eyebrow">Your diagram</span>
+            <div class="diagram-img">diagram.png</div>
+            <div style="color:#62666d;font-size:10px">circuit · 8 components</div>
+          </div>
+          <div class="screen-right">
+            <span class="eyebrow">Accessible outputs</span>
+            <div class="tab-bar">
+              <div class="tab active">Audio</div>
+              <div class="tab">SVG</div>
+              <div class="tab">Tactile</div>
+              <div class="tab">Map</div>
+            </div>
+            <div class="audio-panel">
+              <div class="controls">
+                <div class="ctrl-btn">
+                  <svg viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8"/></svg>
+                </div>
+                <div class="ctrl-btn secondary">
+                  <svg viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg>
+                </div>
+                <div class="ctrl-btn secondary">
+                  <svg viewBox="0 0 10 10" fill="#8a8f98"><rect x="1" y="1" width="8" height="8" rx="1"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="progress-bar"><div class="progress-fill"></div></div>
+                </div>
+                <span style="color:#62666d;font-size:10px">2/6</span>
+              </div>
+              <div class="step-list">
+                <div class="step-row done">1. This is a series circuit with a battery...</div>
+                <div class="step-row active">2. The battery provides 9V, connected to...</div>
+                <div class="step-row">3. A 100-ohm resistor limits current flow...</div>
+                <div class="step-row">4. The LED emits light when current passes...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">B</div>
+      <h3>Expand-in-place card</h3>
+    </div>
+    <div class="card-body">
+      <p>The "Audio walkthrough" card in the right panel expands when the user clicks it. The player appears inline below the card header. Other cards stay collapsed.</p>
+      <div class="screen">
+        <div class="screen-nav">
+          <span class="brand">Tactilify</span>
+          <span class="status"><span class="dot"></span>Analysis complete</span>
+          <span class="btn">New diagram</span>
+        </div>
+        <div class="screen-body">
+          <div class="screen-left">
+            <span class="eyebrow">Your diagram</span>
+            <div class="diagram-img">diagram.png</div>
+            <div style="color:#62666d;font-size:10px">circuit · 8 components</div>
+          </div>
+          <div class="screen-right">
+            <span class="eyebrow">Accessible outputs</span>
+            <div class="output-card" style="border-color:#5e6ad2">
+              <div class="output-card-header">
+                <span class="output-card-title">Audio walkthrough</span>
+                <span class="output-card-badge">Playing</span>
+              </div>
+              <div class="output-card-expanded">
+                <div class="controls">
+                  <div class="ctrl-btn">
+                    <svg viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8" fill="white"/></svg>
+                  </div>
+                  <div class="ctrl-btn secondary">
+                    <svg viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg>
+                  </div>
+                  <div style="flex:1"><div class="progress-bar"><div class="progress-fill"></div></div></div>
+                  <span style="color:#62666d;font-size:10px">2/6</span>
+                </div>
+                <div class="step-row done" style="margin:0">1. This is a series circuit...</div>
+                <div class="step-row active" style="margin:0">2. The battery provides 9V...</div>
+                <div class="step-row" style="margin:0">3. A 100-ohm resistor...</div>
+              </div>
+            </div>
+            <div class="output-card">
+              <div class="output-card-header"><span class="output-card-title">High-contrast SVG</span><span class="output-card-badge">Ready</span></div>
+            </div>
+            <div class="output-card">
+              <div class="output-card-header"><span class="output-card-title">Tactile / braille SVG</span><span class="output-card-badge">Ready</span></div>
+            </div>
+            <div class="output-card">
+              <div class="output-card-header"><span class="output-card-title">Navigable map</span><span class="output-card-badge">Ready</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-label">
+      <div class="letter">C</div>
+      <h3>Full-panel AudioPlayer</h3>
+    </div>
+    <div class="card-body">
+      <p>Right panel is replaced entirely by the AudioPlayer for Phase 3. A back chevron returns to the output card list. Clean focus, but requires more navigation to switch outputs.</p>
+      <div class="screen">
+        <div class="screen-nav">
+          <span class="brand">Tactilify</span>
+          <span class="status"><span class="dot"></span>Analysis complete</span>
+          <span class="btn">New diagram</span>
+        </div>
+        <div class="screen-body">
+          <div class="screen-left">
+            <span class="eyebrow">Your diagram</span>
+            <div class="diagram-img">diagram.png</div>
+            <div style="color:#62666d;font-size:10px">circuit · 8 components</div>
+          </div>
+          <div class="screen-right" style="padding:0">
+            <div class="fullscreen-audio">
+              <div class="fs-header">
+                <span class="fs-back">← Back</span>
+                <span class="fs-title">Audio walkthrough</span>
+                <span style="margin-left:auto;color:#62666d;font-size:10px">6 steps</span>
+              </div>
+              <div class="fs-body">
+                <div class="fs-controls">
+                  <div class="fs-ctrl-play">
+                    <svg width="10" height="10" viewBox="0 0 10 10"><polygon points="3,2 8,5 3,8" fill="white"/></svg>
+                  </div>
+                  <div class="fs-ctrl-btn">
+                    <svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="2" y="2" width="2.5" height="6"/><rect x="5.5" y="2" width="2.5" height="6"/></svg>
+                  </div>
+                  <div class="fs-ctrl-btn">
+                    <svg width="8" height="8" viewBox="0 0 10 10" fill="#8a8f98"><rect x="1" y="1" width="8" height="8" rx="1"/></svg>
+                  </div>
+                  <div style="flex:1"><div class="progress-bar"><div class="progress-fill" style="width:33%"></div></div></div>
+                  <span style="font-size:10px;color:#62666d">2/6</span>
+                </div>
+                <div class="fs-step-list">
+                  <div class="fs-step done">1. This is a series circuit with a battery...</div>
+                  <div class="fs-step active">2. The battery provides 9V, connected to a switch...</div>
+                  <div class="fs-step">3. A 100-ohm resistor limits current flow...</div>
+                  <div class="fs-step">4. The LED emits light when current passes...</div>
+                  <div class="fs-step">5. Current flows clockwise through the circuit...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
