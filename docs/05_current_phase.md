@@ -1,34 +1,28 @@
 # 05 — Current Phase
 
-## ▶ Active phase: Phase 6 — High-contrast SVG
+## ✅ Phase 6 — High-contrast image enhancement
 
-**Status:** Not started
-**Spec:** `docs/01_build_phases.md` — Phase 6 section
+**Status:** Complete
+**Spec:** `docs/superpowers/specs/2026-06-06-phase6-high-contrast-image-design.md`
 
-### Task
-Generate a high-contrast SVG variant for low-vision users. Bold outlines, high-contrast fills, large readable labels — rendered server-side via a new `/api/high-contrast` route using `xmlbuilder2` + `svgo`, mirroring the tactile route pattern.
+### What was built
+A sharp-based image enhancement pipeline that takes the original uploaded image and produces a contrast-enhanced PNG, preserving spatial layout and semantic colours. No AI, no SVG regeneration.
 
-Before writing any code, read:
-- `docs/02_repo_structure.md` — where every file goes
-- `docs/03_tech_stack.md` — what libraries to use (query Context7 for any library before using it)
+New files:
+- `src/lib/image/highContrastProcessor.ts` — normalise → CLAHE → sharpen → saturation boost via sharp
+- `src/app/api/high-contrast/route.ts` — POST: `{ image: base64 }` → `{ base64: enhanced PNG }`
+- `src/components/output/HighContrastImage.tsx` — inline preview, 6-level zoom, dual download (PNG + SVG)
 
-### Checklist (Phase 6)
-- [ ] Query Context7 for `xmlbuilder2` and `svgo` docs before writing
-- [ ] Create `src/lib/svg/highContrastRenderer.ts` — takes `DiagramAnalysis`, returns SVG string
-- [ ] Create `/api/high-contrast` POST route: accepts `DiagramAnalysis`, returns high-contrast SVG string
-- [ ] Build `HighContrastSVG.tsx` component: inline scrollable preview, zoom controls, download button
-- [ ] Wire into results tab panel alongside Tactile SVG and Audio tabs (add tab entry to `OUTPUT_TABS`)
-- [ ] `sonner` toast on SVG download
-- [ ] Zero TypeScript errors
+Updated files:
+- `src/app/page.tsx` — added "Hi-contrast" tab to `OUTPUT_TABS`, wired `HighContrastImage` component
 
-### Definition of done (Phase 6)
-- [ ] High-contrast SVG renders for circuit, chart, free-body, and an unknown diagram type
-- [ ] All fills are high-contrast (no mid-tone grays, no light pastels)
-- [ ] All labels are readable at 100% browser zoom (min 16pt equivalent in SVG units)
-- [ ] Strokes are bold and clearly visible (min 3pt)
-- [ ] Download triggers `sonner` toast
-- [ ] Preview renders inline with zoom controls
-- [ ] Zero TypeScript errors
+### Checklist (Phase 6 — completed)
+- [x] Create `src/lib/image/highContrastProcessor.ts` with sharp pipeline (normalise → CLAHE → sharpen → saturation)
+- [x] Create `/api/high-contrast` POST route: accepts `{ image }`, returns `{ base64 }`
+- [x] Build `HighContrastImage.tsx`: inline scrollable preview, 6-level zoom, dual download (PNG + SVG)
+- [x] Wire "Hi-contrast" tab into `OUTPUT_TABS` and results panel
+- [x] `sonner` toast on PNG and SVG download
+- [x] Zero TypeScript errors
 
 ---
 
@@ -120,8 +114,8 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` 
 | Phase 4 — Tactile / braille SVG | ✅ Done |
 | Phase 4.5 — Simplified tactile pipeline | ✅ Done |
 | Phase 5 — Navigable diagram map | ✅ Done |
-| Phase 6 — High-contrast SVG | ▶ Active |
-| Phase 7 — Polish, animations & deploy | Not started |
+| Phase 6 — High-contrast image enhancement | ✅ Done |
+| Phase 7 — Polish, animations & deploy | ▶ Active |
 
 ---
 
