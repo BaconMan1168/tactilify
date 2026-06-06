@@ -1,38 +1,65 @@
 # 05 — Current Phase
 
-## ▶ Active phase: Phase 5 — Navigable diagram map
+## ▶ Active phase: Phase 6 — High-contrast SVG
 
 **Status:** Not started
-**Spec:** `docs/01_build_phases.md` — Phase 5 section
+**Spec:** `docs/01_build_phases.md` — Phase 6 section
 
 ### Task
-Build a keyboard and screen-reader navigable interface using `@react-aria/focus` and `@react-aria/live-announcer`. Use GSAP to animate element highlighting as the user traverses the diagram.
+Generate a high-contrast SVG variant for low-vision users. Bold outlines, high-contrast fills, large readable labels — rendered server-side via a new `/api/high-contrast` route using `xmlbuilder2` + `svgo`, mirroring the tactile route pattern.
 
 Before writing any code, read:
 - `docs/02_repo_structure.md` — where every file goes
 - `docs/03_tech_stack.md` — what libraries to use (query Context7 for any library before using it)
 
-### Checklist (Phase 5)
-- [ ] Query Context7 for `@react-aria/live-announcer`, `@react-aria/focus`, and `gsap` docs before writing
-- [ ] Build `DiagramMap` component (`src/components/output/DiagramMap.tsx`) that accepts `DiagramAnalysis`
-- [ ] Render elements as focusable nodes; use `element.position` for spatial layout where available, sequential list otherwise
-- [ ] Use `@react-aria/focus` for focus management — `FocusScope` to trap/manage focus within the map
-- [ ] Keyboard: Tab/Shift+Tab between elements, Arrow keys spatial, Enter/Space expand details, Escape exit
-- [ ] Use `@react-aria/live-announcer` to announce each element: label, type, value, relationships
-- [ ] GSAP pulsing border on focused element, connection lines on expand
-- [ ] "Map mode" toggle keyboard accessible
-- [ ] Wire `DiagramMap` into the results tab panel alongside Audio and Tactile SVG
+### Checklist (Phase 6)
+- [ ] Query Context7 for `xmlbuilder2` and `svgo` docs before writing
+- [ ] Create `src/lib/svg/highContrastRenderer.ts` — takes `DiagramAnalysis`, returns SVG string
+- [ ] Create `/api/high-contrast` POST route: accepts `DiagramAnalysis`, returns high-contrast SVG string
+- [ ] Build `HighContrastSVG.tsx` component: inline scrollable preview, zoom controls, download button
+- [ ] Wire into results tab panel alongside Tactile SVG and Audio tabs (add tab entry to `OUTPUT_TABS`)
+- [ ] `sonner` toast on SVG download
 - [ ] Zero TypeScript errors
 
-### Definition of done (Phase 5)
-- [ ] All diagram elements reachable by Tab navigation
-- [ ] Arrow key spatial navigation works when positions available
-- [ ] `@react-aria/live-announcer` announces element on focus
-- [ ] `@react-aria/focus` manages focus scope correctly
-- [ ] Enter/Space expands element and shows connections
-- [ ] Escape exits map mode cleanly
-- [ ] GSAP animates active node highlight and connection lines on expand
-- [ ] Map mode toggle is keyboard accessible with visible focus indicator
+### Definition of done (Phase 6)
+- [ ] High-contrast SVG renders for circuit, chart, free-body, and an unknown diagram type
+- [ ] All fills are high-contrast (no mid-tone grays, no light pastels)
+- [ ] All labels are readable at 100% browser zoom (min 16pt equivalent in SVG units)
+- [ ] Strokes are bold and clearly visible (min 3pt)
+- [ ] Download triggers `sonner` toast
+- [ ] Preview renders inline with zoom controls
+- [ ] Zero TypeScript errors
+
+---
+
+## Phase 5 task summary — Navigable diagram map
+
+**Status:** Complete
+
+### What was built
+A keyboard and screen-reader navigable `DiagramMap` component (`src/components/output/DiagramMap.tsx`) wired into the "Diagram map" tab.
+
+- Map mode toggle (Enter/Exit) — activates `FocusScope` (contain + restoreFocus + autoFocus)
+- `useFocusManager` for Tab/Shift-Tab within the scope
+- Spatial layout: elements positioned at `toGrid(pos.x)% / toGrid(pos.y)%` (10–90% safe zone), sequential list fallback
+- Arrow key spatial nav: nearest-in-direction algorithm using normalised positions
+- `@react-aria/live-announcer` announces label, type, value, and connections on focus
+- Enter/Space expands element showing connections, announced with assertive priority
+- GSAP `repeat: -1 / yoyo` pulse on focused node's `boxShadow`
+- GSAP `strokeDashoffset` draw animation on SVG `<line>` connection lines on expand
+- Escape exits map mode; `FocusScope restoreFocus` returns focus to the toggle button
+
+### Checklist (Phase 5 — completed)
+- [x] Query Context7 for `@react-aria/live-announcer`, `@react-aria/focus`, and `gsap` docs before writing
+- [x] Build `DiagramMap` component (`src/components/output/DiagramMap.tsx`) that accepts `DiagramAnalysis`
+- [x] Render elements as focusable nodes; use `element.position` for spatial layout where available, sequential list otherwise
+- [x] Use `@react-aria/focus` for focus management — `FocusScope` to trap/manage focus within the map
+- [x] Keyboard: Tab/Shift+Tab between elements, Arrow keys spatial, Enter/Space expand details, Escape exit
+- [x] Use `@react-aria/live-announcer` to announce each element: label, type, value, relationships
+- [x] GSAP pulsing border on focused element, connection lines on expand
+- [x] "Map mode" toggle keyboard accessible
+- [x] Wire `DiagramMap` into the results tab panel alongside Audio and Tactile SVG
+- [x] Zero TypeScript errors
 
 ---
 
@@ -92,8 +119,8 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` 
 | Phase 3 — Audio walkthrough (TTS) | ✅ Done |
 | Phase 4 — Tactile / braille SVG | ✅ Done |
 | Phase 4.5 — Simplified tactile pipeline | ✅ Done |
-| Phase 5 — Navigable diagram map | ▶ Active |
-| Phase 6 — High-contrast SVG | Not started |
+| Phase 5 — Navigable diagram map | ✅ Done |
+| Phase 6 — High-contrast SVG | ▶ Active |
 | Phase 7 — Polish, animations & deploy | Not started |
 
 ---
