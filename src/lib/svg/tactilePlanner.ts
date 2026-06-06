@@ -827,6 +827,17 @@ function planPositional(
     const marker = String(markerIdx++)
     const shape = resolveShape(el)
 
+    // Push marker toward the nearest page edge so labels on inner organelles
+    // end up outside (or near the edge of) an outer boundary shape.
+    const normX = el.position ? el.position.x : 0.5
+    const normY = el.position ? el.position.y : 0.5
+    const dTop = normY, dBottom = 1 - normY, dLeft = normX, dRight = 1 - normX
+    const minDist = Math.min(dTop, dBottom, dLeft, dRight)
+    const edgeSide: Dir =
+      minDist === dTop ? 'top' :
+      minDist === dBottom ? 'bottom' :
+      minDist === dLeft ? 'left' : 'right'
+
     const compObj: TactileObject = {
       id: `obj-${el.id}`,
       sourceElementId: el.id,
@@ -838,7 +849,7 @@ function planPositional(
       heightMm: 22,
       label: elementLabel(el),
       marker,
-      markerSide: 'top',
+      markerSide: edgeSide,
       labelMethod: el.labelMethod,
       bboxMm: undefined,
     }

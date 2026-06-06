@@ -118,19 +118,26 @@ Strategy selection guide:
 - simplified-spatial-diagram: maps, orbital diagrams, 3D spatial diagrams
 - fallback-locator-map: too dense or photo-like; use numbered locators
 
-Recipe guide for biology/anatomy:
-- Cell membranes/walls: outer-boundary, ellipse or rectangle, no modifiers, labelMethod: lead-line
-- Mitochondria: bean-region with wavy-inner-line modifier (cristae)
-- Chloroplast: ellipse with parallel-lines modifier (thylakoids)
-- Nucleus: circle with dot modifier (nucleolus) or inner-region
-- Vacuole: ellipse, no modifiers
-- Petals: rounded-lobe
-- Sepals: pointed-lobe
+Recipe guide for biology/anatomy — always specify shapeParams:
+- Cell membrane/outer boundary: outer-boundary, widthMm: 130, heightMm: 160, no modifiers, labelMethod: lead-line
+- Nucleus: circle (inner-region), widthMm: 45, heightMm: 40, dot modifier for nucleolus, labelMethod: lead-line
+- Mitochondria: bean-region, widthMm: 22, heightMm: 12, wavy-inner-line modifier (cristae), labelMethod: number-key
+- Chloroplast: ellipse, widthMm: 20, heightMm: 10, parallel-lines modifier, labelMethod: number-key
+- Vacuole: ellipse, widthMm: 30, heightMm: 25, no modifiers, labelMethod: lead-line
+- Cytoplasm: inner-region, widthMm: 110, heightMm: 140, no modifiers, importance: optional
+- Petals: rounded-lobe, widthMm: 25, heightMm: 15
+- Sepals: pointed-lobe, widthMm: 20, heightMm: 12
 - Filament/style: line
+
+IMPORTANT — pagePlan rules:
+- NEVER include pageType "key" in pagePlan — the pipeline adds a reference page automatically. Including key pages creates duplicates.
+- pagePlan should only contain diagram pages (pageType: "single", "overview", or "detail")
+- labelled-region-map: use EXACTLY 1 pagePlan entry (single diagram page) — the reference page handles the key
+- If a cell/anatomy diagram has many organelles, keep only 1 diagram page and use number-key labels — do NOT split into multiple detail pages
 
 Page split rules:
 - flow-sequence: always two pages (overview + step-by-step)
-- labelled-region-map: single page if ≤8 labels; split to diagram+key page if more
+- labelled-region-map: always exactly 1 diagram page in pagePlan; reference page is added automatically
 - direct-symbol-diagram: single if ≤10 elements; overview+key if more
 - fallback-locator-map: always single page
 
