@@ -165,66 +165,31 @@ Take the `narration` steps from `DiagramAnalysis` and speak them using the Web S
 ---
 
 ## Phase 4 — Tactile / braille-print SVG
-**Complexity:** Medium-High | **Risk:** Medium
+**Complexity:** Medium-High | **Risk:** Medium | **Status:** Superseded by Phase 6
 
-### Task
-Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo`: outline-only strokes, no fills, braille-encoded labels via a hand-rolled `braille.ts` encoder. A4 sized for direct swell-paper printing.
+Initial programmatic SVG generation via `xmlbuilder2`/`svgo` and a 5-stage adapt→plan→render→validate→repair pipeline. Replaced by LLM-direct generation (Phase 6), which produces higher-quality tactile output without a custom renderer.
 
-### Steps
-- Query Context7 for `xmlbuilder2` docs if needed
-- Implement `src/lib/braille.ts` — a lookup-table ASCII → Unicode Grade 1 Braille (U+2800–U+28FF) encoder. Do NOT use an npm braille package; hand-roll the lookup table for reliability
-- Build `TactileRenderer` using `xmlbuilder2`:
-  - All fills removed (stroke only, min 2pt stroke-width)
-  - No color — pure black strokes on white
-  - Every element rendered as its `visualShape` (or `rect` by default): circle, diamond, arc, arrow, path
-  - English label printed in readable text beside or inside each shape (for sighted reviewers)
-  - Short numeric marker (e.g. braille '1', '2') placed outside the component in the first collision-free candidate position; full label in the keyed legend at the bottom of the page (BANA keyed-label approach)
-  - No domain-specific symbols (no IEC circuit glyphs, no scientific icons) — generic shapes only
-  - ViewBox sized to A4 (794×1123px at 96dpi)
-- Run output through `svgo`
-- Add "Download Tactile SVG" button with `sonner` toast
-- On-screen note: "Optimised for swell-paper or tactile embossing printers. Print at 100% scale."
-
-### Definition of done ✅
-- [x] Tactile SVG renders for circuit, chart, free-body, and an unknown diagram type
-- [x] All labels are Unicode Braille (verified character by character against braille chart)
-- [x] SVG has no fill colors — stroke only, confirmed by `svgo` output inspection
-- [x] ViewBox is A4 proportioned (794×1123)
-- [x] Downloaded SVG opens correctly in Inkscape/Illustrator without errors
-- [x] `braille.ts` has unit tests (Vitest) covering full ASCII range
+`src/lib/braille.ts` — the ASCII → Unicode Grade 1 Braille encoder built in this phase — is still used for Braille dot post-processing in `/api/llm-tactile`.
 
 ---
 
-## Phase 4.5 — Simplified tactile pipeline
-
-**Complexity:** Medium | **Risk:** Low
+## Phase 6 — LLM-direct tactile SVG generation
+**Complexity:** Medium | **Risk:** Low | **Status:** ✅ Done
 
 ### Task
-Replace the ad-hoc adaptor/planner/renderer calls with a clean 5-stage pipeline (adapt → plan → render → validate → repair) built on top of the proven Phase 4 core. A `TactileContext` object accumulates every stage's output so nothing is lost between stages. One repair retry is allowed before the pipeline gives up.
-
-### Steps
-- Create `src/lib/tactile/layout/page-profiles.ts` — `PageProfile` type + `a4` / `braille-11x11` profiles + `getProfile()`
-- Create `src/lib/tactile/validation/validator.ts` — `ValidationReport` type + hard checks + warnings
-- Create `src/lib/tactile/repair/repairer.ts` — `RepairParams` type + `dispatchRepairs()` + `applyRepairs()`
-- Create `src/lib/tactile/pipeline.ts` — `TactileContext`, `TactileResponse`, `runTactilePipeline()`
-- Update `src/lib/svg/tactilePlanner.ts` to accept `profile?: PageProfile` + `repairParams?: RepairParams`
-- Update `src/app/api/tactile/route.ts` to delegate to `runTactilePipeline()`; return both `artifacts` envelope and legacy `pages` fallback
-- Update `src/components/output/TactileSVG.tsx` to handle `artifacts.svgPages` response alongside old `pages` fallback
-- Write Vitest unit tests for page-profiles, validator, and repairer
+Replace the programmatic pipeline with direct Claude Vision SVG generation. Claude receives the raw image and a detailed tactile design prompt, then produces multi-page A4 SVG output. A post-processing pass converts letter markers and key entries to Braille dot geometry using `braille.ts`.
 
 ### Definition of done ✅
-- [x] `getProfile('a4')` returns correct dimensions (210×297mm, 15mm margin)
-- [x] `runTactilePipeline()` carries `TactileContext` through all 5 stages without lossy conversions
-- [x] Validation hard-checks fire correctly; warnings surface in response
-- [x] Repair retry runs on validation failure; pipeline marks `status: 'partial'` if repair partially succeeds
-- [x] `/api/tactile` returns `{ status, artifacts: { svgPages, pageTitles, pageCount, profileId } }`
-- [x] `TactileSVG.tsx` handles both new `artifacts.svgPages` and legacy `pages` response shapes
-- [x] Unit tests pass for page-profiles, validator, repairer
+- [x] `/api/llm-tactile` calls Claude Vision with image + tactile prompt; returns `{ svgPages, speechScript }`
+- [x] Braille dot post-processing applied to letter markers (diagram pages) and KEY section (reference page)
+- [x] `speechScript` extracted from reference page before Braille conversion — used for TTS read-aloud
+- [x] `TactileSVG.tsx` calls `/api/llm-tactile` with raw image; displays multi-page preview with zoom and download
+- [x] NOT_A_DIAGRAM sentinel guards against non-diagram uploads
 - [x] Zero TypeScript errors
 
 ---
 
-## Phase 5 — Polish, animations & Vercel deploy
+## Phase 7 — Polish, animations & Vercel deploy
 **Complexity:** Low | **Risk:** Low
 
 ### Task

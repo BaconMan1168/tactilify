@@ -12,15 +12,15 @@ tactilify/
 │   ├── 05_current_phase.md
 │   ├── 06_design.md
 │   └── superpowers/
-│       ├── plans/
-│       │   └── 2026-06-05-tactile-simplified-pipeline.md
+│       ├── plans/                     # (empty — historical plans removed)
 │       └── specs/
-│           └── *.md                   # Historical design specs per phase
+│           ├── 2026-06-01-phase1-design.md
+│           └── 2026-06-02-phase3-audio-walkthrough-design.md
 │
 ├── public/
 │   ├── favicon.ico
 │   └── samples/
-│       └── circuit-sample.png         # Demo: series circuit diagram (others deferred to Phase 7)
+│       └── circuit-sample.png         # Demo: series circuit diagram
 │
 ├── src/
 │   ├── app/                           # Next.js App Router
@@ -29,23 +29,22 @@ tactilify/
 │   │   ├── globals.css
 │   │   └── api/
 │   │       ├── analyze/
-│   │       │   └── route.ts           # POST: accepts base64 image → returns DiagramAnalysis JSON
+│   │       │   └── route.ts           # POST: image → DiagramAnalysis JSON (for audio narration)
+│   │       ├── llm-tactile/
+│   │       │   └── route.ts           # POST: image → SVG pages (Claude Vision direct generation)
 │   │       ├── preprocess/
 │   │       │   └── route.ts           # POST: file-type validate, sharp resize, pdfjs-dist PDF→image
-│   │       ├── tactile/
-│   │       │   └── route.ts           # POST: runs runTactilePipeline(), returns svgPages[]
 │   │       └── tts/
-│   │           └── route.ts           # POST: accepts narration text → returns MP3 (OpenAI TTS fallback)
+│   │           └── route.ts           # POST: narration text → MP3 (OpenAI TTS fallback)
 │   │
 │   ├── components/
 │   │   ├── input/
 │   │   │   ├── ImageUploader.tsx      # Drag-and-drop + click-to-browse file upload
 │   │   │   └── CameraCapture.tsx      # getUserMedia live feed + capture button
-│   │   │   # SampleImages.tsx — deferred to Phase 7 (Polish & deploy)
 │   │   │
 │   │   ├── output/
 │   │   │   ├── AudioPlayer.tsx        # TTS narration: play/pause/stop, step list, Web Speech + OAI fallback
-│   │   │   └── TactileSVG.tsx         # Tactile/braille SVG renderer + download button
+│   │   │   └── TactileSVG.tsx         # Calls /api/llm-tactile; multi-page SVG preview, zoom, download
 │   │   │
 │   │   └── ui/
 │   │       ├── AxeCore.tsx            # Dev-mode axe-core/react accessibility scanner
@@ -65,36 +64,16 @@ tactilify/
 │   │   ├── openai.ts                  # OpenAI client initialisation (server-only)
 │   │   ├── braille.ts                 # ASCII → Unicode Grade 1 Braille encoder
 │   │   ├── braille.test.ts            # Vitest: encodeBraille unit tests
-│   │   ├── brailleMetrics.ts          # Braille cell/line footprint calculation (mm)
-│   │   ├── brailleMetrics.test.ts     # Vitest: footprint, collision placement, key hard-stop
-│   │   ├── prompts.ts                 # All Claude prompt templates (analysis, narration)
-│   │   ├── svg/
-│   │   │   ├── tactileAdaptor.ts      # DiagramAnalysis → TactilePageSpec[] (domain classification + strategy)
-│   │   │   ├── tactileAdaptor.test.ts # Vitest: adaptor unit tests
-│   │   │   ├── tactilePlanner.ts      # TactilePageSpec → TactilePlan (geometry + marker passes)
-│   │   │   ├── tactilePlanner.test.ts # Vitest: planner unit tests
-│   │   │   └── tactileRenderer.ts     # TactilePlan → SVG string
-│   │   └── tactile/
-│   │       ├── pipeline.ts            # runTactilePipeline(): TactileContext orchestrator (adapt→plan→render→validate→repair)
-│   │       ├── layout/
-│   │       │   ├── page-profiles.ts   # PageProfile type + a4/braille-11x11 profiles + getProfile()
-│   │       │   └── page-profiles.test.ts
-│   │       ├── repair/
-│   │       │   ├── repairer.ts        # RepairParams + dispatchRepairs() + applyRepairs()
-│   │       │   └── repairer.test.ts
-│   │       └── validation/
-│   │           ├── validator.ts       # ValidationReport + hard checks + warnings
-│   │           └── validator.test.ts
+│   │   └── utils.ts                   # shadcn cn() helper
 │   │
 │   └── types/
-│       ├── diagram.ts                 # DiagramAnalysis, DiagramElement, LayoutHint, etc. (Zod schemas)
-│       └── tactile.ts                 # TactilePlan, TactilePageSpec, TactileObject, Bbox, etc.
+│       └── diagram.ts                 # DiagramAnalysis, DiagramElement, NarrationStep, etc. (Zod schemas)
 │
 ├── .env.local                         # ANTHROPIC_API_KEY, OPENAI_API_KEY (never committed)
 ├── .env.example                       # Template showing required env vars
 ├── .gitignore
 ├── next.config.ts
-├── postcss.config.mjs                 # Tailwind CSS 4 PostCSS plugin (no tailwind.config.ts in v4)
+├── postcss.config.mjs                 # Tailwind CSS 4 PostCSS plugin
 ├── tsconfig.json
 ├── vitest.config.ts                   # Vitest: resolves @/ path alias for test files
 ├── package.json
@@ -104,28 +83,29 @@ tactilify/
 ## Key conventions
 
 ### API routes
-All AI calls go through `/api/` routes. The client never calls Anthropic or OpenAI directly. This keeps API keys server-side only.
+
+All AI calls go through `/api/` routes. The client never calls Anthropic or OpenAI directly.
+
+| Route | Purpose |
+|---|---|
+| `/api/preprocess` | Validates mime type, resizes via `sharp`, converts PDF via `pdfjs-dist` |
+| `/api/analyze` | Claude Vision → `DiagramAnalysis` JSON used for audio narration |
+| `/api/llm-tactile` | Claude Vision → multi-page A4 SVG + Braille dot post-processing |
+| `/api/tts` | OpenAI TTS fallback — returns MP3 for download |
 
 ### Component naming
 - `input/` — components that accept user input
 - `output/` — components that render accessible outputs
 - `ui/` — reusable generic UI primitives
 
-### lib/svg/ — core tactile rendering trio
-- **`tactileAdaptor.ts`** — classifies `DiagramAnalysis` by domain and strategy, produces `TactilePageSpec[]` (one per output page).
-- **`tactilePlanner.ts`** — converts a `TactilePageSpec` into a `TactilePlan` in two passes:
-  1. **Geometry pass** — layout functions (`planCyclic`, `planAxial`, `planPositional`, `planDirectional`, `planGrid`) create all objects and set `bboxMm`. No braille markers yet.
-  2. **Marker pass** — `placeAllMarkers` seeds `occupied` with every geometry bbox, then places collision-safe braille markers. New layout types get collision-safe placement automatically.
-- **`tactileRenderer.ts`** — consumes a `TactilePlan` and emits the final SVG string. No layout decisions here.
-
-### lib/tactile/ — pipeline orchestration
-`pipeline.ts` runs the 5-stage pipeline: adapt → plan → render → validate → repair. It carries a `TactileContext` object through every stage, accumulating outputs without lossy conversions. One repair retry is allowed before the pipeline gives up.
+### lib/braille.ts
+Hand-rolled ASCII → Unicode Grade 1 Braille (U+2800–U+28FF) encoder. Used by `/api/llm-tactile` to post-process letter markers and KEY entries into raised-dot Braille geometry in the SVG output.
 
 ### types/diagram.ts
-Single source of truth for all TypeScript types. Both the API route and client components import from here. Uses `LayoutHintSchema` (`cyclic` | `axial` | `directional` | `positional` | `none`) to drive layout algorithm selection.
+Single source of truth for all TypeScript types. Both the API routes and client components import from here. Uses Zod schemas for runtime validation of Claude-generated JSON.
 
 ### Environment variables
 | Variable | Used in | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `/api/analyze` | Claude Vision API calls |
+| `ANTHROPIC_API_KEY` | `/api/analyze`, `/api/llm-tactile` | Claude Vision API calls |
 | `OPENAI_API_KEY` | `/api/tts` | OpenAI TTS fallback audio |

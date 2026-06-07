@@ -12,41 +12,22 @@ Tactilify accepts a photo or file upload of a STEM diagram and returns two acces
 | Output | Who it's for | Description |
 |---|---|---|
 | Audio walkthrough | Blind students | Claude-generated narration, spoken via Web Speech API or OpenAI TTS, walking through each component and its relationships |
-| Tactile/braille-print SVG | Blind students (physical) | Clean outline SVG using generic shapes (rect, circle, diamond, arc, arrow) with English labels inside and Braille dot labels outside each shape — suitable for swell-paper embossing or tactile printer output |
+| Tactile/braille-print SVG | Blind students (physical) | Multi-page A4 SVG generated directly by Claude Vision — tactile-optimised outlines, letter-keyed labels, Braille dot markers — suitable for swell-paper embossing or tactile printer output |
 
 ## Target users
 - **Primary:** Blind and low-vision K–12 and university students
 - **Secondary:** Teachers and accessibility coordinators who need to produce accessible STEM materials quickly
 
 ## Diagram types supported
-Any STEM diagram a student or teacher might encounter. The app does not hard-code a fixed list of diagram types. Claude Vision classifies each upload into a **rendering category** that drives layout:
-
-| Category | Examples |
-|---|---|
-| `connected-graph` | Circuit diagrams, logic gate diagrams, flowcharts, reaction mechanism arrows |
-| `chart` | Bar charts, line graphs, pie charts, titration curves, decay curves, scatter plots |
-| `vector-field` | Free-body diagrams, ray diagrams, electric field lines, momentum diagrams |
-| `spatial` | Orbital diagrams, crystal structures, atomic models, Punnett squares |
-| `other` | Anything else — falls back to a labelled grid layout |
-
-The tactile renderer does not use domain-specific symbols (e.g. IEC circuit glyphs). Every element is rendered as a generic shape (rect, circle, diamond, arc, arrow) with its English label and Braille label placed outside the shape. This keeps the renderer extensible to new diagram types without code changes.
+Any STEM diagram a student or teacher might encounter. Claude Vision reads the image directly and decides how to represent it — no pre-classification step.
 
 ## Core AI pipeline
 ```
 Image input
-  → Claude Vision: classify diagram type
-  → Claude Vision: extract structured object/relationship JSON
-  → Claude: generate natural-language narration from JSON
-  → Planner: convert DiagramAnalysis to TactilePlan (geometry pass: all objects + bboxes; marker pass: universal collision-resolved braille label placement)
-  → Renderer: produce A4 SVG from TactilePlan
-  → TTS: speak narration via Web Speech API (fallback: OpenAI TTS)
+  → /api/analyze: Claude Vision → DiagramAnalysis JSON (elements, relationships, narration steps)
+  → /api/llm-tactile: Claude Vision → A4 SVG pages directly → Braille dot post-processing
+  → TTS: speak narration steps via Web Speech API (fallback: OpenAI /api/tts)
 ```
-
-## Why this is not a GPT wrapper
-The LLM is only the narrator and extractor. The core technical work is:
-- Structured extraction of diagram semantics into a typed JSON schema
-- Programmatic SVG generation from that schema (two distinct render targets)
-- Braille label encoding in SVG output
 
 ## Input methods
 - File upload (drag-and-drop, click to browse) — JPEG, PNG, WebP, PDF
@@ -75,4 +56,4 @@ The LLM is only the narrator and extractor. The core technical work is:
 4. Upload a diagram outside the three common types (e.g. ray diagram, titration curve) → app produces a usable accessible output using the generic renderer
 5. Both output panels visible and functional in one UI
 6. Audio plays without error on click
-7. Tactile SVG downloads as a valid `.svg` file — every element has an English label and a Braille label
+7. Tactile SVG downloads as a valid `.svg` file — elements have letter-keyed labels and Braille dot markers

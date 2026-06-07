@@ -41,8 +41,7 @@
 | `file-type`       | latest  | Server-side file type validation                                                |
 | `sharp`           | latest  | Image preprocessing: resize, compress, normalize format before Claude Vision    |
 | `pdfjs-dist`      | latest  | PDF-to-image conversion for uploaded PDFs                                       |
-| `nanoid`          | latest  | Stable unique IDs for uploads, diagram elements, narration steps, and map nodes |
-| `tesseract.js`    | latest  | OCR — text extraction from diagram images when needed                           |
+| `nanoid`          | latest  | Stable unique IDs for uploads and diagram elements                              |
 | `@napi-rs/canvas` | latest  | Server-side canvas rendering (Node-compatible canvas API)                       |
 
 ## Audio / TTS
@@ -56,11 +55,7 @@
 
 | Technology                            | Purpose                                                                            |
 | ------------------------------------- | ---------------------------------------------------------------------------------- |
-| `xmlbuilder2`                         | Circuit, graph, free-body SVG generation. Safer than raw XML string concatenation. |
-| `svgo`                                | Optimize and clean generated SVGs before display/download                          |
-| `elkjs`                               | Graph layout engine — drives flow-sequence layout in the tactile pipeline          |
-| `jszip`                               | Zip multi-page tactile SVG downloads into a single archive                         |
-| Unicode Braille block (U+2800–U+28FF) | Braille label encoding in tactile SVG. Implemented in `src/lib/braille.ts`.        |
+| Unicode Braille block (U+2800–U+28FF) | Braille dot post-processing in tactile SVG. Implemented in `src/lib/braille.ts`.   |
 
 ## Accessibility
 
@@ -68,7 +63,7 @@
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
 | Semantic HTML                | Foundation — use correct elements (`<button>`, `<nav>`, `<main>`, etc.)                   |
 | ARIA attributes              | `aria-label`, `aria-live`, `aria-describedby`, `role` where semantic HTML is insufficient |
-| `@react-aria/focus`          | Focus management for keyboard navigation and output panels                                |
+| `@react-aria/live-announcer` | Announces each narration step to screen readers independently of TTS                      |
 | axe-core (dev only)          | Automated accessibility testing during development                                        |
 | `@axe-core/react`            | Dev-mode accessibility violations logged to console                                       |
 
@@ -96,7 +91,7 @@
 | ESLint + `eslint-config-next` | Linting                                                                             |
 | Prettier                      | Formatting                                                                          |
 | `eslint-plugin-jsx-a11y`      | Accessibility linting rules for JSX                                                 |
-| Vitest                        | Unit testing for schemas, braille encoding, SVG renderers, and utility functions    |
+| Vitest                        | Unit testing for schemas and braille encoding                                       |
 | `@testing-library/react`      | React component testing                                                             |
 | `@testing-library/user-event` | Keyboard interaction testing for accessible UI components                           |
 | `vitest-axe`                  | Automated accessibility assertions in tests                                         |
@@ -106,7 +101,6 @@
 | Technology | Purpose                                                                           |
 | ---------- | --------------------------------------------------------------------------------- |
 | `p-retry`  | Retry transient Claude/OpenAI API failures                                        |
-| `p-limit`  | Limit parallel async work if the pipeline is split into multiple processing steps |
 
 ## Deployment
 
@@ -145,7 +139,7 @@ OPENAI_API_KEY=sk-...
 ## Install commands
 
 ```bash
-npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid xmlbuilder2 svgo @react-aria/live-announcer @react-aria/focus sonner p-retry p-limit motion gsap
+npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid @react-aria/live-announcer sonner p-retry motion gsap
 
 npx shadcn@latest init
 npx shadcn@latest add button card tabs alert progress dialog

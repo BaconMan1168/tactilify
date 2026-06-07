@@ -12,8 +12,6 @@
 │                                                         │
 │  [ Upload a diagram ]   [ Use camera ]                  │
 │                                                         │
-│  ── or try a sample ──                                  │
-│  [ Circuit ]  [ Bar Chart ]  [ Ray Diagram ]            │
 └────────────────────┬────────────────────────────────────┘
                      │ user picks input method
           ┌──────────┴──────────┐
@@ -92,24 +90,24 @@
 │   AUDIO    │                          │   TACTILE    │
 │  PLAYER    │                          │  BRAILLE SVG │
 │            │                          │              │
-│ Step 1/6:  │                          │  xmlbuilder2 │
-│ "Starting  │                          │  → svgo      │
-│  at the    │                          │  [SVG render]│
+│ Step 1/6:  │                          │  POST        │
+│ "Starting  │                          │  /api/       │
+│  at the    │                          │  llm-tactile │
 │  battery"  │                          │              │
-│            │                          │  Outline     │
-│ [▶][⏸][⏹] │                          │  only, no    │
-│            │                          │  fill,       │
-│ Web Speech │                          │  braille.ts  │
-│ API (or    │                          │  labels      │
-│ /api/tts   │                          │              │
-│ fallback)  │                          │ [Download    │
-│            │                          │  Tactile SVG]│
+│            │                          │  Claude      │
+│ [▶][⏸][⏹] │                          │  Vision      │
+│            │                          │  → A4 SVG    │
+│ Web Speech │                          │  pages       │
+│ API (or    │                          │              │
+│ /api/tts   │                          │  Braille dot │
+│ fallback)  │                          │  post-proc   │
+│            │                          │  (braille.ts)│
 │ Motion:    │                          │              │
-│ step high- │                          │  "Print on   │
-│ light anim │                          │  swell paper"│
+│ step high- │                          │ [Download    │
+│ light anim │                          │  Tactile SVG]│
 │            │                          │              │
-│ @react-    │                          │ sonner toast │
-│ aria live  │                          │ on download  │
+│ @react-    │                          │  "Print on   │
+│ aria live  │                          │  swell paper"│
 │ announcer  │                          │              │
 └────────────┘                          └──────────────┘
 ```
@@ -160,11 +158,11 @@ DiagramAnalysis (fully typed, validated)
       │                                                          │
       ▼                                                          ▼
  AudioPlayer                                               TactileSVG
- reads narration[]                                         POST /api/tactile
- → Web Speech API                                          → runTactilePipeline()
-   (+ @react-aria/live-announcer)                            adapt → plan → render
-   or /api/tts → OpenAI TTS                                  → validate → repair
- Motion: step highlight animation                          → SVG string(s) for download
+ reads narration[]                                         POST /api/llm-tactile
+ → Web Speech API                                          → Claude Vision generates
+   (+ @react-aria/live-announcer)                            A4 SVG pages directly
+   or /api/tts → OpenAI TTS                                → Braille dot post-processing
+ Motion: step highlight animation                          → SVG pages for display + download
       └──────────────────────────────────────────────────────────┘
 ```
 
