@@ -19,7 +19,9 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const [error, setError] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
   const [speaking, setSpeaking] = useState(false)
+  const [statusMsg, setStatusMsg] = useState('Generating tactile SVG, please wait.')
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const speakBtnRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -60,6 +62,17 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   useEffect(() => {
     return () => { window.speechSynthesis?.cancel() }
   }, [])
+
+  useEffect(() => {
+    if (svgPages) {
+      setStatusMsg('Tactile SVG ready. Use the Read aloud button to hear the title, description, and exploration guide.')
+      speakBtnRef.current?.focus()
+    } else if (error) {
+      setStatusMsg('Could not generate tactile SVG.')
+    } else {
+      setStatusMsg('Generating tactile SVG, please wait.')
+    }
+  }, [svgPages, error])
 
   const handleSpeak = useCallback(() => {
     if (!window.speechSynthesis) return
@@ -113,6 +126,11 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
 
   return (
     <div role="region" aria-label="Tactile braille SVG output" className="flex flex-col gap-3">
+      {/* Screen-reader live region — announces loading state and completion */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {statusMsg}
+      </div>
+
       {/* Header row: label + read-aloud + zoom controls */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
@@ -122,15 +140,18 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         <div className="flex items-center gap-2">
           {typeof window !== 'undefined' && 'speechSynthesis' in window && (
             <button
+              ref={speakBtnRef}
               onClick={handleSpeak}
+              disabled={!svgPages && !speaking}
               aria-label={speaking ? 'Stop reading aloud' : 'Read title, description and exploration guide aloud'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 background: speaking ? '#2a2020' : '#141516',
                 border: `1px solid ${speaking ? '#6b3030' : '#23252a'}`,
                 borderRadius: 6, padding: '3px 9px', height: 34,
-                color: speaking ? '#e07070' : '#8a8f98',
-                fontSize: 12, cursor: 'pointer',
+                color: speaking ? '#e07070' : (!svgPages ? '#3e3e44' : '#8a8f98'),
+                fontSize: 12, cursor: (!svgPages && !speaking) ? 'default' : 'pointer',
+                opacity: (!svgPages && !speaking) ? 0.5 : 1,
               }}
             >
               {speaking ? (
@@ -232,7 +253,8 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
             dangerouslySetInnerHTML={{ __html: currentSvg }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full" style={{ color: '#8a8f98', fontSize: 13 }}>
+          /* Visible placeholder for sighted users; screen readers use the live region above */
+          <div aria-hidden="true" className="flex items-center justify-center h-full" style={{ color: '#8a8f98', fontSize: 13 }}>
             Generating tactile SVG...
           </div>
         )}
