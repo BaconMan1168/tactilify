@@ -46,7 +46,9 @@ SHORT DESCRIPTION (starts 4mm below separator)
   After the description block, draw a separator line at [descBottom+2].
 
 EXPLORATION GUIDE (starts 4mm below separator)
-  Plain text. Tactile navigation instructions referencing the letter labels — e.g. "Start at the center. A is the large central circle. B are small ovals scattered around it." Be succinct; match length to diagram complexity.
+  Plain text. Tactile navigation instructions referencing the letter labels. For each element, state: (1) where the element is in the diagram (e.g. "top-left", "center", "right side"), and (2) which direction its letter label is placed relative to the element (e.g. "label A is above it", "label B is to its right"). This tells tactile readers both where to navigate to the element and where to feel for its braille marker.
+  Example: "Start at the battery on the left — label A is above the battery. Trace right along the top wire to the resistor at the top center — label B is to its right. The lightbulb is on the right side — label C is to its right."
+  Be succinct; match length to diagram complexity.
   After the exploration guide block, draw a separator line at [guideBottom+2].
 
 KEY (starts 4mm below separator)
@@ -86,7 +88,7 @@ DIAGRAM (starts 4mm below separator, fills remaining page to y=282mm)
   All structural elements must stay within x: 15–195mm, y: [diagramTop]–282mm.
 
 Keyed labels:
-  Place a single uppercase letter (A, B, C…) directly adjacent (2–4mm) outside each element's boundary. The letter's bounding box must not intersect the element's own bounding box at any point — for a circle of radius R centered at (cx, cy), the letter center must be at distance > R + 2mm from (cx, cy). Never place a label inside the element it labels, even if that element has interior empty space.
+  Place a single uppercase letter (A, B, C…) directly adjacent (3–6mm) outside each element's boundary per BANA tactile graphics standards. The letter's bounding box must not intersect the element's own bounding box at any point — for a circle of radius R centered at (cx, cy), the letter center must be at distance > R + 3mm from (cx, cy). Never place a label inside the element it labels, even if that element has interior empty space.
   For the outermost boundary element, place its letter outside the boundary.
   No full-word labels anywhere in the diagram area.
   The 14mm × 12mm reserved zone around each letter must fall entirely within a blank (non-textured) area or outside the diagram boundary. If no blank area is available, draw a white filled <rect width="7" height="7"/> behind the letter before placing the <text>.
