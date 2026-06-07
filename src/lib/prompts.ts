@@ -43,7 +43,9 @@ Rules:
 - visualShape: pick the closest match — rect for most components, circle for round elements, diamond for junctions/decisions, arrow for force vectors/rays/flow directions
 - directed: true if the connection has an arrowhead, false if it is a plain wire or bidirectional line
 - waypoints: list intermediate bend points (normalised 0–1) only for bent or curved connections; leave empty otherwise
-- Narration must walk through the diagram logically from start to finish, one step per meaningful element
+- Narration must walk through the diagram logically from start to finish
+- If the same element type appears 2 or more times with no distinguishing value (e.g. 7 mitochondria, 4 identical resistors), collapse them into a single narration step using natural language such as "There are 7 mitochondria surrounding the nucleus." Set elementId to the first element of the group or null.
+- Never produce one narration step per instance of a repeated element type
 - Return ONLY the raw JSON — no markdown code fences, no commentary, nothing else
 
 symbolHint rules:
