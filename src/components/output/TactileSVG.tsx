@@ -134,7 +134,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       {/* Header row: label + read-aloud + zoom controls */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
-          A4 · swell/emboss ready
+          A4 · swell paper ready
         </span>
 
         <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
 
       {/* Print note */}
       <div style={{ background: '#18191a', border: '1px solid #23252a', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#62666d', lineHeight: 1.6 }}>
-        Optimised for swell-paper or tactile embossing printers. Print at 100% scale on A4.
+        Printable on A4 swell paper. Print at 100% scale.
       </div>
 
       {/* Download button */}

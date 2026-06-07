@@ -285,7 +285,7 @@ function buildLocalPageSpecs(
 
   // Always produce 2 pages: reference page (text) + diagram page (drawing).
   // This separates the key/exploration guide from the tactile graphic so each
-  // page can be printed at full A4 size on a swell-paper or embossing printer.
+  // page can be printed at full A4 size on swell paper.
   return [
     {
       pageType: 'key',
