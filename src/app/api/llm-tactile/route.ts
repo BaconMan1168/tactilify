@@ -86,7 +86,7 @@ DIAGRAM (starts 4mm below separator, fills remaining page to y=282mm)
   All structural elements must stay within x: 15–195mm, y: [diagramTop]–282mm.
 
 Keyed labels:
-  Place a single uppercase letter (A, B, C…) directly adjacent (2–4mm) outside each element's boundary — never inside it, never overlapping another element or letter.
+  Place a single uppercase letter (A, B, C…) directly adjacent (2–4mm) outside each element's boundary. The letter's bounding box must not intersect the element's own bounding box at any point — for a circle of radius R centered at (cx, cy), the letter center must be at distance > R + 2mm from (cx, cy). Never place a label inside the element it labels, even if that element has interior empty space.
   For the outermost boundary element, place its letter outside the boundary.
   No full-word labels anywhere in the diagram area.
   The 14mm × 12mm reserved zone around each letter must fall entirely within a blank (non-textured) area or outside the diagram boundary. If no blank area is available, draw a white filled <rect width="7" height="7"/> behind the letter before placing the <text>.
@@ -122,6 +122,7 @@ Textures:
 * Use patternUnits="userSpaceOnUse" with a fixed tile size; lines must be evenly spaced; dots must be on a regular grid
 * Pattern fill is clipped to the shape automatically when applied as fill — ensure no texture bleeds outside
 * Do not replicate decorative marks from the source image
+* Never apply texture to an element that has no enclosed interior — components drawn as lines or open paths (wires, connectors, arrows, zigzag symbols, switch levers, and similar line-based elements) must use stroke-only drawing with fill="none"; applying fill="url(#...)" to a non-closed or thin linear shape is invalid
 
 Arrows and connectors:
 * Use arrows only when direction or flow is conceptually important — not for labeling
