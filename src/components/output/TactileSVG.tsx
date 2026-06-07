@@ -14,6 +14,7 @@ interface TactileSVGProps {
 
 export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGProps) {
   const [svgPages, setSvgPages] = useState<string[] | null>(null)
+  const [speechScript, setSpeechScript] = useState<string | null>(null)
   const [pageIdx, setPageIdx] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
@@ -23,6 +24,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   useEffect(() => {
     let cancelled = false
     setSvgPages(null)
+    setSpeechScript(null)
     setPageIdx(0)
     setError(null)
 
@@ -32,12 +34,15 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       body: JSON.stringify({ base64: imageBase64, mimeType: imageMimeType }),
     })
       .then(async (res) => {
-        const data = await res.json() as { svgPages?: string[]; error?: string }
+        const data = await res.json() as { svgPages?: string[]; speechScript?: string; error?: string }
         if (!res.ok || !data.svgPages?.length) throw new Error(data.error ?? `Server error ${res.status}`)
-        return data.svgPages
+        return data
       })
-      .then((pages) => {
-        if (!cancelled) setSvgPages(pages)
+      .then((data) => {
+        if (!cancelled) {
+          setSvgPages(data.svgPages!)
+          setSpeechScript(data.speechScript ?? null)
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to generate tactile SVG')
@@ -63,19 +68,22 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       setSpeaking(false)
       return
     }
-    const parts = [
+    // Prefer the text extracted directly from the SVG reference page so TTS
+    // matches exactly what is printed. Fall back to analysis fields if the
+    // script hasn't arrived yet.
+    const script = speechScript ?? [
       `Title: ${analysis.title}.`,
       `Description: ${analysis.summary}.`,
       analysis.explorationInstructions ? `Exploration guide: ${analysis.explorationInstructions}.` : '',
     ].filter(Boolean).join(' ')
 
-    const utterance = new SpeechSynthesisUtterance(parts)
+    const utterance = new SpeechSynthesisUtterance(script)
     utteranceRef.current = utterance
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
     setSpeaking(true)
     window.speechSynthesis.speak(utterance)
-  }, [analysis, speaking])
+  }, [analysis, speaking, speechScript])
 
   const handleDownload = useCallback(() => {
     if (!svgPages) return

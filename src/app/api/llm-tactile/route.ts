@@ -206,6 +206,23 @@ function applyBraillePostProcessing(svg: string, isReferencePage: boolean): stri
   return replaceTextWithBraille(svg, (c) => /^[A-Z]$/.test(c))
 }
 
+// ── Speech script extraction ──────────────────────────────────────────────────
+// Pulls readable text from the reference page (title, description, exploration
+// guide) before braille post-processing converts the KEY section to dots.
+// This becomes the TTS script so audio exactly matches what is printed.
+function extractSpeechScript(referenceSvg: string): string {
+  const keyMatch = /<text\b[^>]*>\s*KEY\s*<\/text>/i.exec(referenceSvg)
+  const searchArea = keyMatch ? referenceSvg.slice(0, keyMatch.index) : referenceSvg
+  const lines: string[] = []
+  const re = /<text\b[^>]*>([^<]+)<\/text>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(searchArea)) !== null) {
+    const t = m[1].trim()
+    if (t) lines.push(t)
+  }
+  return lines.join(' ')
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ClaudeMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
@@ -258,17 +275,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No SVG returned from model' }, { status: 500 })
     }
 
-    const svgPages = textBlock.text
+    const rawPages = textBlock.text
       .split(PAGE_BREAK)
       .map((s) => s.trim())
       .filter((s) => s.startsWith('<'))
-      .map((s, i) => applyBraillePostProcessing(s, i === 0))
 
-    if (svgPages.length === 0) {
+    if (rawPages.length === 0) {
       return NextResponse.json({ error: 'No valid SVG pages returned from model' }, { status: 500 })
     }
 
-    return NextResponse.json({ svgPages })
+    const speechScript = extractSpeechScript(rawPages[0])
+    const svgPages = rawPages.map((s, i) => applyBraillePostProcessing(s, i === 0))
+
+    return NextResponse.json({ svgPages, speechScript })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Generation failed'
     console.error('[llm-tactile] error:', message)
