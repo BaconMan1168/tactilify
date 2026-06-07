@@ -213,14 +213,17 @@ function applyBraillePostProcessing(svg: string, isReferencePage: boolean): stri
 function extractSpeechScript(referenceSvg: string): string {
   const keyMatch = /<text\b[^>]*>\s*KEY\s*<\/text>/i.exec(referenceSvg)
   const searchArea = keyMatch ? referenceSvg.slice(0, keyMatch.index) : referenceSvg
-  const lines: string[] = []
-  const re = /<text\b[^>]*>([^<]+)<\/text>/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(searchArea)) !== null) {
-    const t = m[1].trim()
-    if (t) lines.push(t)
-  }
-  return lines.join(' ')
+  // Strip every tag — leaves only text nodes including <tspan> content.
+  // XML entities are unescaped so TTS reads natural characters.
+  return searchArea
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
