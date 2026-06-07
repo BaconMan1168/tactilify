@@ -7,12 +7,11 @@
 A vast proportion of STEM education is visual: circuit diagrams, graphs, free-body diagrams, molecular structures, and geometric figures. Blind and low-vision students are routinely excluded from this content. Existing solutions — tactile graphics, embossed prints, specialist materials — are slow, expensive, and bottlenecked by human production labor. There is no fast, on-demand tool a student or teacher can use in the moment.
 
 ## Solution
-Tactilify accepts a photo or file upload of a STEM diagram and returns four accessible representations within seconds:
+Tactilify accepts a photo or file upload of a STEM diagram and returns two accessible representations within seconds:
 
 | Output | Who it's for | Description |
 |---|---|---|
 | Audio walkthrough | Blind students | Claude-generated narration, spoken via Web Speech API or OpenAI TTS, walking through each component and its relationships |
-| High-contrast SVG | Low-vision students | Simplified diagram with bold outlines, high-contrast fill, large labels — rendered in-browser |
 | Tactile/braille-print SVG | Blind students (physical) | Clean outline SVG using generic shapes (rect, circle, diamond, arc, arrow) with English labels inside and Braille dot labels outside each shape — suitable for swell-paper embossing or tactile printer output |
 
 ## Target users
@@ -38,7 +37,6 @@ Image input
   → Claude Vision: classify diagram type
   → Claude Vision: extract structured object/relationship JSON
   → Claude: generate natural-language narration from JSON
-  → Renderer: produce high-contrast SVG from JSON
   → Planner: convert DiagramAnalysis to TactilePlan (geometry pass: all objects + bboxes; marker pass: universal collision-resolved braille label placement)
   → Renderer: produce A4 SVG from TactilePlan
   → TTS: speak narration via Web Speech API (fallback: OpenAI TTS)
@@ -75,7 +73,6 @@ The LLM is only the narrator and extractor. The core technical work is:
 2. Upload a bar chart → app reads axes and data correctly, produces accessible outputs
 3. Upload a free-body diagram → app identifies forces and directions correctly
 4. Upload a diagram outside the three common types (e.g. ray diagram, titration curve) → app produces a usable accessible output using the generic renderer
-5. All four output panels visible and functional in one UI
+5. Both output panels visible and functional in one UI
 6. Audio plays without error on click
 7. Tactile SVG downloads as a valid `.svg` file — every element has an English label and a Braille label
-8. High-contrast image enhancement is visible and downloadable

@@ -1,31 +1,5 @@
 # 05 — Current Phase
 
-## ✅ Phase 6 — High-contrast image enhancement
-
-**Status:** Complete
-**Spec:** `docs/superpowers/specs/2026-06-06-phase6-high-contrast-image-design.md`
-
-### What was built
-A sharp-based image enhancement pipeline that takes the original uploaded image and produces a contrast-enhanced PNG, preserving spatial layout and semantic colours. No AI, no SVG regeneration.
-
-New files:
-- `src/lib/image/highContrastProcessor.ts` — normalise → CLAHE → sharpen → saturation boost via sharp
-- `src/app/api/high-contrast/route.ts` — POST: `{ image: base64 }` → `{ base64: enhanced PNG }`
-- `src/components/output/HighContrastImage.tsx` — inline preview, 6-level zoom, dual download (PNG + SVG)
-
-Updated files:
-- `src/app/page.tsx` — added "Hi-contrast" tab to `OUTPUT_TABS`, wired `HighContrastImage` component
-
-### Checklist (Phase 6 — completed)
-- [x] Create `src/lib/image/highContrastProcessor.ts` with sharp pipeline (normalise → CLAHE → sharpen → saturation)
-- [x] Create `/api/high-contrast` POST route: accepts `{ image }`, returns `{ base64 }`
-- [x] Build `HighContrastImage.tsx`: inline scrollable preview, 6-level zoom, dual download (PNG + SVG)
-- [x] Wire "Hi-contrast" tab into `OUTPUT_TABS` and results panel
-- [x] `sonner` toast on PNG and SVG download
-- [x] Zero TypeScript errors
-
----
-
 ## Phase 4.5 task summary — Simplified tactile pipeline
 
 **Status:** Complete
@@ -82,7 +56,6 @@ Generate a braille-print SVG variant using `xmlbuilder2`, optimised with `svgo` 
 | Phase 3 — Audio walkthrough (TTS) | ✅ Done |
 | Phase 4 — Tactile / braille SVG | ✅ Done |
 | Phase 4.5 — Simplified tactile pipeline | ✅ Done |
-| Phase 6 — High-contrast image enhancement | ✅ Done |
 | Phase 7 — Polish, animations & deploy | ▶ Active |
 
 ---

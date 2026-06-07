@@ -224,37 +224,6 @@ Replace the ad-hoc adaptor/planner/renderer calls with a clean 5-stage pipeline 
 
 ---
 
-## Phase 6 — High-contrast SVG
-**Complexity:** Medium | **Risk:** Low
-
-### Task
-Generate a high-contrast SVG variant for low-vision users. Bold outlines, high-contrast fills, large readable labels — rendered inline in the browser. Reuses the `DiagramAnalysis` already in client state; no new API route needed. A new `/api/high-contrast` server route handles SVG generation server-side with `xmlbuilder2` + `svgo`, mirroring the tactile route pattern.
-
-### Steps
-- Query Context7 for `xmlbuilder2` and `svgo` docs if needed
-- Create `/api/high-contrast` POST route: accepts `DiagramAnalysis`, returns high-contrast SVG string
-- Build a renderer (`src/lib/svg/highContrastRenderer.ts`) using `xmlbuilder2`:
-  - Bold strokes (min 3pt) with high-contrast fills (black on white or white on black per element type)
-  - Large, readable English labels (min 16pt) inside or beside each shape
-  - Every element rendered as its `visualShape` (or `rect` by default)
-  - Relationships drawn as thick directed arrows between elements
-  - `svgo` optimisation pass before returning
-- Build `HighContrastSVG.tsx` component: inline scrollable preview, zoom controls, download button
-- Wire into results tab panel alongside Tactile SVG and Audio tabs
-- `sonner` toast on SVG download
-- On-screen note: "Optimised for low-vision users. Increase browser zoom for best results."
-
-### Definition of done ✅
-- [ ] High-contrast SVG renders for circuit, chart, free-body, and an unknown diagram type
-- [ ] All fills are high-contrast (no mid-tone grays, no light pastels)
-- [ ] All labels are readable at 100% browser zoom (min 16pt equivalent in SVG units)
-- [ ] Strokes are bold and clearly visible (min 3pt)
-- [ ] Download triggers `sonner` toast
-- [ ] Preview renders inline with zoom controls
-- [ ] Zero TypeScript errors
-
----
-
 ## Phase 7 — Polish, animations & Vercel deploy
 **Complexity:** Low | **Risk:** Low
 
@@ -271,7 +240,7 @@ Full UI polish pass with Motion animations throughout, sample images for the dem
 - Add `<meta>` tags, favicon, `og:image` for Vercel share preview
 - Final accessibility audit: axe scan + full keyboard walkthrough of all panels
 - Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` in Vercel dashboard
-- Set `vercel.json` `maxDuration: 60` on `/api/analyze`, `/api/tactile`, `/api/tts`, and `/api/high-contrast`
+- Set `vercel.json` `maxDuration: 60` on `/api/analyze`, `/api/tactile`, and `/api/tts`
 - Smoke test on production URL with all three sample diagrams
 
 ### Definition of done ✅

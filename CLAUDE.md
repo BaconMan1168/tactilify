@@ -6,10 +6,9 @@
 You are building **Tactilify** — a STEM diagram accessibility engine for blind and low-vision students.
 
 ## What this project does
-A student or teacher uploads or photographs a STEM diagram. The app uses Claude Vision to detect the diagram type, extract its objects and relationships, then produces four accessible outputs:
+A student or teacher uploads or photographs a STEM diagram. The app uses Claude Vision to detect the diagram type, extract its objects and relationships, then produces two accessible outputs:
 1. **Audio walkthrough** — a spoken narration of the diagram, component by component
-2. **High-contrast SVG** — a more visually accessible version for low-vision users with high contrast colors
-3. **Tactile/braille-print-ready SVG** — a clean outline SVG suitable for swell-paper or embossed printing, with braille labels
+2. **Tactile/braille-print-ready SVG** — a clean outline SVG suitable for swell-paper or embossed printing, with braille labels
 
 
 ## Only read the files that are necessary

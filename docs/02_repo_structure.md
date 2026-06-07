@@ -45,8 +45,7 @@ tactilify/
 │   │   │
 │   │   ├── output/
 │   │   │   ├── AudioPlayer.tsx        # TTS narration: play/pause/stop, step list, Web Speech + OAI fallback
-│   │   │   ├── TactileSVG.tsx         # Tactile/braille SVG renderer + download button
-│   │   │   # HighContrastSVG.tsx — Phase 6
+│   │   │   └── TactileSVG.tsx         # Tactile/braille SVG renderer + download button
 │   │   │
 │   │   └── ui/
 │   │       ├── AxeCore.tsx            # Dev-mode axe-core/react accessibility scanner
