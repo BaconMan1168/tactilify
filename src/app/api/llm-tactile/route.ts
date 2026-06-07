@@ -122,7 +122,8 @@ Textures:
 * If two adjacent or nested regions would both receive texture, remove the texture from the larger/outer one; only the smaller, more discrete region keeps texture
 * Each region type gets at most ONE texture; no two region types share the same texture; limit 3 distinct textures total
 * Implement every texture as a <pattern> in <defs>, applied via fill="url(#id)" — never hand-draw individual dots, lines, or hatches as child elements
-* Use patternUnits="userSpaceOnUse" with a fixed tile size; lines must be evenly spaced; dots must be on a regular grid
+* Dot and circle patterns are FORBIDDEN as fill textures — they are indistinguishable by touch from braille. Every texture must be line-based: use horizontal lines, vertical lines, diagonal lines (45° or 135°), or crosshatch. The repeating element in any pattern must be a <line> or <path>, never a <circle>
+* Use patternUnits="userSpaceOnUse" with a fixed tile size; lines must be evenly spaced
 * Pattern fill is clipped to the shape automatically when applied as fill — ensure no texture bleeds outside
 * Do not replicate decorative marks from the source image
 * Never apply texture to a discrete component, regardless of whether its outline is open or closed — components must use stroke-only drawing (fill="none"); a closed outline shape representing a component (e.g. a rectangle standing in for a circuit element) must have a blank interior, never a pattern fill
