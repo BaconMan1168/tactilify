@@ -119,7 +119,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         style={{ background: '#18191a', border: '1px solid #23252a', borderRadius: 8, padding: '16px', fontSize: 15, color: '#8a8f98' }}
         role="alert"
       >
-        Could not generate tactile SVG.
+        {error}
       </div>
     )
   }

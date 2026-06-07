@@ -55,6 +55,10 @@ async function analyzeWithClaude(base64: string, mimeType: string): Promise<Diag
     },
   )
 
+  if (/NOT_A_DIAGRAM/.test(rawText)) {
+    throw Object.assign(new Error('NOT_A_DIAGRAM'), { code: 'NOT_A_DIAGRAM' })
+  }
+
   const repaired = jsonrepair(rawText)
   const parsed: unknown = JSON.parse(repaired)
 
@@ -86,6 +90,12 @@ export async function POST(req: NextRequest) {
     const analysis = await analyzeWithClaude(base64, mimeType)
     return NextResponse.json(analysis)
   } catch (err) {
+    if (err instanceof Error && (err as Error & { code?: string }).code === 'NOT_A_DIAGRAM') {
+      return NextResponse.json(
+        { error: 'This image does not appear to be a STEM diagram. Please upload a diagram, chart, or scientific illustration.' },
+        { status: 422 },
+      )
+    }
     const message = err instanceof Error ? err.message : 'Analysis failed'
     console.error('[analyze] error:', message)
     return NextResponse.json({ error: message }, { status: 500 })

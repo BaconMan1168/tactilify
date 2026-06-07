@@ -1,6 +1,9 @@
 export const DIAGRAM_ANALYSIS_PROMPT = `You are an accessibility expert analyzing STEM diagrams for blind and low-vision students.
 
-Analyze the provided diagram image and return a JSON object with exactly this shape:
+IMPORTANT: First check whether the image is an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure. If it is not — for example it is a photograph, portrait, artwork, meme, screenshot of unrelated text, or otherwise unrecognisable as a STEM diagram — return exactly this JSON and nothing else:
+{"error":"NOT_A_DIAGRAM"}
+
+Otherwise, analyze the diagram and return a JSON object with exactly this shape:
 
 {
   "layoutHint": "cyclic" | "axial" | "directional" | "positional" | "none",

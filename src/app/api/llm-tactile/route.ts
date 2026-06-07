@@ -4,7 +4,12 @@ import { encodeBraille } from '@/lib/braille'
 
 const MODEL = 'claude-sonnet-4-6'
 
-const PROMPT = `Generate a multi-page tactile diagram of this image for blind or low-vision students to read by touch on swell/capsule/embossed paper.
+const NOT_A_DIAGRAM = 'NOT_A_DIAGRAM'
+
+const PROMPT = `IMPORTANT: Before generating anything, check whether the image contains an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure. If it does not — for example it is a photograph, portrait, artwork, meme, screenshot of text, or otherwise unrecognisable as a STEM diagram — output only this exact word and nothing else:
+NOT_A_DIAGRAM
+
+Otherwise, generate a multi-page tactile diagram of this image for blind or low-vision students to read by touch on swell paper.
 
 Primary goal:
 Create a tactile-readable educational diagram, not a visually faithful replica. Preserve the core educational meaning, spatial relationships, and essential structures, simplifying only when needed for tactile clarity.
@@ -276,6 +281,13 @@ export async function POST(req: NextRequest) {
     const textBlock = message.content.find((b) => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {
       return NextResponse.json({ error: 'No SVG returned from model' }, { status: 500 })
+    }
+
+    if (textBlock.text.trim() === NOT_A_DIAGRAM) {
+      return NextResponse.json(
+        { error: 'This image does not appear to be a STEM diagram. Please upload a diagram, chart, or scientific illustration.' },
+        { status: 422 },
+      )
     }
 
     const rawPages = textBlock.text
