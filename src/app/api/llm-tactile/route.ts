@@ -113,16 +113,17 @@ Overlap:
 * Topologically connected elements (wire terminating at a component, field line originating from a charge, shell containing a nucleus) may touch but must not have their interiors pass through an unrelated element's interior
 
 Textures:
-* Leave the outermost container region blank (white, no texture) — texture only named inner structures that need tactile distinction
+* Textures serve ONE purpose only: tactile differentiation of spatial fill REGIONS — enclosed areas whose identity comes from what material or space they represent (e.g. a cell organelle, a material cross-section layer, a geographic zone). Never use texture to indicate the function or type of a discrete labeled component (a resistor, capacitor, gear, atom, symbol, etc.) — a component's identity comes from its outline shape and its letter label, not its fill.
+* Leave the outermost container region blank (white, no texture) — texture only inner fill regions that would be indistinguishable from each other without it
 * A region that contains other textured structures must itself be blank — if any child structure has texture, the parent region must not
 * Never texture a large background fill region (cytoplasm, stroma, matrix, cytosol, etc.) — leave it blank unless it is the only named structure on the page
-* If two adjacent or nested regions would both receive texture, remove the texture from the larger/outer one; only the smaller, more discrete structure keeps texture
-* Each structure type gets at most ONE texture; no two structure types share the same texture; limit 3 distinct textures total
+* If two adjacent or nested regions would both receive texture, remove the texture from the larger/outer one; only the smaller, more discrete region keeps texture
+* Each region type gets at most ONE texture; no two region types share the same texture; limit 3 distinct textures total
 * Implement every texture as a <pattern> in <defs>, applied via fill="url(#id)" — never hand-draw individual dots, lines, or hatches as child elements
 * Use patternUnits="userSpaceOnUse" with a fixed tile size; lines must be evenly spaced; dots must be on a regular grid
 * Pattern fill is clipped to the shape automatically when applied as fill — ensure no texture bleeds outside
 * Do not replicate decorative marks from the source image
-* Never apply texture to an element that has no enclosed interior — components drawn as lines or open paths (wires, connectors, arrows, zigzag symbols, switch levers, and similar line-based elements) must use stroke-only drawing with fill="none"; applying fill="url(#...)" to a non-closed or thin linear shape is invalid
+* Never apply texture to a discrete component, regardless of whether its outline is open or closed — components must use stroke-only drawing (fill="none"); a closed outline shape representing a component (e.g. a rectangle standing in for a circuit element) must have a blank interior, never a pattern fill
 
 Arrows and connectors:
 * Use arrows only when direction or flow is conceptually important — not for labeling
