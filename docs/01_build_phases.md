@@ -224,29 +224,19 @@ Replace the ad-hoc adaptor/planner/renderer calls with a clean 5-stage pipeline 
 
 ---
 
-## Phase 7 — Polish, animations & Vercel deploy
+## Phase 5 — Polish, animations & Vercel deploy
 **Complexity:** Low | **Risk:** Low
 
 ### Task
-Full UI polish pass with Motion animations throughout, sample images for the demo, error hardening, and production deploy.
+Error hardening, and production deploy.
 
 ### Steps
 - Query Context7 for `motion` docs for any new animation patterns
-- Add `SampleImages.tsx` component with 3 sample diagram images (`/public/samples/`) and one-click "Try this example" buttons — these should work instantly without upload
-- Landing page: app name, tagline, brief how-to, and Motion staggered entrance animation on load
-- Results page: Motion stagger the four output panels appearing after analysis completes
-- Ensure all output panels are in a clean layout on desktop using shadcn `Card` components
 - Mobile layout: single column, all panels accessible, touch targets minimum 44×44px
 - Add `<meta>` tags, favicon, `og:image` for Vercel share preview
 - Final accessibility audit: axe scan + full keyboard walkthrough of all panels
-- Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` in Vercel dashboard
-- Set `vercel.json` `maxDuration: 60` on `/api/analyze`, `/api/tactile`, and `/api/tts`
-- Smoke test on production URL with all three sample diagrams
 
 ### Definition of done ✅
-- [ ] Three sample diagrams work end-to-end on the production Vercel URL
-- [ ] All four output panels render correctly on desktop and mobile
-- [ ] Motion stagger animation plays when results appear
 - [ ] Zero critical or serious axe violations
 - [ ] App loads in under 3 seconds on a standard connection
 - [ ] Production URL is live and demo-ready
