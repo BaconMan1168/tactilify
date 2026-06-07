@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import type { DiagramAnalysis } from '@/types/diagram'
 
@@ -17,6 +17,8 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const [pageIdx, setPageIdx] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
+  const [speaking, setSpeaking] = useState(false)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -50,6 +52,31 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const currentSvg = svgPages?.[pageIdx] ?? null
   const totalPages = svgPages?.length ?? 0
 
+  useEffect(() => {
+    return () => { window.speechSynthesis?.cancel() }
+  }, [])
+
+  const handleSpeak = useCallback(() => {
+    if (!window.speechSynthesis) return
+    if (speaking) {
+      window.speechSynthesis.cancel()
+      setSpeaking(false)
+      return
+    }
+    const parts = [
+      `Title: ${analysis.title}.`,
+      `Description: ${analysis.summary}.`,
+      analysis.explorationInstructions ? `Exploration guide: ${analysis.explorationInstructions}.` : '',
+    ].filter(Boolean).join(' ')
+
+    const utterance = new SpeechSynthesisUtterance(parts)
+    utteranceRef.current = utterance
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    setSpeaking(true)
+    window.speechSynthesis.speak(utterance)
+  }, [analysis, speaking])
+
   const handleDownload = useCallback(() => {
     if (!svgPages) return
     const slug = analysis.title.toLowerCase().replace(/\s+/g, '-')
@@ -78,11 +105,45 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
 
   return (
     <div role="region" aria-label="Tactile braille SVG output" className="flex flex-col gap-3">
-      {/* Header row: label + zoom controls */}
+      {/* Header row: label + read-aloud + zoom controls */}
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium text-[#62666d] uppercase tracking-[0.4px]">
           A4 · swell/emboss ready
         </span>
+
+        <div className="flex items-center gap-2">
+          {typeof window !== 'undefined' && 'speechSynthesis' in window && (
+            <button
+              onClick={handleSpeak}
+              aria-label={speaking ? 'Stop reading aloud' : 'Read title, description and exploration guide aloud'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: speaking ? '#2a2020' : '#141516',
+                border: `1px solid ${speaking ? '#6b3030' : '#23252a'}`,
+                borderRadius: 6, padding: '3px 9px', height: 34,
+                color: speaking ? '#e07070' : '#8a8f98',
+                fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              {speaking ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" />
+                  </svg>
+                  Stop
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <polygon points="11,5 22,12 11,19" />
+                    <line x1="3" y1="12" x2="3" y2="12" strokeLinecap="round" strokeWidth="3" />
+                    <line x1="6" y1="8" x2="6" y2="16" strokeLinecap="round" strokeWidth="2" />
+                  </svg>
+                  Read aloud
+                </>
+              )}
+            </button>
+          )}
 
         <div
           className="flex items-center gap-1"
@@ -123,6 +184,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
             aria-label="Reset zoom to 100%"
             style={{ background: 'none', border: 'none', borderRadius: 3, fontSize: 11, fontWeight: 500, color: '#8a8f98', cursor: 'pointer', padding: '0 5px', height: 28 }}
           >Fit</button>
+        </div>
         </div>
       </div>
 
