@@ -38,9 +38,9 @@ function collectUsedPatternTypes(canvasJSON: { objects: Array<{ 'data-pattern-ty
 export function exportCanvasToSVG(canvas: fabric.Canvas): string {
   const rawSvg: string = canvas.toSVG()
 
-  const json = canvas.toJSON(['data-braille', 'data-braille-text', 'data-pattern-type']) as {
-    objects: Array<{ 'data-pattern-type'?: string }>
-  }
+  // Fabric v7 types don't expose the propertiesToInclude overload but runtime supports it
+  const json = (canvas as unknown as { toJSON(props: string[]): { objects: Array<{ 'data-pattern-type'?: string }> } })
+    .toJSON(['data-braille', 'data-braille-text', 'data-pattern-type'])
   const patternTypes = collectUsedPatternTypes(json)
 
   let svg = stripFabricAttributes(rawSvg)
