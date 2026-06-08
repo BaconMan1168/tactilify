@@ -1,5 +1,4 @@
 import * as fabric from 'fabric'
-import { extractBrailleClusterData } from './brailleAdapter'
 import { parsePatternDefs, createFabricPattern } from './patternAdapter'
 
 // A4: 210mm × 297mm → 595px × 842px
@@ -26,8 +25,7 @@ export async function loadSVGToCanvas(
 ): Promise<fabric.Canvas> {
   applySelectionDefaults()
 
-  const { svg: strippedSvg, clusters } = extractBrailleClusterData(svgString)
-  const patternEntries = parsePatternDefs(strippedSvg)
+  const patternEntries = parsePatternDefs(svgString)
 
   const canvas = new fabric.Canvas(canvasEl, {
     width: CANVAS_W,
@@ -36,7 +34,7 @@ export async function loadSVGToCanvas(
     selection: true,
   })
 
-  const { objects } = await fabric.loadSVGFromString(strippedSvg)
+  const { objects } = await fabric.loadSVGFromString(svgString)
 
   const validObjects = objects.filter((o): o is fabric.FabricObject => o !== null)
 
@@ -64,7 +62,7 @@ export async function loadSVGToCanvas(
       const iText = new fabric.IText(textObj.text ?? '', {
         left: textObj.left,
         top: textObj.top,
-        fontSize: textObj.fontSize,
+        fontSize: (textObj.fontSize ?? 12) * MM_TO_PX,
         fontFamily: textObj.fontFamily,
         fill: textObj.fill,
         fontWeight: textObj.fontWeight,
@@ -76,22 +74,9 @@ export async function loadSVGToCanvas(
     canvas.add(obj)
   }
 
-  for (const cluster of clusters) {
-    const iText = new fabric.IText('⠿', {
-      left: cluster.centroidX * MM_TO_PX,
-      top: cluster.centroidY * MM_TO_PX,
-      fontSize: 12,
-      fill: '#000000',
-      selectable: true,
-      editable: false,
-    })
-    ;(iText as fabric.IText & { 'data-braille': boolean })['data-braille'] = true
-    canvas.add(iText)
-  }
-
   canvas.on('object:added', (e) => {
     const obj = e.target
-    if (!obj || (obj as fabric.FabricObject & { _svgLoaded?: boolean })._svgLoaded) return
+    if (!obj || obj.type === 'i-text' || obj.type === 'text') return
     obj.set(TACTILE_DEFAULTS)
   })
 
