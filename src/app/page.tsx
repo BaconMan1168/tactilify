@@ -7,6 +7,7 @@ import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
 import { TactileSVG } from '@/components/output/TactileSVG'
+import { TactileEditor } from '@/components/editor/TactileEditor'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { UploadedImage, DiagramAnalysis } from '@/types/diagram'
 
@@ -366,6 +367,8 @@ export default function HomePage() {
                         analysis={analysis}
                         imageBase64={image?.base64}
                         imageMimeType={image?.mimeType}
+                        pages={tactilePages.length > 0 ? tactilePages : undefined}
+                        onEditRequest={handleEditRequest}
                       />
                     </TabsContent>
 
@@ -378,19 +381,12 @@ export default function HomePage() {
 
         {/* ── EDITING ── */}
         {appState === 'editing' && (
-          <motion.div
+          <TactileEditor
             key="editing"
-            className="relative z-10 flex flex-col min-h-screen"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {/* TactileEditor rendered in Task 14 */}
-            <div className="flex items-center justify-center h-screen text-[#8a8f98]">
-              Editor loading…
-            </div>
-          </motion.div>
+            pages={tactilePages}
+            onDone={handleEditorDone}
+            onCancel={handleEditorCancel}
+          />
         )}
 
         {/* ── LANDING (idle + preview) ── */}

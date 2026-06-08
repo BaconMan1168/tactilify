@@ -18,9 +18,11 @@ interface TactileSVGProps {
   analysis: DiagramAnalysis
   imageBase64?: string
   imageMimeType?: string
+  pages?: string[]
+  onEditRequest?: (pages: string[]) => void
 }
 
-export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGProps) {
+export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesProp, onEditRequest }: TactileSVGProps) {
   const [pages, setPages] = useState<string[]>([])
   const [speechScript, setSpeechScript] = useState<string | null>(null)
   const [pageIdx, setPageIdx] = useState(0)
@@ -36,6 +38,15 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    if (pagesProp && pagesProp.length > 0) {
+      setPages(pagesProp)
+      setIsStreaming(false)
+      setStreamingPageIndex(null)
+      setError(null)
+      setTruncated(false)
+      return
+    }
+
     let mounted = true
 
     setPages([])
@@ -138,7 +149,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       mounted = false
       abort.abort()
     }
-  }, [imageBase64, imageMimeType])
+  }, [imageBase64, imageMimeType, pagesProp])
 
   const zoom = ZOOM_LEVELS[zoomIdx]
   const scaledW = Math.round(794 * zoom / 100)
@@ -401,6 +412,32 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         </svg>
         {totalPages > 1 ? `Download All ${totalPages} Pages` : 'Download Tactile SVG'}
       </button>
+
+      {onEditRequest && isReady && (
+        <button
+          onClick={() => onEditRequest(pages)}
+          aria-label="Edit tactile diagram before printing"
+          className="w-full flex items-center justify-center gap-2 font-medium transition-colors"
+          style={{
+            background: 'transparent',
+            color: '#8a8f98',
+            borderRadius: 8,
+            padding: '10px 16px',
+            fontSize: 15,
+            border: '1px solid #23252a',
+            cursor: 'pointer',
+            marginTop: 4,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#5e6ad2'; (e.currentTarget as HTMLButtonElement).style.color = '#f7f8f8' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#23252a'; (e.currentTarget as HTMLButtonElement).style.color = '#8a8f98' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Edit tactile diagram
+        </button>
+      )}
     </div>
   )
 }
