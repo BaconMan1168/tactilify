@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { encodeBraille } from '@/lib/braille'
+import { extractSpeechScript } from '@/lib/speechScript'
 
 const MODEL = 'claude-sonnet-4-6'
 
@@ -209,26 +210,6 @@ function applyBraillePostProcessing(svg: string, isReferencePage: boolean): stri
   }
   // Diagram pages: replace single uppercase letter markers with Braille
   return replaceTextWithBraille(svg, (c) => /^[A-Z]$/.test(c))
-}
-
-// ── Speech script extraction ──────────────────────────────────────────────────
-// Pulls readable text from the reference page (title, description, exploration
-// guide) before braille post-processing converts the KEY section to dots.
-// This becomes the TTS script so audio exactly matches what is printed.
-function extractSpeechScript(referenceSvg: string): string {
-  const keyMatch = /<text\b[^>]*>\s*KEY\s*<\/text>/i.exec(referenceSvg)
-  const searchArea = keyMatch ? referenceSvg.slice(0, keyMatch.index) : referenceSvg
-  // Strip every tag — leaves only text nodes including <tspan> content.
-  // XML entities are unescaped so TTS reads natural characters.
-  return searchArea
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
