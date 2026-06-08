@@ -15,7 +15,7 @@ const OUTPUT_TABS = [
   { id: 'tactile', label: 'Tactile / braille' },
 ] as const
 
-type AppState = 'idle' | 'preview' | 'processing' | 'results'
+type AppState = 'idle' | 'preview' | 'processing' | 'results' | 'editing'
 type InputMode = 'upload' | 'camera'
 
 const STEP_THRESHOLDS = [18, 48, 76, 100]
@@ -35,6 +35,8 @@ export default function HomePage() {
   const [progress, setProgress] = useState(0)
   const [debugOpen, setDebugOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('audio')
+  const [tactilePages, setTactilePages] = useState<string[]>([])
+  const [pendingSpeechScript, setPendingSpeechScript] = useState<string | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const apiResolved = useRef(false)
@@ -100,6 +102,21 @@ export default function HomePage() {
     setImage(null)
     setAnalysis(null)
     setProgress(0)
+  }
+
+  const handleEditRequest = (pages: string[]) => {
+    setTactilePages(pages)
+    setAppState('editing')
+  }
+
+  const handleEditorDone = ({ pages, speechScript }: { pages: string[]; speechScript: string | null }) => {
+    setTactilePages(pages)
+    if (speechScript !== null) setPendingSpeechScript(speechScript)
+    setAppState('results')
+  }
+
+  const handleEditorCancel = () => {
+    setAppState('results')
   }
 
   const activeStep = STEP_THRESHOLDS.findIndex(t => progress < t)
@@ -355,6 +372,23 @@ export default function HomePage() {
                   </Tabs>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── EDITING ── */}
+        {appState === 'editing' && (
+          <motion.div
+            key="editing"
+            className="relative z-10 flex flex-col min-h-screen"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* TactileEditor rendered in Task 14 */}
+            <div className="flex items-center justify-center h-screen text-[#8a8f98]">
+              Editor loading…
             </div>
           </motion.div>
         )}

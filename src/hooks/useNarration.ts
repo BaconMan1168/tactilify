@@ -8,12 +8,13 @@ export interface UseNarrationResult {
   isPlaying: boolean
   isPaused: boolean
   isSpeechSupported: boolean
+  speechScriptOverride: string | null | undefined
   play: () => void
   pause: () => void
   stop: () => void
 }
 
-export function useNarration(steps: NarrationStep[]): UseNarrationResult {
+export function useNarration(steps: NarrationStep[], speechScriptOverride?: string | null): UseNarrationResult {
   const [currentStep, setCurrentStep] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
@@ -25,6 +26,8 @@ export function useNarration(steps: NarrationStep[]): UseNarrationResult {
   const isPausedRef = useRef(false)
   const stepsRef = useRef(steps)
   stepsRef.current = steps
+  const speechScriptOverrideRef = useRef(speechScriptOverride)
+  speechScriptOverrideRef.current = speechScriptOverride
 
   useEffect(() => {
     setIsSpeechSupported('speechSynthesis' in window)
@@ -104,5 +107,5 @@ export function useNarration(steps: NarrationStep[]): UseNarrationResult {
     isPausedRef.current = false
   }, [])
 
-  return { currentStep, isPlaying, isPaused, isSpeechSupported, play, pause, stop }
+  return { currentStep, isPlaying, isPaused, isSpeechSupported, speechScriptOverride, play, pause, stop }
 }
