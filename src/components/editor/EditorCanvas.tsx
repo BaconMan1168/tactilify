@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useEffect, useImperativeHandle, forwardRef, useCallback, useState } from 'react'
+import { useRef, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, useCallback, useState } from 'react'
 import type * as FabricType from 'fabric'
 import { loadSVGToCanvas } from '@/lib/svgLoader'
 import { exportCanvasToSVG } from '@/lib/svgExporter'
@@ -40,6 +40,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
     const [fabricCanvas, setFabricCanvas] = useState<FabricType.Canvas | null>(null)
     const history = useEditorHistory(fabricCanvas)
 
+    // Wire parent selection/history callbacks onto a canvas instance.
+    // Called after initial load and after revert so the new canvas is always wired.
+    const wireCallbacks = useCallback((c: FabricType.Canvas) => {
+      const handleSelection = () => {
+        onSelectionChange(c.getActiveObject() ?? null)
+        onHistoryChange()
+      }
+      c.on('selection:created', handleSelection)
+      c.on('selection:updated', handleSelection)
+      c.on('selection:cleared', () => { onSelectionChange(null); onHistoryChange() })
+      c.on('object:modified', onHistoryChange)
+      c.on('object:added', onHistoryChange)
+      c.on('object:removed', onHistoryChange)
+    }, [onSelectionChange, onHistoryChange])
+
     // Keyboard shortcuts
     useEffect(() => {
       const handler = (e: KeyboardEvent) => {
@@ -77,19 +92,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
         const canvas = await loadSVGToCanvas(canvasElRef.current, svgString)
         if (disposed) { canvas.dispose(); return }
         fabricRef.current = canvas
+        wireCallbacks(canvas)
         setFabricCanvas(canvas)
-
-        const handleSelection = () => {
-          const obj = canvas.getActiveObject() ?? null
-          onSelectionChange(obj)
-          onHistoryChange()
-        }
-        canvas.on('selection:created', handleSelection)
-        canvas.on('selection:updated', handleSelection)
-        canvas.on('selection:cleared', () => { onSelectionChange(null); onHistoryChange() })
-        canvas.on('object:modified', onHistoryChange)
-        canvas.on('object:added', onHistoryChange)
-        canvas.on('object:removed', onHistoryChange)
       })()
 
       return () => {
@@ -109,6 +113,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
       canvas.isDrawingMode = false
       canvas.selection = activeTool === 'select'
     }, [activeTool])
+
+    // Notify parent after history state commits so the toolbar reads fresh handle values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useLayoutEffect(() => { onHistoryChange() }, [history.canUndo, history.canRedo, history.isDirty])
 
     // Click-to-add shapes (registered once after mount)
     useEffect(() => {
@@ -159,6 +167,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
         canvas.dispose()
         const newCanvas = await loadSVGToCanvas(canvasEl, newSvgString)
         fabricRef.current = newCanvas
+        wireCallbacks(newCanvas)
         setFabricCanvas(newCanvas)
         history.reset()
       },
