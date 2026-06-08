@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { EditorCanvas, type EditorCanvasHandle } from './EditorCanvas'
@@ -21,17 +21,29 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   const [currentPage, setCurrentPage] = useState(0)
   const [activeTool, setActiveTool] = useState<EditorTool>('select')
   const [selectedObject, setSelectedObject] = useState<FabricType.FabricObject | null>(null)
-  const [historyVersion, setHistoryVersion] = useState(0)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
   const [dirtyPages, setDirtyPages] = useState<Set<number>>(new Set())
 
   const canvasRefs = useRef<Array<EditorCanvasHandle | null>>(pages.map(() => null))
+  const currentPageRef = useRef(currentPage)
+  useEffect(() => { currentPageRef.current = currentPage }, [currentPage])
+
+  // Sync toolbar state when switching pages
+  useEffect(() => {
+    const c = canvasRefs.current[currentPage]
+    setCanUndo(c?.canUndo ?? false)
+    setCanRedo(c?.canRedo ?? false)
+  }, [currentPage])
 
   const handleHistoryChange = useCallback(() => {
-    setHistoryVersion(v => v + 1)
+    const c = canvasRefs.current[currentPageRef.current]
+    setCanUndo(c?.canUndo ?? false)
+    setCanRedo(c?.canRedo ?? false)
     setDirtyPages(prev => {
       const next = new Set(prev)
-      canvasRefs.current.forEach((c, i) => {
-        if (c?.isDirty) next.add(i)
+      canvasRefs.current.forEach((canvas, i) => {
+        if (canvas?.isDirty) next.add(i)
         else next.delete(i)
       })
       return next
@@ -44,6 +56,8 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
     })
     setDirtyPages(new Set())
     setSelectedObject(null)
+    setCanUndo(false)
+    setCanRedo(false)
   }, [])
 
   const handleDone = useCallback(() => {
@@ -55,11 +69,6 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   }, [pages, onDone])
 
   const activeCanvas = canvasRefs.current[currentPage]
-  const canUndo = activeCanvas?.canUndo ?? false
-  const canRedo = activeCanvas?.canRedo ?? false
-
-  // historyVersion is read to trigger re-evaluation of canUndo/canRedo
-  void historyVersion
 
   return (
     <AnimatePresence>

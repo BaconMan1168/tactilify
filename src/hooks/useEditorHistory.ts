@@ -19,11 +19,21 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
   const pointerRef = useRef<number>(-1)
   const initialRef = useRef<string>('')
   const isRestoringRef = useRef(false)
-  const [, forceUpdate] = useState(0)
+  const [canState, setCanState] = useState({ canUndo: false, canRedo: false, isDirty: false })
 
-  // Fabric v7 types don't expose propertiesToInclude overload, cast at runtime
+  const updateCanState = useCallback(() => {
+    const ptr = pointerRef.current
+    const len = stackRef.current.length
+    setCanState({
+      canUndo: ptr > 0,
+      canRedo: ptr < len - 1,
+      isDirty: len > 0 && JSON.stringify(stackRef.current[ptr]) !== initialRef.current,
+    })
+  }, [])
+
+  // Fabric v7 toJSON() takes no args; toObject() accepts propertiesToInclude
   const toJSON = useCallback((c: fabric.Canvas) =>
-    (c as unknown as { toJSON(p: string[]): object }).toJSON(CUSTOM_PROPS),
+    (c as unknown as { toObject(p: string[]): object }).toObject(CUSTOM_PROPS),
   [])
 
   const snapshot = useCallback(() => {
@@ -36,8 +46,8 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     stack.push(json)
     if (stack.length > MAX_HISTORY) stack.shift()
     pointerRef.current = stack.length - 1
-    forceUpdate(n => n + 1)
-  }, [canvas, toJSON])
+    updateCanState()
+  }, [canvas, toJSON, updateCanState])
 
   const initSnapshot = useCallback(() => {
     if (!canvas) return
@@ -45,8 +55,8 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     initialRef.current = JSON.stringify(json)
     stackRef.current = [json]
     pointerRef.current = 0
-    forceUpdate(n => n + 1)
-  }, [canvas, toJSON])
+    updateCanState()
+  }, [canvas, toJSON, updateCanState])
 
   useEffect(() => {
     if (!canvas) return
@@ -68,8 +78,8 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     await canvas.loadFromJSON(stackRef.current[pointerRef.current])
     canvas.renderAll()
     isRestoringRef.current = false
-    forceUpdate(n => n + 1)
-  }, [canvas])
+    updateCanState()
+  }, [canvas, updateCanState])
 
   const redo = useCallback(async () => {
     if (!canvas || pointerRef.current >= stackRef.current.length - 1) return
@@ -78,8 +88,8 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     await canvas.loadFromJSON(stackRef.current[pointerRef.current])
     canvas.renderAll()
     isRestoringRef.current = false
-    forceUpdate(n => n + 1)
-  }, [canvas])
+    updateCanState()
+  }, [canvas, updateCanState])
 
   const reset = useCallback((initialJSON?: object) => {
     if (!canvas) return
@@ -95,11 +105,5 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     }
   }, [canvas, initSnapshot])
 
-  const pointer = pointerRef.current
-  const stackLen = stackRef.current.length
-  const canUndo = pointer > 0
-  const canRedo = pointer < stackLen - 1
-  const isDirty = stackLen > 0 && JSON.stringify(stackRef.current[pointer]) !== initialRef.current
-
-  return { undo, redo, reset, canUndo, canRedo, isDirty }
+  return { undo, redo, reset, canUndo: canState.canUndo, canRedo: canState.canRedo, isDirty: canState.isDirty }
 }
