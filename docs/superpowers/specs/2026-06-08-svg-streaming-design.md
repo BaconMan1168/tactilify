@@ -53,7 +53,8 @@ The SVG string inside `page` events is JSON-encoded (via `JSON.stringify`), whic
 { type: "speech"; script: string }
 
 // Emitted when stream is fully complete
-{ type: "done"; totalPages: number }
+// truncated: true if the stream ended mid-SVG (at least one page incomplete)
+{ type: "done"; totalPages: number; truncated: boolean }
 
 // Emitted when a non-diagram image is uploaded (replaces NOT_A_DIAGRAM sentinel)
 { type: "not_a_diagram" }
@@ -94,6 +95,7 @@ new Response(stream, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",  // disables Nginx buffering — required for real-time SSE on Vercel
   },
 })
 ```
@@ -130,9 +132,19 @@ const stream = new ReadableStream({
         ) {
           buffer += event.delta.text
 
-          // Detect completed SVG page
-          const closeTag = buffer.indexOf("</svg>")
-          if (closeTag !== -1) {
+          // NOT_A_DIAGRAM is detected inside the stream — Claude emits the
+          // sentinel string instead of SVG when the upload isn't a diagram.
+          // Check before any <svg> tag appears so we exit early.
+          if (buffer.includes("NOT_A_DIAGRAM") && pageIndex === 0) {
+            emit(controller, { type: "not_a_diagram" })
+            return
+          }
+
+          // Drain all complete pages from the buffer in one pass.
+          // A single delta can contain multiple </svg> tags (large chunks),
+          // so loop until no more complete pages remain.
+          let closeTag = buffer.indexOf("</svg>")
+          while (closeTag !== -1) {
             const rawSvg = buffer.slice(0, closeTag + 6)
             buffer = buffer.slice(closeTag + 6)
             lastRawSvg = rawSvg  // retain pre-Braille for speechScript extraction
@@ -142,20 +154,25 @@ const stream = new ReadableStream({
 
             emit(controller, { type: "page", index: pageIndex, svg: processedSvg })
             pageIndex++
+            closeTag = buffer.indexOf("</svg>")
           }
         }
       }
 
-      // Check for truncated output (stream ended mid-SVG)
-      if (buffer.trim().length > 0 && pageIndex === 0) {
+      // If no complete pages were generated at all, it's a hard failure.
+      if (pageIndex === 0) {
         emit(controller, { type: "error", message: "No complete SVG pages were generated. Please try again." })
         return
       }
 
+      // If the stream ended with leftover buffer content, at least one page was
+      // truncated mid-generation. Signal this to the client via done.truncated.
+      const truncated = buffer.trim().length > 0
+
       // speechScript is extracted from lastRawSvg (pre-Braille reference page)
       const speechScript = extractSpeechScript(lastRawSvg)
       emit(controller, { type: "speech", script: speechScript })
-      emit(controller, { type: "done", totalPages: pageIndex })
+      emit(controller, { type: "done", totalPages: pageIndex, truncated })
 
     } catch (err) {
       emit(controller, { type: "error", message: err instanceof Error ? err.message : "Unknown error" })
@@ -196,7 +213,12 @@ The fetch is controlled by an `AbortController` stored in a ref. A `useEffect` c
 ```ts
 const abortRef = useRef<AbortController | null>(null)
 
-// In the generation trigger:
+// In the generation trigger — set isStreaming immediately so the loading
+// state appears before the HTTP connection is even established:
+setIsStreaming(true)
+setPages([])
+setError(null)
+setStreamingPageIndex(null)
 abortRef.current?.abort()
 abortRef.current = new AbortController()
 const response = await fetch("/api/llm-tactile", {
@@ -251,16 +273,29 @@ while (true) {
     }
   }
 }
+
+// Flush the TextDecoder's internal buffer. Required for correct handling of
+// multi-byte UTF-8 sequences (Braille U+2800–U+28FF is 3 bytes) that may be
+// split across chunk boundaries. Without this, the final sequence produces U+FFFD.
+const remaining = decoder.decode()
+if (remaining) {
+  lineBuffer += remaining
+  // process any final line
+  for (const line of lineBuffer.split("\n")) {
+    if (!line.startsWith("data: ")) continue
+    try { handleEvent(JSON.parse(line.slice(6))) } catch { /* skip */ }
+  }
+}
 ```
 
 ### Event handlers
 
 | Event | Action |
 |---|---|
-| `start` | `setIsStreaming(true)`, `setStreamingPageIndex(0)` |
+| `start` | `setStreamingPageIndex(0)` — `isStreaming` is already `true` (set at fetch initiation, see below) |
 | `page` | `setPages(prev => [...prev, event.svg])`, `setStreamingPageIndex(event.index + 1)` |
 | `speech` | Call `onSpeechScript(event.script)` prop callback |
-| `done` | `setIsStreaming(false)`, `setStreamingPageIndex(null)` |
+| `done` | `setIsStreaming(false)`, `setStreamingPageIndex(null)`. If `event.truncated`, show the "Generation stopped early" banner alongside whatever pages were received. |
 | `not_a_diagram` | `setIsStreaming(false)`, surface existing NOT_A_DIAGRAM UI (no change to that path) |
 | `error` | `setError(event.message)`, `setIsStreaming(false)` |
 
