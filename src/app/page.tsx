@@ -37,7 +37,6 @@ export default function HomePage() {
   const [debugOpen, setDebugOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('audio')
   const [tactilePages, setTactilePages] = useState<string[]>([])
-  const [pendingSpeechScript, setPendingSpeechScript] = useState<string | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const apiResolved = useRef(false)
@@ -63,6 +62,7 @@ export default function HomePage() {
   const handleImage = (img: UploadedImage) => {
     setImage(img)
     setAnalysis(null)
+    setTactilePages([])
     setAppState('preview')
     setInputMode('upload')
   }
@@ -102,6 +102,7 @@ export default function HomePage() {
     setAppState('idle')
     setImage(null)
     setAnalysis(null)
+    setTactilePages([])
     setProgress(0)
   }
 
@@ -110,9 +111,8 @@ export default function HomePage() {
     setAppState('editing')
   }
 
-  const handleEditorDone = ({ pages, speechScript }: { pages: string[]; speechScript: string | null }) => {
+  const handleEditorDone = ({ pages }: { pages: string[]; speechScript: string | null }) => {
     setTactilePages(pages)
-    if (speechScript !== null) setPendingSpeechScript(speechScript)
     setAppState('results')
   }
 
