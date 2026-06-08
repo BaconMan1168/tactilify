@@ -236,9 +236,13 @@ function extractSpeechScript(referenceSvg: string): string {
 type ClaudeMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 const ALLOWED_MEDIA = new Set<string>(['image/jpeg', 'image/png', 'image/webp'])
 
-const PAGE_BREAK = '<<<PAGE_BREAK>>>'
+const encoder = new TextEncoder()
 
-export async function POST(req: NextRequest) {
+function emit(controller: ReadableStreamDefaultController, event: object) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
   let base64: string
   let mimeType: string
 
@@ -257,55 +261,80 @@ export async function POST(req: NextRequest) {
     ? (mimeType as ClaudeMediaType)
     : 'image/jpeg'
 
-  try {
-    const message = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      messages: [
-        {
-          role: 'user',
-          content: [
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        emit(controller, { type: 'start' })
+
+        const claudeStream = anthropic.messages.stream({
+          model: MODEL,
+          max_tokens: 16000,
+          messages: [
             {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64 },
-            },
-            {
-              type: 'text',
-              text: PROMPT,
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+                { type: 'text', text: PROMPT },
+              ],
             },
           ],
-        },
-      ],
-    })
+        })
 
-    const textBlock = message.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return NextResponse.json({ error: 'No SVG returned from model' }, { status: 500 })
-    }
+        let buffer = ''
+        let pageIndex = 0
+        let referenceSvg = ''
 
-    if (textBlock.text.trim() === NOT_A_DIAGRAM) {
-      return NextResponse.json(
-        { error: 'This image does not appear to be a STEM diagram. Please upload a diagram, chart, or scientific illustration.' },
-        { status: 422 },
-      )
-    }
+        for await (const event of claudeStream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            buffer += event.delta.text
 
-    const rawPages = textBlock.text
-      .split(PAGE_BREAK)
-      .map((s) => s.trim())
-      .filter((s) => s.startsWith('<'))
+            if (buffer.includes(NOT_A_DIAGRAM) && pageIndex === 0) {
+              emit(controller, { type: 'not_a_diagram' })
+              return
+            }
 
-    if (rawPages.length === 0) {
-      return NextResponse.json({ error: 'No valid SVG pages returned from model' }, { status: 500 })
-    }
+            let closeTag = buffer.indexOf('</svg>')
+            while (closeTag !== -1) {
+              const raw = buffer.slice(0, closeTag + 6)
+              buffer = buffer.slice(closeTag + 6)
 
-    const speechScript = extractSpeechScript(rawPages[0])
-    const svgPages = rawPages.map((s, i) => applyBraillePostProcessing(s, i === 0))
+              // Strip any leading delimiter/whitespace before <svg
+              const svgStart = raw.indexOf('<svg')
+              const rawSvg = svgStart >= 0 ? raw.slice(svgStart) : raw
 
-    return NextResponse.json({ svgPages, speechScript })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Generation failed'
-    console.error('[llm-tactile] error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+              if (pageIndex === 0) referenceSvg = rawSvg
+
+              const processedSvg = applyBraillePostProcessing(rawSvg, pageIndex === 0)
+              emit(controller, { type: 'page', index: pageIndex, svg: processedSvg })
+              pageIndex++
+              closeTag = buffer.indexOf('</svg>')
+            }
+          }
+        }
+
+        if (pageIndex === 0) {
+          emit(controller, { type: 'error', message: 'No complete SVG pages were generated. Please try again.' })
+          return
+        }
+
+        const truncated = buffer.trim().length > 0
+        const speechScript = extractSpeechScript(referenceSvg)
+        emit(controller, { type: 'speech', script: speechScript })
+        emit(controller, { type: 'done', totalPages: pageIndex, truncated })
+      } catch (err) {
+        emit(controller, { type: 'error', message: err instanceof Error ? err.message : 'Unknown error' })
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }

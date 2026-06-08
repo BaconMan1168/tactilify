@@ -6,6 +6,14 @@ import type { DiagramAnalysis } from '@/types/diagram'
 const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200]
 const DEFAULT_ZOOM_IDX = 2
 
+type SSEEvent =
+  | { type: 'start' }
+  | { type: 'page'; index: number; svg: string }
+  | { type: 'speech'; script: string }
+  | { type: 'done'; totalPages: number; truncated: boolean }
+  | { type: 'not_a_diagram' }
+  | { type: 'error'; message: string }
+
 interface TactileSVGProps {
   analysis: DiagramAnalysis
   imageBase64?: string
@@ -13,66 +21,148 @@ interface TactileSVGProps {
 }
 
 export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGProps) {
-  const [svgPages, setSvgPages] = useState<string[] | null>(null)
+  const [pages, setPages] = useState<string[]>([])
   const [speechScript, setSpeechScript] = useState<string | null>(null)
   const [pageIdx, setPageIdx] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM_IDX)
   const [speaking, setSpeaking] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingPageIndex, setStreamingPageIndex] = useState<number | null>(null)
+  const [truncated, setTruncated] = useState(false)
   const [statusMsg, setStatusMsg] = useState('Generating tactile SVG, please wait.')
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const speakBtnRef = useRef<HTMLButtonElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    let cancelled = false
-    setSvgPages(null)
+    let mounted = true
+
+    setPages([])
     setSpeechScript(null)
     setPageIdx(0)
     setError(null)
+    setTruncated(false)
+    setStreamingPageIndex(null)
+    setIsStreaming(true)
 
-    fetch('/api/llm-tactile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64: imageBase64, mimeType: imageMimeType }),
-    })
-      .then(async (res) => {
-        const data = await res.json() as { svgPages?: string[]; speechScript?: string; error?: string }
-        if (!res.ok || !data.svgPages?.length) throw new Error(data.error ?? `Server error ${res.status}`)
-        return data
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setSvgPages(data.svgPages!)
-          setSpeechScript(data.speechScript ?? null)
+    abortRef.current?.abort()
+    const abort = new AbortController()
+    abortRef.current = abort
+
+    ;(async () => {
+      try {
+        const response = await fetch('/api/llm-tactile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64: imageBase64, mimeType: imageMimeType }),
+          signal: abort.signal,
+        })
+
+        if (!response.ok) {
+          const text = await response.text()
+          if (mounted) {
+            setError(text || `Server error ${response.status}`)
+            setIsStreaming(false)
+          }
+          return
         }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to generate tactile SVG')
-      })
 
-    return () => { cancelled = true }
+        const reader = response.body!.getReader()
+        const decoder = new TextDecoder()
+        let lineBuffer = ''
+
+        const handleEvent = (event: SSEEvent) => {
+          if (!mounted) return
+          switch (event.type) {
+            case 'start':
+              setStreamingPageIndex(0)
+              break
+            case 'page':
+              setPages(prev => [...prev, event.svg])
+              setStreamingPageIndex(event.index + 1)
+              break
+            case 'speech':
+              setSpeechScript(event.script)
+              break
+            case 'done':
+              setIsStreaming(false)
+              setStreamingPageIndex(null)
+              if (event.truncated) setTruncated(true)
+              break
+            case 'not_a_diagram':
+              setIsStreaming(false)
+              setError('This image does not appear to be a STEM diagram. Please upload a diagram, chart, or scientific illustration.')
+              break
+            case 'error':
+              setIsStreaming(false)
+              setError(event.message)
+              break
+          }
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          lineBuffer += decoder.decode(value, { stream: true })
+          const lines = lineBuffer.split('\n')
+          lineBuffer = lines.pop()!
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            try { handleEvent(JSON.parse(line.slice(6)) as SSEEvent) } catch { /* skip malformed */ }
+          }
+        }
+
+        // Flush TextDecoder's internal buffer — required for multi-byte UTF-8
+        // sequences (Braille U+2800–U+28FF) split across chunk boundaries
+        const remaining = decoder.decode()
+        if (remaining) {
+          lineBuffer += remaining
+          for (const line of lineBuffer.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            try { handleEvent(JSON.parse(line.slice(6)) as SSEEvent) } catch { /* skip */ }
+          }
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (mounted) {
+          setError(err instanceof Error ? err.message : 'Failed to generate tactile SVG')
+          setIsStreaming(false)
+        }
+      }
+    })()
+
+    return () => {
+      mounted = false
+      abort.abort()
+    }
   }, [imageBase64, imageMimeType])
 
   const zoom = ZOOM_LEVELS[zoomIdx]
   const scaledW = Math.round(794 * zoom / 100)
   const scaledH = Math.round(1123 * zoom / 100)
-  const currentSvg = svgPages?.[pageIdx] ?? null
-  const totalPages = svgPages?.length ?? 0
+  const currentSvg = pages[pageIdx] ?? null
+  const totalPages = pages.length
+  const isReady = !isStreaming && pages.length > 0
 
   useEffect(() => {
     return () => { window.speechSynthesis?.cancel() }
   }, [])
 
   useEffect(() => {
-    if (svgPages) {
+    if (isReady) {
       setStatusMsg('Tactile SVG ready. Use the Read aloud button to hear the title, description, and exploration guide.')
       speakBtnRef.current?.focus()
     } else if (error) {
       setStatusMsg('Could not generate tactile SVG.')
+    } else if (isStreaming && streamingPageIndex !== null) {
+      setStatusMsg(`Generating page ${streamingPageIndex + 1} of approximately 3.`)
     } else {
       setStatusMsg('Generating tactile SVG, please wait.')
     }
-  }, [svgPages, error])
+  }, [isReady, error, isStreaming, streamingPageIndex])
 
   const handleSpeak = useCallback(() => {
     if (!window.speechSynthesis) return
@@ -81,9 +171,6 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       setSpeaking(false)
       return
     }
-    // Prefer the text extracted directly from the SVG reference page so TTS
-    // matches exactly what is printed. Fall back to analysis fields if the
-    // script hasn't arrived yet.
     const script = speechScript ?? [
       `Title: ${analysis.title}.`,
       `Description: ${analysis.summary}.`,
@@ -99,19 +186,19 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
   }, [analysis, speaking, speechScript])
 
   const handleDownload = useCallback(() => {
-    if (!svgPages) return
+    if (!pages.length) return
     const slug = analysis.title.toLowerCase().replace(/\s+/g, '-')
-    svgPages.forEach((page, i) => {
+    pages.forEach((page, i) => {
       const blob = new Blob([page], { type: 'image/svg+xml' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = svgPages.length === 1 ? `tactile-${slug}.svg` : `tactile-${slug}-p${i + 1}.svg`
+      a.download = pages.length === 1 ? `tactile-${slug}.svg` : `tactile-${slug}-p${i + 1}.svg`
       a.click()
       URL.revokeObjectURL(url)
     })
-    toast.success(svgPages.length === 1 ? 'Tactile SVG downloaded' : `${svgPages.length} tactile SVG pages downloaded`)
-  }, [svgPages, analysis.title])
+    toast.success(pages.length === 1 ? 'Tactile SVG downloaded' : `${pages.length} tactile SVG pages downloaded`)
+  }, [pages, analysis.title])
 
   if (error) {
     return (
@@ -126,10 +213,39 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
 
   return (
     <div role="region" aria-label="Tactile braille SVG output" className="flex flex-col gap-3">
-      {/* Screen-reader live region — announces loading state and completion */}
+      {/* Screen-reader live region */}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {statusMsg}
       </div>
+
+      {/* Streaming progress indicator */}
+      {isStreaming && (
+        <div
+          aria-hidden="true"
+          className="animate-pulse"
+          style={{
+            fontSize: 12, color: '#62666d', padding: '6px 10px',
+            background: '#141516', border: '1px solid #23252a', borderRadius: 6,
+          }}
+        >
+          {streamingPageIndex !== null
+            ? `Generating page ${streamingPageIndex + 1} of ~3…`
+            : 'Connecting…'}
+        </div>
+      )}
+
+      {/* Truncation banner */}
+      {truncated && (
+        <div
+          role="alert"
+          style={{
+            fontSize: 13, color: '#e0a050', padding: '8px 12px',
+            background: '#1f1a12', border: '1px solid #4a3a1a', borderRadius: 6,
+          }}
+        >
+          Generation stopped early — showing partial output
+        </div>
+      )}
 
       {/* Header row: label + read-aloud + zoom controls */}
       <div className="flex items-center justify-between">
@@ -142,16 +258,16 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
             <button
               ref={speakBtnRef}
               onClick={handleSpeak}
-              disabled={!svgPages && !speaking}
+              disabled={!isReady && !speaking}
               aria-label={speaking ? 'Stop reading aloud' : 'Read title, description and exploration guide aloud'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 background: speaking ? '#2a2020' : '#141516',
                 border: `1px solid ${speaking ? '#6b3030' : '#23252a'}`,
                 borderRadius: 6, padding: '3px 9px', height: 34,
-                color: speaking ? '#e07070' : (!svgPages ? '#3e3e44' : '#8a8f98'),
-                fontSize: 12, cursor: (!svgPages && !speaking) ? 'default' : 'pointer',
-                opacity: (!svgPages && !speaking) ? 0.5 : 1,
+                color: speaking ? '#e07070' : (!isReady ? '#3e3e44' : '#8a8f98'),
+                fontSize: 12, cursor: (!isReady && !speaking) ? 'default' : 'pointer',
+                opacity: (!isReady && !speaking) ? 0.5 : 1,
               }}
             >
               {speaking ? (
@@ -228,7 +344,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
           >← Prev</button>
 
           <span style={{ fontSize: 12, color: '#62666d' }}>
-            Page {pageIdx + 1} of {totalPages}
+            Page {pageIdx + 1} of {totalPages}{isStreaming ? '+' : ''}
           </span>
 
           <button
@@ -245,7 +361,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
         style={{ background: '#ffffff', border: '1px solid #34343a', borderRadius: 8, height: 380, overflow: 'auto' }}
         role="img"
         aria-label={`Tactile SVG for ${analysis.title}${totalPages > 1 ? `, page ${pageIdx + 1} of ${totalPages}` : ''}`}
-        aria-busy={!svgPages}
+        aria-busy={isStreaming}
       >
         {currentSvg ? (
           <div
@@ -253,7 +369,6 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
             dangerouslySetInnerHTML={{ __html: currentSvg }}
           />
         ) : (
-          /* Visible placeholder for sighted users; screen readers use the live region above */
           <div aria-hidden="true" className="flex items-center justify-center h-full" style={{ color: '#8a8f98', fontSize: 13 }}>
             Generating tactile SVG...
           </div>
@@ -268,16 +383,16 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType }: TactileSVGP
       {/* Download button */}
       <button
         onClick={handleDownload}
-        disabled={!svgPages}
+        disabled={!isReady}
         aria-label="Download tactile SVG for printing"
         className="w-full flex items-center justify-center gap-2 font-medium transition-colors"
         style={{
-          background: svgPages ? '#5e6ad2' : '#23252a',
+          background: isReady ? '#5e6ad2' : '#23252a',
           color: '#ffffff', borderRadius: 8, padding: '10px 16px', fontSize: 15, border: 'none',
-          cursor: svgPages ? 'pointer' : 'default', opacity: svgPages ? 1 : 0.5,
+          cursor: isReady ? 'pointer' : 'default', opacity: isReady ? 1 : 0.5,
         }}
-        onMouseEnter={e => { if (svgPages) (e.currentTarget as HTMLButtonElement).style.background = '#828fff' }}
-        onMouseLeave={e => { if (svgPages) (e.currentTarget as HTMLButtonElement).style.background = '#5e6ad2' }}
+        onMouseEnter={e => { if (isReady) (e.currentTarget as HTMLButtonElement).style.background = '#828fff' }}
+        onMouseLeave={e => { if (isReady) (e.currentTarget as HTMLButtonElement).style.background = '#5e6ad2' }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
