@@ -98,6 +98,7 @@ async function analyzeWithClaude(base64: string, mimeType: string): Promise<Diag
       const message = await anthropic.messages.create({
         model: MODEL,
         max_tokens: MAX_TOKENS,
+        thinking: { type: 'adaptive' },
         messages: [
           {
             role: 'user',
