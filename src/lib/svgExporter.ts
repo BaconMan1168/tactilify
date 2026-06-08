@@ -15,7 +15,7 @@ function stripFabricAttributes(svg: string): string {
 }
 
 function scaleCoordsToMM(svg: string): string {
-  const numericAttrs = ['x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'width', 'height', 'r', 'rx', 'ry']
+  const numericAttrs = ['x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'width', 'height', 'r', 'rx', 'ry', 'font-size']
   let result = svg
   for (const attr of numericAttrs) {
     result = result.replace(
@@ -23,6 +23,18 @@ function scaleCoordsToMM(svg: string): string {
       (_m, val: string) => `${attr}="${(parseFloat(val) * PX_TO_MM).toFixed(2)}"`,
     )
   }
+  // Scale only the e and f (translation) components of transform matrices; a/b/c/d are dimensionless
+  result = result.replace(
+    /transform="matrix\(([^)]+)\)"/g,
+    (_m, inner: string) => {
+      const p = inner.trim().split(/\s+/)
+      if (p.length === 6) {
+        p[4] = (parseFloat(p[4]) * PX_TO_MM).toFixed(3)
+        p[5] = (parseFloat(p[5]) * PX_TO_MM).toFixed(3)
+      }
+      return `transform="matrix(${p.join(' ')})"`
+    },
+  )
   return result
 }
 
@@ -38,9 +50,9 @@ function collectUsedPatternTypes(canvasJSON: { objects: Array<{ 'data-pattern-ty
 export function exportCanvasToSVG(canvas: fabric.Canvas): string {
   const rawSvg: string = canvas.toSVG()
 
-  // Fabric v7 types don't expose the propertiesToInclude overload but runtime supports it
-  const json = (canvas as unknown as { toJSON(props: string[]): { objects: Array<{ 'data-pattern-type'?: string }> } })
-    .toJSON(['data-braille', 'data-braille-text', 'data-pattern-type'])
+  // Fabric v7 toJSON() takes no args; toObject() accepts propertiesToInclude
+  const json = (canvas as unknown as { toObject(props: string[]): { objects: Array<{ 'data-pattern-type'?: string }> } })
+    .toObject(['data-pattern-type'])
   const patternTypes = collectUsedPatternTypes(json)
 
   let svg = stripFabricAttributes(rawSvg)
