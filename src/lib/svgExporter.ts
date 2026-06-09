@@ -15,7 +15,8 @@ function stripFabricAttributes(svg: string): string {
 }
 
 function scaleCoordsToMM(svg: string): string {
-  const numericAttrs = ['x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'width', 'height', 'r', 'rx', 'ry', 'font-size']
+  // 'width' and 'height' excluded here — set to '210mm'/'297mm' via toSVG options and won't match this regex
+  const numericAttrs = ['x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'width', 'height', 'r', 'rx', 'ry', 'font-size', 'stroke-width']
   let result = svg
   for (const attr of numericAttrs) {
     result = result.replace(
@@ -23,12 +24,19 @@ function scaleCoordsToMM(svg: string): string {
       (_m, val: string) => `${attr}="${(parseFloat(val) * PX_TO_MM).toFixed(2)}"`,
     )
   }
-  // Scale only the e and f (translation) components of transform matrices; a/b/c/d are dimensionless
+  // Scale e/f (translations) AND a/b/c/d (scale/rotation) of transform matrices.
+  // Normalising all 6 components prevents the scale factor from compounding on
+  // each editor round-trip (the a/d = MM_TO_PX that Fabric bakes in gets divided
+  // back out here; svgLoader re-applies MM_TO_PX on the next load).
   result = result.replace(
     /transform="matrix\(([^)]+)\)"/g,
     (_m, inner: string) => {
-      const p = inner.trim().split(/\s+/)
+      const p = inner.trim().split(/[\s,]+/)
       if (p.length === 6) {
+        p[0] = (parseFloat(p[0]) * PX_TO_MM).toFixed(6)
+        p[1] = (parseFloat(p[1]) * PX_TO_MM).toFixed(6)
+        p[2] = (parseFloat(p[2]) * PX_TO_MM).toFixed(6)
+        p[3] = (parseFloat(p[3]) * PX_TO_MM).toFixed(6)
         p[4] = (parseFloat(p[4]) * PX_TO_MM).toFixed(3)
         p[5] = (parseFloat(p[5]) * PX_TO_MM).toFixed(3)
       }
@@ -38,26 +46,54 @@ function scaleCoordsToMM(svg: string): string {
   return result
 }
 
-function collectUsedPatternTypes(canvasJSON: { objects: Array<{ 'data-pattern-type'?: string }> }): Set<PatternType> {
+type FabricObjectWithPattern = fabric.FabricObject & { 'data-pattern-type'?: PatternType }
+
+function collectUsedPatternTypes(objects: FabricObjectWithPattern[]): Set<PatternType> {
   const types = new Set<PatternType>()
-  for (const obj of canvasJSON.objects) {
-    const pt = obj['data-pattern-type'] as PatternType | undefined
+  for (const obj of objects) {
+    const pt = obj['data-pattern-type']
     if (pt) types.add(pt)
   }
   return types
 }
 
 export function exportCanvasToSVG(canvas: fabric.Canvas): string {
-  const rawSvg: string = canvas.toSVG()
+  const objects = canvas.getObjects() as FabricObjectWithPattern[]
 
-  // Fabric v7 toJSON() takes no args; toObject() accepts propertiesToInclude
-  const json = (canvas as unknown as { toObject(props: string[]): { objects: Array<{ 'data-pattern-type'?: string }> } })
-    .toObject(['data-pattern-type'])
-  const patternTypes = collectUsedPatternTypes(json)
+  // Temporarily swap Fabric Pattern fills to vector URL references so the
+  // exported SVG uses our line-based <pattern> defs (not image data-URLs).
+  // This survives the round-trip: parsePatternDefs → classifyPattern → createFabricPattern.
+  const fillBackups: Array<{ obj: FabricObjectWithPattern; fill: unknown }> = []
+  for (const obj of objects) {
+    const pt = obj['data-pattern-type']
+    if (pt && pt !== 'none') {
+      fillBackups.push({ obj, fill: obj.fill })
+      obj.set('fill', `url(#pattern-${pt})`)
+    }
+  }
+
+  // Pass explicit A4 mm dimensions so the root <svg> has proper physical units.
+  // The canvas is 595×842 px; toSVG sets width/height to '210mm'/'297mm'.
+  // scaleCoordsToMM then converts internal px coordinates to mm, and the
+  // viewBox regex ensures a consistent 0 0 210 297 user-unit space.
+  const rawSvg = (canvas as unknown as { toSVG(o: Record<string, unknown>): string })
+    .toSVG({ width: '210mm', height: '297mm' })
+
+  // Restore Pattern fills on the live canvas (synchronous — no render between set and toSVG)
+  for (const { obj, fill } of fillBackups) {
+    obj.set('fill', fill)
+  }
+
+  const patternTypes = collectUsedPatternTypes(objects)
 
   let svg = stripFabricAttributes(rawSvg)
   svg = scaleCoordsToMM(svg)
-  svg = svg.replace(/viewBox="[^"]*"/, 'viewBox="0 0 210 297"')
+  // Ensure viewBox is consistent with the mm coordinate system
+  if (svg.includes('viewBox=')) {
+    svg = svg.replace(/viewBox="[^"]*"/, 'viewBox="0 0 210 297"')
+  } else {
+    svg = svg.replace(/(<svg\b[^>]*)(>)/, '$1 viewBox="0 0 210 297"$2')
+  }
 
   const patternDefs = buildPatternDefs(patternTypes)
   if (patternDefs) {
