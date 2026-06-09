@@ -19,19 +19,42 @@ const PATTERN_CONTENT: Record<string, string> = {
   crosshatch:'<line x1="0" y1="0" x2="8" y2="8" stroke="#000" stroke-width="0.5"/><line x1="8" y1="0" x2="0" y2="8" stroke="#000" stroke-width="0.5"/>',
 }
 
+// 1 CSS px = 1/96 inch; 1 mm = 1/25.4 inch → 1mm = 96/25.4 CSS px ≈ 3.779
+const MM_TO_CSS_PX = 96 / 25.4
+
 function normalizeSvgDimensions(svgEl: SVGSVGElement): { w: number; h: number } {
+  const origW = svgEl.getAttribute('width') || ''
+  const origH = svgEl.getAttribute('height') || ''
+  const hasMm = origW.includes('mm') || origH.includes('mm')
+
   const vb = svgEl.getAttribute('viewBox')
   if (vb) {
     const parts = vb.trim().split(/[\s,]+/).map(Number)
     if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-      svgEl.setAttribute('width', String(parts[2]))
-      svgEl.setAttribute('height', String(parts[3]))
-      return { w: parts[2], h: parts[3] }
+      let w = parts[2]
+      let h = parts[3]
+      // viewBox in mm-scale (e.g. 0 0 210 297) — scale to CSS px so content fills canvas
+      if (hasMm && w <= 300) {
+        w = Math.round(w * MM_TO_CSS_PX)
+        h = Math.round(h * MM_TO_CSS_PX)
+      }
+      svgEl.setAttribute('width', String(w))
+      svgEl.setAttribute('height', String(h))
+      return { w, h }
     }
   }
-  const w = parseFloat(svgEl.getAttribute('width') || '') || 794
-  const h = parseFloat(svgEl.getAttribute('height') || '') || 1123
-  return { w, h }
+  // No viewBox: convert mm numeric value to CSS px, or use raw number
+  const rawW = parseFloat(origW) || 794
+  const rawH = parseFloat(origH) || 1123
+  if (hasMm && rawW <= 300) {
+    const w = Math.round(rawW * MM_TO_CSS_PX)
+    const h = Math.round(rawH * MM_TO_CSS_PX)
+    svgEl.setAttribute('viewBox', `0 0 ${rawW} ${rawH}`)
+    svgEl.setAttribute('width', String(w))
+    svgEl.setAttribute('height', String(h))
+    return { w, h }
+  }
+  return { w: rawW, h: rawH }
 }
 
 // Walk from clicked element up to the first direct child of the SVG root
