@@ -9,6 +9,7 @@ export interface UseEditorHistoryResult {
   undo: () => Promise<void>
   redo: () => Promise<void>
   reset: (initialJSON?: object) => void
+  getIsDirty: () => boolean
   canUndo: boolean
   canRedo: boolean
   isDirty: boolean
@@ -21,15 +22,21 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
   const isRestoringRef = useRef(false)
   const [canState, setCanState] = useState({ canUndo: false, canRedo: false, isDirty: false })
 
+  const getIsDirty = useCallback(() => {
+    const ptr = pointerRef.current
+    const len = stackRef.current.length
+    return len > 0 && JSON.stringify(stackRef.current[ptr]) !== initialRef.current
+  }, [])
+
   const updateCanState = useCallback(() => {
     const ptr = pointerRef.current
     const len = stackRef.current.length
     setCanState({
       canUndo: ptr > 0,
       canRedo: ptr < len - 1,
-      isDirty: len > 0 && JSON.stringify(stackRef.current[ptr]) !== initialRef.current,
+      isDirty: getIsDirty(),
     })
-  }, [])
+  }, [getIsDirty])
 
   // Fabric v7 toJSON() takes no args; toObject() accepts propertiesToInclude
   const toJSON = useCallback((c: fabric.Canvas) =>
@@ -105,5 +112,5 @@ export function useEditorHistory(canvas: fabric.Canvas | null): UseEditorHistory
     }
   }, [canvas, initSnapshot])
 
-  return { undo, redo, reset, canUndo: canState.canUndo, canRedo: canState.canRedo, isDirty: canState.isDirty }
+  return { undo, redo, reset, getIsDirty, canUndo: canState.canUndo, canRedo: canState.canRedo, isDirty: canState.isDirty }
 }

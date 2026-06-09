@@ -9,6 +9,7 @@ import { PropertiesPanel } from './PropertiesPanel'
 import type * as FabricType from 'fabric'
 import type { PatternType } from '@/lib/patternAdapter'
 import { extractSpeechScript } from '@/lib/speechScript'
+import { exportEditorPages } from '@/lib/editorPages'
 
 interface TactileEditorProps {
   pages: string[]
@@ -61,9 +62,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   }, [])
 
   const handleDone = useCallback(() => {
-    const exportedPages = canvasRefs.current.map((c, i) => {
-      return c ? c.exportSVG() : pages[i]
-    })
+    const exportedPages = exportEditorPages(pages, canvasRefs.current)
     const speechScript = exportedPages[0] ? extractSpeechScript(exportedPages[0]) : null
     onDone({ pages: exportedPages, speechScript })
   }, [pages, onDone])

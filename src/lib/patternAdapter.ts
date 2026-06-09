@@ -105,6 +105,7 @@ export async function applyPattern(
     }
   }
   canvas.renderAll()
+  canvas.fire('object:modified', { target: obj })
 }
 
 export function buildPatternDefs(types: Set<PatternType>): string {

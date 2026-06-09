@@ -57,8 +57,12 @@ export function PropertiesPanel({ selectedObject, onDelete, onPatternChange }: P
   const strokeWidth = typeof selectedObject.strokeWidth === 'number' ? selectedObject.strokeWidth : 2.5
 
   function updateProp(key: string, value: number | string) {
-    selectedObject?.set(key as keyof fabric.FabricObject, value as never)
-    selectedObject?.canvas?.renderAll()
+    const canvas = selectedObject?.canvas
+    if (!selectedObject || !canvas) return
+    selectedObject.set(key as keyof fabric.FabricObject, value as never)
+    selectedObject.setCoords()
+    canvas.renderAll()
+    canvas.fire('object:modified', { target: selectedObject })
   }
 
   return (
@@ -140,7 +144,9 @@ export function PropertiesPanel({ selectedObject, onDelete, onPatternChange }: P
             onChange={e => {
               const iText = selectedObject as fabric.IText
               iText.set('text', e.target.value)
+              iText.setCoords()
               selectedObject.canvas?.renderAll()
+              selectedObject.canvas?.fire('object:modified', { target: selectedObject })
             }}
           />
           <span id="braille-note" style={{ fontSize: 10, color: '#62666d', lineHeight: 1.4 }}>

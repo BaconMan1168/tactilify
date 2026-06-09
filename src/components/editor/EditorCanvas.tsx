@@ -192,8 +192,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
       redo: history.redo,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
-      isDirty: history.isDirty,
-    }), [history])
+      get isDirty() { return history.getIsDirty() },
+    }), [history, wireCallbacks])
 
     return (
       <div
