@@ -29,6 +29,16 @@ describe('findBrailleClusters', () => {
     const clusters = findBrailleClusters(svg)
     expect(clusters).toHaveLength(0)
   })
+
+  it('detects Fabric-exported black braille dots from style attributes', () => {
+    const svg = `<svg>
+      <circle style="fill: rgb(0,0,0);" cx="20" cy="30" r="0.7" />
+      <circle style="fill: rgb(0,0,0);" cx="22" cy="30" r="0.7" />
+    </svg>`
+    const clusters = findBrailleClusters(svg)
+    expect(clusters).toHaveLength(1)
+    expect(clusters[0].circles).toHaveLength(2)
+  })
 })
 
 describe('exportBrailleIText', () => {

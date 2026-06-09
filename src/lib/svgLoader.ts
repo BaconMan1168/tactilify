@@ -1,5 +1,6 @@
 import * as fabric from 'fabric'
 import { parsePatternDefs, createFabricPattern } from './patternAdapter'
+import { extractBrailleClusterData, type BrailleCluster } from './brailleAdapter'
 
 // A4: 210mm × 297mm → 595px × 842px
 export const MM_TO_PX = 595 / 210
@@ -20,17 +21,44 @@ function applySelectionDefaults() {
   fabric.FabricObject.ownDefaults.cornerStrokeColor = '#5e6ad2'
 }
 
+function stripRootPhysicalDimensions(svgString: string): string {
+  return svgString.replace(/<svg\b([^>]*)>/i, (match) =>
+    match
+      .replace(/\swidth="[^"]*"/i, '')
+      .replace(/\sheight="[^"]*"/i, ''),
+  )
+}
+
+function createBrailleGroup(cluster: BrailleCluster): fabric.Group {
+  const circles = cluster.circles.map(dot => new fabric.Circle({
+    left: dot.cx * MM_TO_PX,
+    top: dot.cy * MM_TO_PX,
+    radius: 0.7 * MM_TO_PX,
+    fill: '#000000',
+    stroke: undefined,
+    originX: 'center',
+    originY: 'center',
+  }))
+
+  const group = new fabric.Group(circles, {
+    selectable: true,
+    hasControls: true,
+    subTargetCheck: false,
+  })
+  ;(group as fabric.Group & { 'data-braille': boolean })['data-braille'] = true
+  return group
+}
+
 export async function loadSVGToCanvas(
   canvasEl: HTMLCanvasElement,
   svgString: string,
 ): Promise<fabric.Canvas> {
   applySelectionDefaults()
 
-  // SVGs exported from this editor already have scaleX/scaleY = MM_TO_PX baked
-  // into their transform matrices. Multiplying again would compound exponentially.
-  const isEditorExport = /data-tactile-export="1"/.test(svgString)
+  const normalizedSvg = stripRootPhysicalDimensions(svgString)
+  const { svg: svgWithoutBrailleDots, clusters } = extractBrailleClusterData(normalizedSvg)
 
-  const patternEntries = parsePatternDefs(svgString)
+  const patternEntries = parsePatternDefs(svgWithoutBrailleDots)
 
   const canvas = new fabric.Canvas(canvasEl, {
     width: CANVAS_W,
@@ -39,15 +67,13 @@ export async function loadSVGToCanvas(
     selection: true,
   })
 
-  const { objects } = await fabric.loadSVGFromString(svgString)
+  const { objects } = await fabric.loadSVGFromString(svgWithoutBrailleDots)
 
   const validObjects = objects.filter((o): o is fabric.FabricObject => o !== null)
 
   for (const obj of validObjects) {
-    if (!isEditorExport) {
-      obj.scaleX = (obj.scaleX ?? 1) * MM_TO_PX
-      obj.scaleY = (obj.scaleY ?? 1) * MM_TO_PX
-    }
+    obj.scaleX = (obj.scaleX ?? 1) * MM_TO_PX
+    obj.scaleY = (obj.scaleY ?? 1) * MM_TO_PX
     obj.left = (obj.left ?? 0) * MM_TO_PX
     obj.top = (obj.top ?? 0) * MM_TO_PX
 
@@ -75,7 +101,9 @@ export async function loadSVGToCanvas(
       const iText = new fabric.IText(textObj.text ?? '', {
         left: textObj.left,
         top: textObj.top,
-        fontSize: (textObj.fontSize ?? 12) * MM_TO_PX,
+        scaleX: textObj.scaleX,
+        scaleY: textObj.scaleY,
+        fontSize: textObj.fontSize ?? 12,
         fontFamily: textObj.fontFamily,
         fill: textObj.fill,
         fontWeight: textObj.fontWeight,
@@ -85,6 +113,10 @@ export async function loadSVGToCanvas(
     }
 
     canvas.add(obj)
+  }
+
+  for (const cluster of clusters) {
+    canvas.add(createBrailleGroup(cluster))
   }
 
   // NOTE: No object:added handler for TACTILE_DEFAULTS here.

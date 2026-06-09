@@ -17,14 +17,15 @@ export interface BrailleCluster {
 
 function parseBrailleDots(svg: string): DotCircle[] {
   const dots: DotCircle[] = []
-  const re = /<circle\b([^>]*)\/>/g
+  const re = /<circle\b([^>]*)\/?>/g
   let m: RegExpExecArray | null
   while ((m = re.exec(svg)) !== null) {
     const attrs = m[1]
     const r = parseFloat(/\br="([^"]*)"/.exec(attrs)?.[1] ?? 'NaN')
     const fill = /\bfill="([^"]*)"/.exec(attrs)?.[1] ?? ''
+    const style = /\bstyle="([^"]*)"/.exec(attrs)?.[1] ?? ''
     if (Math.abs(r - BRAILLE_DOT_R) > BRAILLE_DOT_R_TOL) continue
-    if (fill !== '#000000') continue
+    if (fill !== '#000000' && !/fill:\s*(#000000|rgb\(0,0,0\))/.test(style)) continue
     const cx = parseFloat(/\bcx="([^"]*)"/.exec(attrs)?.[1] ?? 'NaN')
     const cy = parseFloat(/\bcy="([^"]*)"/.exec(attrs)?.[1] ?? 'NaN')
     if (isNaN(cx) || isNaN(cy)) continue
@@ -72,7 +73,7 @@ export function extractBrailleClusterData(svg: string): { svg: string; clusters:
   const clusters = findBrailleClusters(svg)
   if (!clusters.length) return { svg, clusters: [] }
 
-  const dotCircleRe = /<circle\b[^>]*r="0\.7"[^>]*fill="#000000"[^>]*\/>/g
+  const dotCircleRe = /<circle\b(?=[^>]*r="0\.7")(?=[^>]*(?:fill="#000000"|style="[^"]*fill:\s*(?:#000000|rgb\(0,0,0\))[^"]*"))[^>]*\/?>/g
   const stripped = svg.replace(dotCircleRe, '')
 
   return { svg: stripped, clusters }
