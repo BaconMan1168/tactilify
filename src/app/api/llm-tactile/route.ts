@@ -250,7 +250,6 @@ export async function POST(req: NextRequest): Promise<Response> {
         const claudeStream = anthropic.messages.stream({
           model: MODEL,
           max_tokens: 16000,
-          thinking: { type: 'adaptive' },
           messages: [
             {
               role: 'user',

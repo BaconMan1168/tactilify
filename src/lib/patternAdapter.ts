@@ -8,13 +8,27 @@ interface PatternEntry {
 }
 
 function classifyPattern(patternContent: string): PatternType {
-  if (/<line[^>]*x1="0"[^>]*y1="0"[^>]*x2="[^"]*"[^>]*y2="0"/.test(patternContent)) return 'horizontal'
-  if (/<line[^>]*x1="0"[^>]*y1="0"[^>]*x2="0"[^>]*y2/.test(patternContent)) return 'vertical'
-  if (/<line/.test(patternContent)) {
-    const lineCount = (patternContent.match(/<line/g) ?? []).length
-    return lineCount >= 2 ? 'crosshatch' : 'diagonal'
-  }
-  return 'none'
+  const lineMatches = [...patternContent.matchAll(/<line\b([^>]*)>/g)]
+  if (!lineMatches.length) return 'none'
+
+  const parsed = lineMatches.map(m => {
+    const a = m[1]
+    return {
+      x1: parseFloat(/\bx1="([^"]*)"/.exec(a)?.[1] ?? 'NaN'),
+      y1: parseFloat(/\by1="([^"]*)"/.exec(a)?.[1] ?? 'NaN'),
+      x2: parseFloat(/\bx2="([^"]*)"/.exec(a)?.[1] ?? 'NaN'),
+      y2: parseFloat(/\by2="([^"]*)"/.exec(a)?.[1] ?? 'NaN'),
+    }
+  }).filter(l => !isNaN(l.x1) && !isNaN(l.y2))
+
+  if (!parsed.length) return 'none'
+  if (parsed.length >= 2) return 'crosshatch'
+
+  const { x1, y1, x2, y2 } = parsed[0]
+  const TOL = 0.5
+  if (Math.abs(y1 - y2) < TOL) return 'horizontal'
+  if (Math.abs(x1 - x2) < TOL) return 'vertical'
+  return 'diagonal'
 }
 
 export function parsePatternDefs(svgString: string): PatternEntry[] {
