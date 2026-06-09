@@ -26,6 +26,10 @@ export async function loadSVGToCanvas(
 ): Promise<fabric.Canvas> {
   applySelectionDefaults()
 
+  // SVGs exported from this editor already have scaleX/scaleY = MM_TO_PX baked
+  // into their transform matrices. Multiplying again would compound exponentially.
+  const isEditorExport = /data-tactile-export="1"/.test(svgString)
+
   const patternEntries = parsePatternDefs(svgString)
 
   const canvas = new fabric.Canvas(canvasEl, {
@@ -40,8 +44,10 @@ export async function loadSVGToCanvas(
   const validObjects = objects.filter((o): o is fabric.FabricObject => o !== null)
 
   for (const obj of validObjects) {
-    obj.scaleX = (obj.scaleX ?? 1) * MM_TO_PX
-    obj.scaleY = (obj.scaleY ?? 1) * MM_TO_PX
+    if (!isEditorExport) {
+      obj.scaleX = (obj.scaleX ?? 1) * MM_TO_PX
+      obj.scaleY = (obj.scaleY ?? 1) * MM_TO_PX
+    }
     obj.left = (obj.left ?? 0) * MM_TO_PX
     obj.top = (obj.top ?? 0) * MM_TO_PX
 

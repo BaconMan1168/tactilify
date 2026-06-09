@@ -106,5 +106,9 @@ export function exportCanvasToSVG(canvas: fabric.Canvas): string {
 
   svg = exportBrailleIText(svg)
 
+  // Mark the SVG as editor-exported so svgLoader skips re-applying MM_TO_PX
+  // to scaleX/scaleY on the next load (prevents exponential warp).
+  svg = svg.replace(/(<svg\b)/, '$1 data-tactile-export="1"')
+
   return svg
 }
