@@ -2,12 +2,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { EditorCanvas, type EditorCanvasHandle } from './EditorCanvas'
+import { SvgEditorCanvas, type SvgEditorCanvasHandle } from './SvgEditorCanvas'
 import { EditorToolbar, type EditorTool } from './EditorToolbar'
 import { PageNav } from './PageNav'
 import { PropertiesPanel } from './PropertiesPanel'
-import type * as FabricType from 'fabric'
-import type { PatternType } from '@/lib/patternAdapter'
+import type { BBox, PatternType } from '@/types/editor'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { exportEditorPages } from '@/lib/editorPages'
 
@@ -21,23 +20,19 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   const originalPages = useRef<string[]>([...pages])
   const [currentPage, setCurrentPage] = useState(0)
   const [activeTool, setActiveTool] = useState<EditorTool>('select')
-  const [selectedObject, setSelectedObject] = useState<FabricType.FabricObject | null>(null)
+  const [selectedElement, setSelectedElement] = useState<SVGElement | null>(null)
+  const [selectionBbox, setSelectionBbox] = useState<BBox | null>(null)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [dirtyPages, setDirtyPages] = useState<Set<number>>(new Set())
 
-  const canvasRefs = useRef<Array<EditorCanvasHandle | null>>(pages.map(() => null))
+  const canvasRefs = useRef<Array<SvgEditorCanvasHandle | null>>(pages.map(() => null))
   const currentPageRef = useRef(currentPage)
   useEffect(() => { currentPageRef.current = currentPage }, [currentPage])
 
-  // Sync toolbar state when switching pages
-  useEffect(() => {
-    const c = canvasRefs.current[currentPage]
-    setCanUndo(c?.canUndo ?? false)
-    setCanRedo(c?.canRedo ?? false)
-  }, [currentPage])
+  const activeCanvas = canvasRefs.current[currentPage]
 
-  const handleHistoryChange = useCallback(() => {
+  const syncHistoryState = useCallback(() => {
     const c = canvasRefs.current[currentPageRef.current]
     setCanUndo(c?.canUndo ?? false)
     setCanRedo(c?.canRedo ?? false)
@@ -51,12 +46,24 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
     })
   }, [])
 
+  useEffect(() => { syncHistoryState() }, [currentPage, syncHistoryState])
+
+  const handleSelectionChange = useCallback((el: SVGElement | null, bbox: BBox | null) => {
+    setSelectedElement(el)
+    setSelectionBbox(bbox)
+  }, [])
+
+  const handleHistoryChange = useCallback(() => {
+    syncHistoryState()
+  }, [syncHistoryState])
+
   const handleRevert = useCallback(() => {
     canvasRefs.current.forEach((c, i) => {
       c?.revert(originalPages.current[i])
     })
     setDirtyPages(new Set())
-    setSelectedObject(null)
+    setSelectedElement(null)
+    setSelectionBbox(null)
     setCanUndo(false)
     setCanRedo(false)
   }, [])
@@ -66,8 +73,6 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
     const speechScript = exportedPages[0] ? extractSpeechScript(exportedPages[0]) : null
     onDone({ pages: exportedPages, speechScript })
   }, [pages, onDone])
-
-  const activeCanvas = canvasRefs.current[currentPage]
 
   return (
     <AnimatePresence>
@@ -128,7 +133,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
             activeTool={activeTool}
             canUndo={canUndo}
             canRedo={canRedo}
-            onToolChange={setActiveTool}
+            onToolChange={tool => { setActiveTool(tool); setSelectedElement(null); setSelectionBbox(null) }}
             onUndo={() => activeCanvas?.undo()}
             onRedo={() => activeCanvas?.redo()}
             onDelete={() => activeCanvas?.deleteSelected()}
@@ -137,20 +142,22 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
           {/* Canvas area — all pages rendered, only current visible */}
           <div className="flex-1 flex overflow-hidden relative">
             {pages.map((svgString, i) => (
-              <EditorCanvas
+              <SvgEditorCanvas
                 key={i}
                 ref={el => { canvasRefs.current[i] = el }}
                 svgString={svgString}
                 activeTool={activeTool}
                 isVisible={i === currentPage}
-                onSelectionChange={setSelectedObject}
+                onSelectionChange={handleSelectionChange}
                 onHistoryChange={handleHistoryChange}
               />
             ))}
           </div>
 
           <PropertiesPanel
-            selectedObject={selectedObject}
+            selectedElement={selectedElement}
+            selectionBbox={selectionBbox}
+            onCommit={() => activeCanvas?.commitMutation()}
             onDelete={() => activeCanvas?.deleteSelected()}
             onPatternChange={(type: PatternType) => activeCanvas?.applyPatternToSelected(type)}
           />
@@ -160,7 +167,11 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
           pages={pages}
           currentPage={currentPage}
           dirtyPages={dirtyPages}
-          onPageChange={index => { setCurrentPage(index); setSelectedObject(null) }}
+          onPageChange={index => {
+            setCurrentPage(index)
+            setSelectedElement(null)
+            setSelectionBbox(null)
+          }}
         />
       </motion.div>
     </AnimatePresence>

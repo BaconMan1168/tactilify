@@ -1,11 +1,12 @@
 'use client'
-import type * as fabric from 'fabric'
 import { Button } from '@/components/ui/button'
 import { TexturePicker } from './TexturePicker'
-import type { PatternType } from '@/lib/patternAdapter'
+import type { BBox, PatternType } from '@/types/editor'
 
 interface PropertiesPanelProps {
-  selectedObject: fabric.FabricObject | null
+  selectedElement: SVGElement | null
+  selectionBbox: BBox | null
+  onCommit: () => void
   onDelete: () => void
   onPatternChange: (type: PatternType) => void
 }
@@ -32,8 +33,10 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-export function PropertiesPanel({ selectedObject, onDelete, onPatternChange }: PropertiesPanelProps) {
-  if (!selectedObject) {
+const readOnlyStyle: React.CSSProperties = { ...inputStyle, color: '#62666d' }
+
+export function PropertiesPanel({ selectedElement, selectionBbox, onCommit, onDelete, onPatternChange }: PropertiesPanelProps) {
+  if (!selectedElement) {
     return (
       <div
         className="flex items-center justify-center h-full p-4"
@@ -45,25 +48,14 @@ export function PropertiesPanel({ selectedObject, onDelete, onPatternChange }: P
     )
   }
 
-  const isBraille = (selectedObject as fabric.FabricObject & { 'data-braille'?: boolean })['data-braille']
-  const isIText = selectedObject.type === 'i-text' || selectedObject.type === 'text'
-  const patternType = ((selectedObject as fabric.FabricObject & { 'data-pattern-type'?: string })['data-pattern-type'] ?? 'none') as PatternType
+  const x = Math.round(selectionBbox?.x ?? 0)
+  const y = Math.round(selectionBbox?.y ?? 0)
+  const w = Math.round(selectionBbox?.width ?? 0)
+  const h = Math.round(selectionBbox?.height ?? 0)
 
-  const x = Math.round(selectedObject.left ?? 0)
-  const y = Math.round(selectedObject.top ?? 0)
-  const w = Math.round((selectedObject.width ?? 0) * (selectedObject.scaleX ?? 1))
-  const h = Math.round((selectedObject.height ?? 0) * (selectedObject.scaleY ?? 1))
-  const angle = Math.round(selectedObject.angle ?? 0)
-  const strokeWidth = typeof selectedObject.strokeWidth === 'number' ? selectedObject.strokeWidth : 2.5
-
-  function updateProp(key: string, value: number | string) {
-    const canvas = selectedObject?.canvas
-    if (!selectedObject || !canvas) return
-    selectedObject.set(key as keyof fabric.FabricObject, value as never)
-    selectedObject.setCoords()
-    canvas.renderAll()
-    canvas.fire('object:modified', { target: selectedObject })
-  }
+  const strokeWidth = parseFloat(selectedElement.getAttribute('stroke-width') ?? '') || 2.5
+  const patternType = (selectedElement.getAttribute('data-pattern-type') ?? 'none') as PatternType
+  const isText = selectedElement.tagName.toLowerCase() === 'text'
 
   return (
     <div
@@ -78,84 +70,41 @@ export function PropertiesPanel({ selectedObject, onDelete, onPatternChange }: P
 
       <div className="grid grid-cols-2 gap-2">
         <Field label="X">
-          <input
-            type="number"
-            value={x}
-            style={inputStyle}
-            aria-label="X position"
-            onChange={e => updateProp('left', Number(e.target.value))}
-          />
+          <input type="number" value={x} readOnly style={readOnlyStyle} aria-label="X position" />
         </Field>
         <Field label="Y">
-          <input
-            type="number"
-            value={y}
-            style={inputStyle}
-            aria-label="Y position"
-            onChange={e => updateProp('top', Number(e.target.value))}
-          />
+          <input type="number" value={y} readOnly style={readOnlyStyle} aria-label="Y position" />
         </Field>
       </div>
 
-      {!isIText && (
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="W">
-            <input type="number" value={w} readOnly style={{ ...inputStyle, color: '#62666d' }} aria-label="Width" />
-          </Field>
-          <Field label="H">
-            <input type="number" value={h} readOnly style={{ ...inputStyle, color: '#62666d' }} aria-label="Height" />
-          </Field>
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="W">
+          <input type="number" value={w} readOnly style={readOnlyStyle} aria-label="Width" />
+        </Field>
+        <Field label="H">
+          <input type="number" value={h} readOnly style={readOnlyStyle} aria-label="Height" />
+        </Field>
+      </div>
 
-      <Field label="Rotate">
-        <input
-          type="number"
-          value={angle}
-          style={inputStyle}
-          aria-label="Rotation angle in degrees"
-          onChange={e => updateProp('angle', Number(e.target.value))}
-        />
-      </Field>
-
-      {!isIText && (
+      {!isText && (
         <Field label="Stroke width">
           <input
             type="number"
-            value={strokeWidth}
+            defaultValue={strokeWidth}
             step={0.5}
             min={0}
+            key={selectedElement.getAttribute('stroke-width') ?? strokeWidth}
             style={inputStyle}
             aria-label="Stroke width"
-            onChange={e => updateProp('strokeWidth', Number(e.target.value))}
-          />
-        </Field>
-      )}
-
-      {isBraille && (
-        <Field label="Braille character">
-          <input
-            type="text"
-            value={(selectedObject as fabric.IText)?.text ?? ''}
-            maxLength={20}
-            style={inputStyle}
-            aria-label="Unicode braille character"
-            aria-describedby="braille-note"
             onChange={e => {
-              const iText = selectedObject as fabric.IText
-              iText.set('text', e.target.value)
-              iText.setCoords()
-              selectedObject.canvas?.renderAll()
-              selectedObject.canvas?.fire('object:modified', { target: selectedObject })
+              selectedElement.setAttribute('stroke-width', e.target.value)
+              onCommit()
             }}
           />
-          <span id="braille-note" style={{ fontSize: 10, color: '#62666d', lineHeight: 1.4 }}>
-            Dots regenerate on export
-          </span>
         </Field>
       )}
 
-      {!isIText && !isBraille && (
+      {!isText && (
         <TexturePicker current={patternType} onChange={onPatternChange} />
       )}
 

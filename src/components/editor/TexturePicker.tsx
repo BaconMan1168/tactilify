@@ -1,5 +1,5 @@
 'use client'
-import type { PatternType } from '@/lib/patternAdapter'
+import type { PatternType } from '@/types/editor'
 
 const PATTERNS: Array<{ type: PatternType; label: string; svgPath: string }> = [
   { type: 'none', label: 'No fill', svgPath: '' },
