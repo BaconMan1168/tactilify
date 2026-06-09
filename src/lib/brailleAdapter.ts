@@ -79,6 +79,43 @@ export function extractBrailleClusterData(svg: string): { svg: string; clusters:
   return { svg: stripped, clusters }
 }
 
+function replaceTextWithBraille(
+  svg: string,
+  predicate: (content: string) => boolean,
+  yOffset = -5,
+): string {
+  return svg.replace(/<text\b([^>]*)>([^<]*)<\/text>/g, (match, attrs: string, content: string) => {
+    const trimmed = content.trim()
+    if (!trimmed || !predicate(trimmed)) return match
+    const xVal = /\bx="([^"]*)"/.exec(attrs)?.[1]
+    const yVal = /\by="([^"]*)"/.exec(attrs)?.[1]
+    if (!xVal || !yVal) return match
+    const x = parseFloat(xVal)
+    const y = parseFloat(yVal) + yOffset
+    if (isNaN(x) || isNaN(y)) return match
+    return textToBrailleCircles(trimmed, x, y)
+  })
+}
+
+// Converts diagram/key text labels to braille circles.
+// Reference page: only single-letter key identifiers (A, B, C…) are converted —
+// full label text stays as printed SVG text so the page remains legible to sighted users.
+// Diagram pages: only single uppercase letter markers are converted.
+export function applyBraillePostProcessing(svg: string, isReferencePage: boolean): string {
+  const isSingleLetter = (c: string) => /^[A-Z]$/.test(c)
+
+  if (isReferencePage) {
+    const keyMatch = /<text\b[^>]*>\s*KEY\s*<\/text>/i.exec(svg)
+    if (keyMatch) {
+      const before = svg.slice(0, keyMatch.index)
+      const keySection = svg.slice(keyMatch.index)
+      return before + replaceTextWithBraille(keySection, isSingleLetter)
+    }
+    return svg
+  }
+  return replaceTextWithBraille(svg, isSingleLetter)
+}
+
 export function exportBrailleIText(svg: string): string {
   return svg.replace(
     /<text\b([^>]*data-braille="true"[^>]*)>([^<]*)<\/text>/g,
