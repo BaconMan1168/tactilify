@@ -94,9 +94,37 @@ function injectPatternDefs(svg: string, patternTypes: Set<PatternType>): string 
   return svg.replace(/(<svg[^>]*>)/, `$1\n${patternDefs}`)
 }
 
+// Fabric nests each circle inside <g transform="matrix(1 0 0 1 tx ty)"> wrappers.
+// scaleCoordsToMM blindly scales the matrix's a,b,c,d components by PX_TO_MM, producing
+// matrix(PX_TO_MM … PX_TO_MM …) for every level of nesting.  Two levels of 0.353× scaling
+// shrinks the visual radius from 0.7mm → ~0.087mm (invisible) and sets cx/cy to 0 on every
+// circle, breaking parseBrailleDots detection on the next load.
+// Fix: remove braille groups from the canvas before toSVG(), then re-add them and emit flat
+// <circle> elements with absolute mm coordinates — no nested transforms, stable round-trips.
+function exportBrailleGroupsAsCircles(groups: fabric.Group[]): string {
+  if (!groups.length) return ''
+  const circles: string[] = []
+  for (const group of groups) {
+    const gx = group.left ?? 0
+    const gy = group.top ?? 0
+    for (const child of group.getObjects()) {
+      const absX = (gx + child.left) * PX_TO_MM
+      const absY = (gy + child.top) * PX_TO_MM
+      circles.push(`<circle cx="${absX.toFixed(1)}" cy="${absY.toFixed(1)}" r="0.7" fill="#000000"/>`)
+    }
+  }
+  return circles.join('\n')
+}
+
 export function exportCanvasToSVG(canvas: fabric.Canvas): string {
   const objects = canvas.getObjects() as FabricObjectWithPattern[]
   const orderedPatternTypes = collectPatternTypesInObjectOrder(objects)
+
+  // Separate braille groups so they are not serialised via Fabric's nested-group path.
+  const brailleGroups = objects.filter(
+    (obj): obj is fabric.Group => !!(obj as { 'data-braille'?: boolean })['data-braille'],
+  )
+  brailleGroups.forEach(g => canvas.remove(g))
 
   // Pass explicit A4 mm dimensions so the root <svg> has proper physical units.
   // The canvas is 595×842 px; toSVG sets width/height to '210mm'/'297mm'.
@@ -108,6 +136,10 @@ export function exportCanvasToSVG(canvas: fabric.Canvas): string {
       height: '297mm',
       viewBox: { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H },
     })
+
+  // Re-add braille groups immediately — the canvas hasn't re-rendered yet (requestRenderAll
+  // is async) so no visible flicker occurs.
+  brailleGroups.forEach(g => canvas.add(g))
 
   const patternRewrite = rewritePatternFills(rawSvg, orderedPatternTypes)
   let svg = stripFabricAttributes(patternRewrite.svg)
@@ -122,6 +154,13 @@ export function exportCanvasToSVG(canvas: fabric.Canvas): string {
   svg = injectPatternDefs(svg, patternRewrite.usedTypes)
 
   svg = exportBrailleIText(svg)
+
+  // Inject braille circles as flat absolute-coordinate elements — correct size, stable
+  // on every round-trip (parseBrailleDots reads cx/cy directly, no transform resolution).
+  const brailleCirclesSvg = exportBrailleGroupsAsCircles(brailleGroups)
+  if (brailleCirclesSvg) {
+    svg = svg.replace('</svg>', `${brailleCirclesSvg}\n</svg>`)
+  }
 
   return svg
 }

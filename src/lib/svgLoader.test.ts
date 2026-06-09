@@ -14,10 +14,11 @@ const CLUSTER = {
 }
 
 describe('computeBrailleGroupLayout — braille circle positioning (bug 1)', () => {
-  it('sets groupLeft/groupTop to centroid × MM_TO_PX', () => {
+  it('sets groupLeft/groupTop to bounding-box center × MM_TO_PX', () => {
     const { groupLeft, groupTop } = computeBrailleGroupLayout(CLUSTER)
-    expect(groupLeft).toBeCloseTo(CLUSTER.centroidX * MM_TO_PX, 3)
-    expect(groupTop).toBeCloseTo(CLUSTER.centroidY * MM_TO_PX, 3)
+    // Bbox center: x=(50.0+52.5)/2=51.25, y=(100.0+102.5)/2=101.25
+    expect(groupLeft).toBeCloseTo(51.25 * MM_TO_PX, 3)
+    expect(groupTop).toBeCloseTo(101.25 * MM_TO_PX, 3)
   })
 
   it('produces small circle offsets relative to the group center', () => {

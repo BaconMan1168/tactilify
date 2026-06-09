@@ -34,13 +34,21 @@ function stripRootPhysicalDimensions(svgString: string): string {
 // Fabric.js v7 does NOT convert absolute canvas positions for freshly created objects
 // passed to the Group constructor — passing absolute coords renders circles at ~2×
 // the intended position (off-canvas), making braille labels invisible.
+//
+// Group center is the BOUNDING-BOX center of the dot cluster (not the arithmetic mean).
+// Using the bbox center means Fabric's own bbox-centering pass applies zero adjustment,
+// so child circle offsets round-trip without positional drift.
 export function computeBrailleGroupLayout(cluster: BrailleCluster): {
   groupLeft: number
   groupTop: number
   circleOffsets: { relLeft: number; relTop: number }[]
 } {
-  const groupLeft = cluster.centroidX * MM_TO_PX
-  const groupTop  = cluster.centroidY * MM_TO_PX
+  const xs = cluster.circles.map(c => c.cx)
+  const ys = cluster.circles.map(c => c.cy)
+  const bboxCenterX = (Math.min(...xs) + Math.max(...xs)) / 2
+  const bboxCenterY = (Math.min(...ys) + Math.max(...ys)) / 2
+  const groupLeft = bboxCenterX * MM_TO_PX
+  const groupTop  = bboxCenterY * MM_TO_PX
   return {
     groupLeft,
     groupTop,
