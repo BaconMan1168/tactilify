@@ -1,7 +1,7 @@
 'use client'
 import { useRef, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, useCallback, useState } from 'react'
 import type * as FabricType from 'fabric'
-import { loadSVGToCanvas } from '@/lib/svgLoader'
+import { loadSVGToCanvas, TACTILE_DEFAULTS } from '@/lib/svgLoader'
 import { exportCanvasToSVG } from '@/lib/svgExporter'
 import { useEditorHistory } from '@/hooks/useEditorHistory'
 import { applyPattern, type PatternType } from '@/lib/patternAdapter'
@@ -145,6 +145,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(
             break
         }
         if (newObj) {
+          // Apply tactile defaults to all new non-text objects so they match
+          // the loaded SVG objects (strokeUniform prevents stroke scaling).
+          if (activeToolRef.current !== 'text') {
+            newObj.set(TACTILE_DEFAULTS)
+          }
           canvas.add(newObj)
           canvas.setActiveObject(newObj)
           canvas.renderAll()

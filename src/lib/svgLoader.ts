@@ -6,10 +6,11 @@ export const MM_TO_PX = 595 / 210
 export const CANVAS_W = 595
 export const CANVAS_H = 842
 
-const TACTILE_DEFAULTS = {
+// Exported so EditorCanvas can apply the same defaults to user-created objects
+export const TACTILE_DEFAULTS = {
   stroke: '#000000',
   strokeWidth: 2.5,
-  fill: 'none',
+  fill: 'none' as const,
   strokeUniform: true,
 }
 
@@ -44,6 +45,12 @@ export async function loadSVGToCanvas(
     obj.left = (obj.left ?? 0) * MM_TO_PX
     obj.top = (obj.top ?? 0) * MM_TO_PX
 
+    // Apply strokeUniform to loaded non-text objects so stroke width doesn't
+    // scale with the object's scaleX/scaleY applied above.
+    if (obj.type !== 'i-text' && obj.type !== 'text') {
+      obj.set({ strokeUniform: true })
+    }
+
     const fillStr = obj.get('fill')
     if (typeof fillStr === 'string' && fillStr.startsWith('url(#')) {
       const patternId = fillStr.slice(5, -1)
@@ -74,11 +81,10 @@ export async function loadSVGToCanvas(
     canvas.add(obj)
   }
 
-  canvas.on('object:added', (e) => {
-    const obj = e.target
-    if (!obj || obj.type === 'i-text' || obj.type === 'text') return
-    obj.set(TACTILE_DEFAULTS)
-  })
+  // NOTE: No object:added handler for TACTILE_DEFAULTS here.
+  // Applying defaults via that event fires during canvas.loadFromJSON (undo/redo),
+  // which would override the white background rect and turn the canvas black.
+  // New user-created objects get TACTILE_DEFAULTS applied in EditorCanvas.tsx.
 
   canvas.renderAll()
   return canvas
