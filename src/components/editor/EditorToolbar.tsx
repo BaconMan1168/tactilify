@@ -1,9 +1,9 @@
 'use client'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'text'
+export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text'
 
 interface ToolButtonProps {
   tool: EditorTool | 'undo' | 'redo' | 'delete'
@@ -16,26 +16,57 @@ interface ToolButtonProps {
 }
 
 function ToolButton({ label, shortcut, isActive, disabled, onClick, children }: ToolButtonProps) {
+  const [hovered, setHovered] = useState(false)
+  const [pressed, setPressed] = useState(false)
+
+  const bg = isActive
+    ? '#18191a'
+    : hovered
+      ? '#1c1d1f'
+      : 'transparent'
+  const border = isActive
+    ? '1px solid #5e6ad2'
+    : hovered
+      ? '1px solid #3a3d44'
+      : '1px solid transparent'
+  const color = isActive
+    ? '#f7f8f8'
+    : hovered
+      ? '#c8ccd3'
+      : '#8a8f98'
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           aria-label={label}
           aria-pressed={isActive}
           disabled={disabled}
           onClick={onClick}
-          className="w-8 h-8 p-0"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => { setHovered(false); setPressed(false) }}
+          onMouseDown={() => setPressed(true)}
+          onMouseUp={() => setPressed(false)}
           style={{
-            background: isActive ? '#18191a' : 'transparent',
-            color: isActive ? '#f7f8f8' : '#8a8f98',
-            border: isActive ? '1px solid #5e6ad2' : '1px solid transparent',
+            width: 32,
+            height: 32,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: bg,
+            color: disabled ? '#3e4046' : color,
+            border,
             borderRadius: 6,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            transform: pressed && !disabled ? 'scale(0.86)' : 'scale(1)',
+            transition: 'transform 0.08s ease, background 0.1s, color 0.1s, border-color 0.1s',
+            outline: 'none',
           }}
         >
           {children}
-        </Button>
+        </button>
       </TooltipTrigger>
       <TooltipContent
         side="right"
@@ -98,6 +129,12 @@ export function EditorToolbar({
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <line x1="5" y1="12" x2="19" y2="12"/>
             <polyline points="12,5 19,12 12,19"/>
+          </svg>
+        </ToolButton>
+
+        <ToolButton tool="line" label="Line" shortcut="L" isActive={activeTool === 'line'} onClick={() => onToolChange('line')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <line x1="5" y1="19" x2="19" y2="5"/>
           </svg>
         </ToolButton>
 

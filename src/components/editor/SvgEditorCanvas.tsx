@@ -22,7 +22,7 @@ const PATTERN_CONTENT: Record<string, string> = {
 // 1 CSS px = 1/96 inch; 1 mm = 1/25.4 inch → 1mm ≈ 3.779 CSS px
 const MM_TO_CSS_PX = 96 / 25.4
 
-function normalizeSvgDimensions(svgEl: SVGSVGElement): { w: number; h: number } {
+function normalizeSvgDimensions(svgEl: SVGSVGElement): { cssW: number; cssH: number; vbW: number; vbH: number } {
   const origW = svgEl.getAttribute('width') || ''
   const origH = svgEl.getAttribute('height') || ''
 
@@ -30,30 +30,43 @@ function normalizeSvgDimensions(svgEl: SVGSVGElement): { w: number; h: number } 
   if (vb) {
     const parts = vb.trim().split(/[\s,]+/).map(Number)
     if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-      let w = parts[2]
-      let h = parts[3]
+      const vbW = parts[2]
+      const vbH = parts[3]
+      let cssW = vbW
+      let cssH = vbH
       // All Tactilify SVGs use viewBox="0 0 210 297" (A4 mm). Scale to CSS px.
-      if (w <= 300) {
-        w = Math.round(w * MM_TO_CSS_PX)
-        h = Math.round(h * MM_TO_CSS_PX)
+      if (vbW <= 300) {
+        cssW = Math.round(vbW * MM_TO_CSS_PX)
+        cssH = Math.round(vbH * MM_TO_CSS_PX)
       }
-      svgEl.setAttribute('width', String(w))
-      svgEl.setAttribute('height', String(h))
-      return { w, h }
+      svgEl.setAttribute('width', String(cssW))
+      svgEl.setAttribute('height', String(cssH))
+      return { cssW, cssH, vbW, vbH }
     }
   }
   // No viewBox: parse width/height (strip mm if present) and scale if in mm range
   const rawW = parseFloat(origW) || 794
   const rawH = parseFloat(origH) || 1123
   if (rawW <= 300) {
-    const w = Math.round(rawW * MM_TO_CSS_PX)
-    const h = Math.round(rawH * MM_TO_CSS_PX)
+    const cssW = Math.round(rawW * MM_TO_CSS_PX)
+    const cssH = Math.round(rawH * MM_TO_CSS_PX)
     svgEl.setAttribute('viewBox', `0 0 ${rawW} ${rawH}`)
-    svgEl.setAttribute('width', String(w))
-    svgEl.setAttribute('height', String(h))
-    return { w, h }
+    svgEl.setAttribute('width', String(cssW))
+    svgEl.setAttribute('height', String(cssH))
+    return { cssW, cssH, vbW: rawW, vbH: rawH }
   }
-  return { w: rawW, h: rawH }
+  return { cssW: rawW, cssH: rawH, vbW: rawW, vbH: rawH }
+}
+
+// Skip the full-page white background rect Claude always generates as first SVG child
+function isPageBackgroundRect(el: Element): boolean {
+  if (el.tagName.toLowerCase() !== 'rect') return false
+  const x = parseFloat(el.getAttribute('x') || '0')
+  const y = parseFloat(el.getAttribute('y') || '0')
+  const w = parseFloat(el.getAttribute('width') || '0')
+  const h = parseFloat(el.getAttribute('height') || '0')
+  // Matches A4 in mm (210×297) or scaled CSS px (~794×1123) with some tolerance
+  return x <= 1 && y <= 1 && w >= 200 && h >= 280
 }
 
 // Walk from clicked element up to the first direct child of the SVG root
@@ -61,6 +74,7 @@ function findSelectableAncestor(target: Element, svgEl: SVGSVGElement): SVGEleme
   let el: Element | null = target
   while (el && el !== svgEl) {
     if (el.parentNode === (svgEl as Node) && !NON_SELECTABLE.has(el.tagName.toLowerCase())) {
+      if (isPageBackgroundRect(el)) return null
       return el as SVGElement
     }
     el = el.parentElement
@@ -68,29 +82,29 @@ function findSelectableAncestor(target: Element, svgEl: SVGSVGElement): SVGEleme
   return null
 }
 
-// Convert client coordinates to SVG user units
+// Convert client coordinates to SVG user units (mm)
 function clientToSvgCoords(
   clientX: number,
   clientY: number,
   svgEl: SVGSVGElement,
-  svgW: number,
-  svgH: number,
+  vbW: number,
+  vbH: number,
 ): { x: number; y: number } {
   const r = svgEl.getBoundingClientRect()
   if (r.width === 0 || r.height === 0) return { x: 0, y: 0 }
   return {
-    x: (clientX - r.left) * (svgW / r.width),
-    y: (clientY - r.top)  * (svgH / r.height),
+    x: (clientX - r.left) * (vbW / r.width),
+    y: (clientY - r.top)  * (vbH / r.height),
   }
 }
 
-// Get rendered bounding box of any SVG element in SVG user units
-function getRenderedBBox(el: SVGElement, svgEl: SVGSVGElement, svgW: number, svgH: number): BBox {
+// Get rendered bounding box of any SVG element in SVG user units (mm)
+function getRenderedBBox(el: SVGElement, svgEl: SVGSVGElement, vbW: number, vbH: number): BBox {
   const er = el.getBoundingClientRect()
   const sr = svgEl.getBoundingClientRect()
   if (sr.width === 0 || sr.height === 0) return { x: 0, y: 0, width: 0, height: 0 }
-  const sx = svgW / sr.width
-  const sy = svgH / sr.height
+  const sx = vbW / sr.width
+  const sy = vbH / sr.height
   return {
     x: (er.left - sr.left) * sx,
     y: (er.top  - sr.top)  * sy,
@@ -100,7 +114,6 @@ function getRenderedBBox(el: SVGElement, svgEl: SVGSVGElement, svgW: number, svg
 }
 
 // Bake a leading translate() into the element's native positional attributes.
-// For element types that lack native x/y (path, g, etc.) the transform is kept.
 function bakeTranslate(el: SVGElement): void {
   const t = el.getAttribute('transform') || ''
   const m = /^translate\(\s*([+-]?\d*\.?\d+)\s*[,\s]\s*([+-]?\d*\.?\d+)\s*\)(.*)/i.exec(t.trim())
@@ -111,26 +124,26 @@ function bakeTranslate(el: SVGElement): void {
   const tag = el.tagName.toLowerCase()
   switch (tag) {
     case 'rect':
-      el.setAttribute('x', String(Math.round(parseFloat(el.getAttribute('x') || '0') + dx)))
-      el.setAttribute('y', String(Math.round(parseFloat(el.getAttribute('y') || '0') + dy)))
+      el.setAttribute('x', String((parseFloat(el.getAttribute('x') || '0') + dx).toFixed(2)))
+      el.setAttribute('y', String((parseFloat(el.getAttribute('y') || '0') + dy).toFixed(2)))
       break
     case 'ellipse':
-      el.setAttribute('cx', String(Math.round(parseFloat(el.getAttribute('cx') || '0') + dx)))
-      el.setAttribute('cy', String(Math.round(parseFloat(el.getAttribute('cy') || '0') + dy)))
+      el.setAttribute('cx', String((parseFloat(el.getAttribute('cx') || '0') + dx).toFixed(2)))
+      el.setAttribute('cy', String((parseFloat(el.getAttribute('cy') || '0') + dy).toFixed(2)))
       break
     case 'circle':
-      el.setAttribute('cx', String(Math.round(parseFloat(el.getAttribute('cx') || '0') + dx)))
-      el.setAttribute('cy', String(Math.round(parseFloat(el.getAttribute('cy') || '0') + dy)))
+      el.setAttribute('cx', String((parseFloat(el.getAttribute('cx') || '0') + dx).toFixed(2)))
+      el.setAttribute('cy', String((parseFloat(el.getAttribute('cy') || '0') + dy).toFixed(2)))
       break
     case 'line':
-      el.setAttribute('x1', String(Math.round(parseFloat(el.getAttribute('x1') || '0') + dx)))
-      el.setAttribute('y1', String(Math.round(parseFloat(el.getAttribute('y1') || '0') + dy)))
-      el.setAttribute('x2', String(Math.round(parseFloat(el.getAttribute('x2') || '0') + dx)))
-      el.setAttribute('y2', String(Math.round(parseFloat(el.getAttribute('y2') || '0') + dy)))
+      el.setAttribute('x1', String((parseFloat(el.getAttribute('x1') || '0') + dx).toFixed(2)))
+      el.setAttribute('y1', String((parseFloat(el.getAttribute('y1') || '0') + dy).toFixed(2)))
+      el.setAttribute('x2', String((parseFloat(el.getAttribute('x2') || '0') + dx).toFixed(2)))
+      el.setAttribute('y2', String((parseFloat(el.getAttribute('y2') || '0') + dy).toFixed(2)))
       break
     case 'text':
-      el.setAttribute('x', String(Math.round(parseFloat(el.getAttribute('x') || '0') + dx)))
-      el.setAttribute('y', String(Math.round(parseFloat(el.getAttribute('y') || '0') + dy)))
+      el.setAttribute('x', String((parseFloat(el.getAttribute('x') || '0') + dx).toFixed(2)))
+      el.setAttribute('y', String((parseFloat(el.getAttribute('y') || '0') + dy).toFixed(2)))
       break
     default:
       return // keep transform for g, path, polygon, etc.
@@ -139,8 +152,30 @@ function bakeTranslate(el: SVGElement): void {
   else el.removeAttribute('transform')
 }
 
+// Constrain dx/dy to preserve initial aspect ratio for corner handles (shift-drag)
+function constrainAspect(pos: HandlePosition, dx: number, dy: number, init: BBox): { dx: number; dy: number } {
+  if (!['nw', 'ne', 'sw', 'se'].includes(pos)) return { dx, dy }
+  // Sign maps: how dx/dy map to "growing" in each direction
+  const sx = (pos === 'nw' || pos === 'sw') ? -1 : 1  // left handles: negative dx = grow
+  const sy = (pos === 'nw' || pos === 'ne') ? -1 : 1  // top handles: negative dy = grow
+  const growX = dx * sx   // positive = element growing wider
+  const growY = dy * sy   // positive = element growing taller
+  // Use whichever axis has the larger relative change to drive uniform scale
+  const relX = Math.abs(growX) / (init.width  || 1)
+  const relY = Math.abs(growY) / (init.height || 1)
+  const dSize = relX >= relY
+    ? growX / (init.width  || 1)
+    : growY / (init.height || 1)
+  const newW = Math.max(1, init.width  * (1 + dSize))
+  const newH = Math.max(1, init.height * (1 + dSize))
+  return {
+    dx: (newW - init.width)  * sx,
+    dy: (newH - init.height) * sy,
+  }
+}
+
 function computeResizedBBox(pos: HandlePosition, init: BBox, dx: number, dy: number): BBox {
-  const MIN = 10
+  const MIN = 2 // min size in mm
   const { x, y, width: w, height: h } = init
   switch (pos) {
     case 'se': return { x, y, width: Math.max(MIN, w + dx), height: Math.max(MIN, h + dy) }
@@ -151,29 +186,32 @@ function computeResizedBBox(pos: HandlePosition, init: BBox, dx: number, dy: num
     case 'w':  { const nw = Math.max(MIN, w - dx); return { x: x + w - nw, y, width: nw, height: h } }
     case 's':  return { x, y, width: w, height: Math.max(MIN, h + dy) }
     case 'n':  { const nh = Math.max(MIN, h - dy); return { x, y: y + h - nh, width: w, height: nh } }
+    default:   return init
   }
 }
 
-function applyResizeToDom(el: SVGElement, pos: HandlePosition, init: BBox, dx: number, dy: number): void {
-  const nb = computeResizedBBox(pos, init, dx, dy)
+function applyResizeToDom(el: SVGElement, pos: HandlePosition, init: BBox, dx: number, dy: number, constrain: boolean): void {
+  if (pos === 'p1' || pos === 'p2') return // handled separately
+  const { dx: cdx, dy: cdy } = constrain ? constrainAspect(pos, dx, dy, init) : { dx, dy }
+  const nb = computeResizedBBox(pos, init, cdx, cdy)
   const tag = el.tagName.toLowerCase()
   if (tag === 'rect') {
-    el.setAttribute('x', String(Math.round(nb.x)))
-    el.setAttribute('y', String(Math.round(nb.y)))
-    el.setAttribute('width', String(Math.round(nb.width)))
-    el.setAttribute('height', String(Math.round(nb.height)))
+    el.setAttribute('x', nb.x.toFixed(2))
+    el.setAttribute('y', nb.y.toFixed(2))
+    el.setAttribute('width', nb.width.toFixed(2))
+    el.setAttribute('height', nb.height.toFixed(2))
     el.removeAttribute('transform')
   } else if (tag === 'ellipse') {
-    el.setAttribute('cx', String(Math.round(nb.x + nb.width / 2)))
-    el.setAttribute('cy', String(Math.round(nb.y + nb.height / 2)))
-    el.setAttribute('rx', String(Math.round(nb.width / 2)))
-    el.setAttribute('ry', String(Math.round(nb.height / 2)))
+    el.setAttribute('cx', (nb.x + nb.width / 2).toFixed(2))
+    el.setAttribute('cy', (nb.y + nb.height / 2).toFixed(2))
+    el.setAttribute('rx', (nb.width / 2).toFixed(2))
+    el.setAttribute('ry', (nb.height / 2).toFixed(2))
     el.removeAttribute('transform')
   } else if (tag === 'circle') {
-    const r = Math.round(Math.min(nb.width, nb.height) / 2)
-    el.setAttribute('cx', String(Math.round(nb.x + nb.width / 2)))
-    el.setAttribute('cy', String(Math.round(nb.y + nb.height / 2)))
-    el.setAttribute('r', String(r))
+    const r = Math.min(nb.width, nb.height) / 2
+    el.setAttribute('cx', (nb.x + nb.width / 2).toFixed(2))
+    el.setAttribute('cy', (nb.y + nb.height / 2).toFixed(2))
+    el.setAttribute('r', r.toFixed(2))
     el.removeAttribute('transform')
   } else {
     // path, g, polyline, etc.: use scale transform anchored at init origin
@@ -181,7 +219,7 @@ function applyResizeToDom(el: SVGElement, pos: HandlePosition, init: BBox, dx: n
     const sx = nb.width  / init.width
     const sy = nb.height / init.height
     el.setAttribute('transform',
-      `translate(${nb.x.toFixed(1)},${nb.y.toFixed(1)}) scale(${sx.toFixed(4)},${sy.toFixed(4)}) translate(${(-init.x).toFixed(1)},${(-init.y).toFixed(1)})`)
+      `translate(${nb.x.toFixed(2)},${nb.y.toFixed(2)}) scale(${sx.toFixed(4)},${sy.toFixed(4)}) translate(${(-init.x).toFixed(2)},${(-init.y).toFixed(2)})`)
   }
 }
 
@@ -224,6 +262,27 @@ function ensurePatternDef(svgEl: SVGSVGElement, type: PatternType): void {
   defs.appendChild(pat)
 }
 
+// Prefix all pattern IDs in this SVG's defs to prevent cross-page collisions in the HTML document.
+function scopePatternIds(svgEl: SVGSVGElement, pageIndex: number): void {
+  const prefix = `pg${pageIndex}-`
+  const renames = new Map<string, string>()
+  svgEl.querySelectorAll('defs pattern[id]').forEach(p => {
+    const oldId = p.getAttribute('id')!
+    if (oldId.startsWith(prefix)) return // already scoped
+    const newId = prefix + oldId
+    p.setAttribute('id', newId)
+    renames.set(oldId, newId)
+  })
+  if (!renames.size) return
+  svgEl.querySelectorAll('[fill]').forEach(el => {
+    const fill = el.getAttribute('fill')!
+    const m = /^url\(#(.+)\)$/.exec(fill)
+    if (m && renames.has(m[1])) {
+      el.setAttribute('fill', `url(#${renames.get(m[1])})`)
+    }
+  })
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SvgEditorCanvasHandle {
@@ -241,11 +300,16 @@ export interface SvgEditorCanvasHandle {
 
 interface SvgEditorCanvasProps {
   svgString: string
+  pageIndex: number
   activeTool: EditorTool
   isVisible: boolean
   onSelectionChange: (el: SVGElement | null, bbox: BBox | null) => void
   onHistoryChange: () => void
+  onShapePlaced?: () => void
+  onTextEditRequest?: () => void
 }
+
+type LineCoords = { x1: number; y1: number; x2: number; y2: number }
 
 type DragState = {
   type: 'move' | 'resize'
@@ -255,13 +319,14 @@ type DragState = {
   baseTransform: string
   initialBBox: BBox
   handlePos?: HandlePosition
+  lineEndpoints?: LineCoords
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvasProps>(
-  function SvgEditorCanvas({ svgString, activeTool, isVisible, onSelectionChange, onHistoryChange }, ref) {
-    const wrapperRef    = useRef<HTMLDivElement>(null) // the injected SVG lives here
+  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest }, ref) {
+    const wrapperRef    = useRef<HTMLDivElement>(null)
     const activeToolRef = useRef(activeTool)
     activeToolRef.current = activeTool
 
@@ -269,9 +334,12 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
     const [selection, setSelection] = useState<{ element: SVGElement; bbox: BBox } | null>(null)
     const selectionRef = useRef(selection)
     selectionRef.current = selection
-    const [svgDims, setSvgDims] = useState({ w: 794, h: 1123 })
-    const svgDimsRef = useRef(svgDims)
-    svgDimsRef.current = svgDims
+
+    // CSS pixel dims (for the container div and overlay physical size)
+    const [svgCss, setSvgCss] = useState({ w: 794, h: 1123 })
+    // ViewBox dims in SVG user units (mm) — used for all coordinate math
+    const [svgVb, setSvgVb] = useState({ w: 210, h: 297 })
+    const svgVbRef = useRef({ w: 210, h: 297 })
 
     const dragRef = useRef<DragState | null>(null)
 
@@ -283,13 +351,13 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
     const toSvg = useCallback((cx: number, cy: number) => {
       const svgEl = getSvgEl()
       if (!svgEl) return { x: 0, y: 0 }
-      return clientToSvgCoords(cx, cy, svgEl, svgDimsRef.current.w, svgDimsRef.current.h)
+      return clientToSvgCoords(cx, cy, svgEl, svgVbRef.current.w, svgVbRef.current.h)
     }, [getSvgEl])
 
     const getBBox = useCallback((el: SVGElement): BBox => {
       const svgEl = getSvgEl()
       if (!svgEl) return { x: 0, y: 0, width: 0, height: 0 }
-      return getRenderedBBox(el, svgEl, svgDimsRef.current.w, svgDimsRef.current.h)
+      return getRenderedBBox(el, svgEl, svgVbRef.current.w, svgVbRef.current.h)
     }, [getSvgEl])
 
     const selectEl = useCallback((el: SVGElement | null) => {
@@ -318,8 +386,10 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       const svgEl = getSvgEl()
       if (svgEl) {
         const dims = normalizeSvgDimensions(svgEl)
-        setSvgDims(dims)
-        svgDimsRef.current = dims
+        setSvgCss({ w: dims.cssW, h: dims.cssH })
+        setSvgVb({ w: dims.vbW, h: dims.vbH })
+        svgVbRef.current = { w: dims.vbW, h: dims.vbH }
+        scopePatternIds(svgEl, pageIndex)
       }
       history.reset(svgString)
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,7 +401,9 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       const handler = (e: KeyboardEvent) => {
         if (!isVisible) return
         const isMeta = e.metaKey || e.ctrlKey
-        const tag = (document.activeElement as HTMLElement)?.tagName
+        // Don't fire editor shortcuts when user is typing in an input / textarea
+        const active = document.activeElement as HTMLElement | null
+        const inField = active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable
 
         if (isMeta && e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
           e.preventDefault()
@@ -347,7 +419,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
             wrapperRef.current.innerHTML = prev
             setSelection(null); onSelectionChange(null, null); onHistoryChange()
           }
-        } else if ((e.key === 'Delete' || e.key === 'Backspace') && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && !inField) {
           const sel = selectionRef.current
           if (sel) {
             sel.element.remove()
@@ -383,7 +455,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       }
 
       // Start move drag
-      bakeTranslate(selectable) // ensure any prior translate is absorbed first
+      bakeTranslate(selectable)
       const bbox  = getBBox(selectable)
       const base  = selectable.getAttribute('transform') || ''
       selectable.setAttribute('data-base-transform', base)
@@ -393,6 +465,18 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       onSelectionChange(selectable, bbox)
     }, [getSvgEl, getBBox, toSvg, onSelectionChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // ── Double-click: enter text edit mode ───────────────────────────────────
+
+    const handleCanvasDblClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+      const svgEl = getSvgEl()
+      if (!svgEl) return
+      const selectable = findSelectableAncestor(e.target as Element, svgEl)
+      if (!selectable) return
+      if (selectable.tagName.toLowerCase() === 'text') {
+        onTextEditRequest?.()
+      }
+    }, [getSvgEl, onTextEditRequest])
+
     function placeShape(tool: EditorTool, x: number, y: number, svgEl: SVGSVGElement) {
       if (tool === 'select') return
       const ns = 'http://www.w3.org/2000/svg'
@@ -400,31 +484,38 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       switch (tool) {
         case 'rect': {
           const el = document.createElementNS(ns, 'rect') as SVGRectElement
-          el.setAttribute('x', String(Math.round(x - 40))); el.setAttribute('y', String(Math.round(y - 25)))
-          el.setAttribute('width', '80'); el.setAttribute('height', '50')
-          el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '2.5')
+          el.setAttribute('x', (x - 15).toFixed(2)); el.setAttribute('y', (y - 10).toFixed(2))
+          el.setAttribute('width', '30'); el.setAttribute('height', '20')
+          el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '0.7')
           newEl = el; break
         }
         case 'circle': {
           const el = document.createElementNS(ns, 'ellipse') as SVGEllipseElement
-          el.setAttribute('cx', String(Math.round(x))); el.setAttribute('cy', String(Math.round(y)))
-          el.setAttribute('rx', '30'); el.setAttribute('ry', '30')
-          el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '2.5')
+          el.setAttribute('cx', x.toFixed(2)); el.setAttribute('cy', y.toFixed(2))
+          el.setAttribute('rx', '15'); el.setAttribute('ry', '15')
+          el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '0.7')
           newEl = el; break
         }
         case 'arrow': {
           const el = document.createElementNS(ns, 'line') as SVGLineElement
-          el.setAttribute('x1', String(Math.round(x))); el.setAttribute('y1', String(Math.round(y)))
-          el.setAttribute('x2', String(Math.round(x + 80))); el.setAttribute('y2', String(Math.round(y)))
-          el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '2.5')
+          el.setAttribute('x1', x.toFixed(2)); el.setAttribute('y1', y.toFixed(2))
+          el.setAttribute('x2', (x + 30).toFixed(2)); el.setAttribute('y2', y.toFixed(2))
+          el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '0.7')
           el.setAttribute('marker-end', 'url(#svg-editor-arrow)')
           ensureArrowMarker(svgEl)
           newEl = el; break
         }
+        case 'line': {
+          const el = document.createElementNS(ns, 'line') as SVGLineElement
+          el.setAttribute('x1', x.toFixed(2)); el.setAttribute('y1', y.toFixed(2))
+          el.setAttribute('x2', (x + 30).toFixed(2)); el.setAttribute('y2', y.toFixed(2))
+          el.setAttribute('stroke', 'black'); el.setAttribute('stroke-width', '0.7')
+          newEl = el; break
+        }
         case 'text': {
           const el = document.createElementNS(ns, 'text') as SVGTextElement
-          el.setAttribute('x', String(Math.round(x))); el.setAttribute('y', String(Math.round(y)))
-          el.setAttribute('font-size', '14'); el.setAttribute('fill', 'black')
+          el.setAttribute('x', x.toFixed(2)); el.setAttribute('y', y.toFixed(2))
+          el.setAttribute('font-size', '5'); el.setAttribute('fill', 'black')
           el.textContent = 'Label'
           newEl = el; break
         }
@@ -435,6 +526,8 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         setSelection({ element: newEl, bbox })
         onSelectionChange(newEl, bbox)
         takeSnapshot()
+        // Return to select mode so the next click moves rather than creates
+        onShapePlaced?.()
       }
     }
 
@@ -443,12 +536,22 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
     const handleResizeStart = useCallback((pos: HandlePosition, clientX: number, clientY: number) => {
       const sel = selectionRef.current
       if (!sel) return
-      const svgEl = getSvgEl()
-      if (!svgEl) return
-      // Bake any existing translate before resize so native attrs are clean
       bakeTranslate(sel.element)
       const freshBBox = getBBox(sel.element)
       const svgPos = toSvg(clientX, clientY)
+
+      // For line endpoint handles, capture initial endpoint coords
+      let lineEndpoints: LineCoords | undefined
+      if (pos === 'p1' || pos === 'p2') {
+        const el = sel.element
+        lineEndpoints = {
+          x1: parseFloat(el.getAttribute('x1') || '0'),
+          y1: parseFloat(el.getAttribute('y1') || '0'),
+          x2: parseFloat(el.getAttribute('x2') || '0'),
+          y2: parseFloat(el.getAttribute('y2') || '0'),
+        }
+      }
+
       dragRef.current = {
         type: 'resize',
         element: sel.element,
@@ -457,8 +560,9 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         baseTransform: sel.element.getAttribute('transform') || '',
         initialBBox: freshBBox,
         handlePos: pos,
+        lineEndpoints,
       }
-    }, [getSvgEl, getBBox, toSvg])
+    }, [getBBox, toSvg])
 
     // ── Global mouse move / up ────────────────────────────────────────────────
 
@@ -472,9 +576,20 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
 
         if (drag.type === 'move') {
           const t = drag.baseTransform
-          drag.element.setAttribute('transform', `translate(${dx.toFixed(1)},${dy.toFixed(1)})${t ? ' ' + t : ''}`)
+          drag.element.setAttribute('transform', `translate(${dx.toFixed(2)},${dy.toFixed(2)})${t ? ' ' + t : ''}`)
         } else if (drag.type === 'resize' && drag.handlePos) {
-          applyResizeToDom(drag.element, drag.handlePos, drag.initialBBox, dx, dy)
+          if ((drag.handlePos === 'p1' || drag.handlePos === 'p2') && drag.lineEndpoints) {
+            // Move individual line endpoint
+            if (drag.handlePos === 'p1') {
+              drag.element.setAttribute('x1', (drag.lineEndpoints.x1 + dx).toFixed(2))
+              drag.element.setAttribute('y1', (drag.lineEndpoints.y1 + dy).toFixed(2))
+            } else {
+              drag.element.setAttribute('x2', (drag.lineEndpoints.x2 + dx).toFixed(2))
+              drag.element.setAttribute('y2', (drag.lineEndpoints.y2 + dy).toFixed(2))
+            }
+          } else {
+            applyResizeToDom(drag.element, drag.handlePos, drag.initialBBox, dx, dy, e.shiftKey)
+          }
         }
 
         const bbox = getBBox(drag.element)
@@ -517,8 +632,10 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         const svgEl = getSvgEl()
         if (svgEl) {
           const dims = normalizeSvgDimensions(svgEl)
-          setSvgDims(dims)
-          svgDimsRef.current = dims
+          setSvgCss({ w: dims.cssW, h: dims.cssH })
+          setSvgVb({ w: dims.vbW, h: dims.vbH })
+          svgVbRef.current = { w: dims.vbW, h: dims.vbH }
+          scopePatternIds(svgEl, pageIndex)
         }
         history.reset(newSvg)
         setSelection(null); onSelectionChange(null, null); onHistoryChange()
@@ -573,11 +690,19 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       canUndo: history.canUndo,
       canRedo: history.canRedo,
       get isDirty() { return history.isDirty },
-    }), [history, getSvgEl, getBBox, onSelectionChange, onHistoryChange, takeSnapshot])
+    }), [history, getSvgEl, getBBox, onSelectionChange, onHistoryChange, takeSnapshot, pageIndex])
 
     // ── Render ────────────────────────────────────────────────────────────────
 
-    const { w, h } = svgDims
+    // Compute line endpoint coords for the overlay (read live from DOM for freshness)
+    const selectedTag = selection?.element.tagName.toLowerCase()
+    const lineCoords: LineCoords | undefined =
+      selectedTag === 'line' ? {
+        x1: parseFloat(selection!.element.getAttribute('x1') || '0'),
+        y1: parseFloat(selection!.element.getAttribute('y1') || '0'),
+        x2: parseFloat(selection!.element.getAttribute('x2') || '0'),
+        y2: parseFloat(selection!.element.getAttribute('y2') || '0'),
+      } : undefined
 
     return (
       <div
@@ -593,20 +718,24 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         role="application"
         aria-label="Tactile diagram editor"
       >
-        <div style={{ position: 'relative', flexShrink: 0, boxShadow: '0 0 0 1px #23252a', background: '#ffffff', width: w, height: h }}>
+        <div style={{ position: 'relative', flexShrink: 0, boxShadow: '0 0 0 1px #23252a', background: '#ffffff', width: svgCss.w, height: svgCss.h }}>
           {/* Injected live SVG */}
           <div
             ref={wrapperRef}
             style={{ position: 'absolute', inset: 0, lineHeight: 0 }}
             onMouseDown={handleCanvasMouseDown}
+            onDoubleClick={handleCanvasDblClick}
           />
           {/* Selection overlay — handles only have pointer events */}
           {selection && (
             <SelectionOverlay
               bbox={selection.bbox}
-              svgW={w}
-              svgH={h}
+              cssW={svgCss.w}
+              cssH={svgCss.h}
+              vbW={svgVb.w}
+              vbH={svgVb.h}
               onResizeStart={handleResizeStart}
+              lineCoords={lineCoords}
             />
           )}
         </div>

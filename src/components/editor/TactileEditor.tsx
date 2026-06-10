@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { SvgEditorCanvas, type SvgEditorCanvasHandle } from './SvgEditorCanvas'
 import { EditorToolbar, type EditorTool } from './EditorToolbar'
 import { PageNav } from './PageNav'
-import { PropertiesPanel } from './PropertiesPanel'
+import { PropertiesPanel, type PropertiesPanelHandle } from './PropertiesPanel'
 import type { BBox, PatternType } from '@/types/editor'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { exportEditorPages } from '@/lib/editorPages'
@@ -27,6 +27,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   const [dirtyPages, setDirtyPages] = useState<Set<number>>(new Set())
 
   const canvasRefs = useRef<Array<SvgEditorCanvasHandle | null>>(pages.map(() => null))
+  const propertiesPanelRef = useRef<PropertiesPanelHandle>(null)
   const currentPageRef = useRef(currentPage)
   useEffect(() => { currentPageRef.current = currentPage }, [currentPage])
 
@@ -74,6 +75,16 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
     onDone({ pages: exportedPages, speechScript })
   }, [pages, onDone])
 
+  // After placing a shape, auto-return to select so the user can move/resize it
+  const handleShapePlaced = useCallback(() => {
+    setActiveTool('select')
+  }, [])
+
+  // Double-clicking a text element focuses the text input in the properties panel
+  const handleTextEditRequest = useCallback(() => {
+    propertiesPanelRef.current?.focusTextInput()
+  }, [])
+
   return (
     <AnimatePresence>
       <motion.div
@@ -95,7 +106,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
             size="sm"
             onClick={onCancel}
             aria-label="Back to results without saving"
-            style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6 }}
+            style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6, cursor: 'pointer' }}
           >
             Back
           </Button>
@@ -110,7 +121,9 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
               size="sm"
               onClick={handleRevert}
               aria-label="Revert all pages to original Claude output"
-              style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6 }}
+              style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6, cursor: 'pointer' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3d44'; (e.currentTarget as HTMLButtonElement).style.color = '#c8ccd3' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#23252a'; (e.currentTarget as HTMLButtonElement).style.color = '#8a8f98' }}
             >
               Revert
             </Button>
@@ -118,7 +131,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
               size="sm"
               onClick={handleDone}
               aria-label="Save changes and return to results"
-              style={{ background: '#5e6ad2', color: '#ffffff', fontSize: 13, borderRadius: 6, border: 'none' }}
+              style={{ background: '#5e6ad2', color: '#ffffff', fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#828fff' }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#5e6ad2' }}
             >
@@ -146,15 +159,19 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
                 key={i}
                 ref={el => { canvasRefs.current[i] = el }}
                 svgString={svgString}
+                pageIndex={i}
                 activeTool={activeTool}
                 isVisible={i === currentPage}
                 onSelectionChange={handleSelectionChange}
                 onHistoryChange={handleHistoryChange}
+                onShapePlaced={handleShapePlaced}
+                onTextEditRequest={handleTextEditRequest}
               />
             ))}
           </div>
 
           <PropertiesPanel
+            ref={propertiesPanelRef}
             selectedElement={selectedElement}
             selectionBbox={selectionBbox}
             onCommit={() => activeCanvas?.commitMutation()}
