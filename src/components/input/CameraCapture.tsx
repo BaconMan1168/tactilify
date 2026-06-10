@@ -283,6 +283,7 @@ export function CameraCapture({
             playsInline
             muted
             className="w-full block"
+            style={{ filter: brightness !== 1 ? `brightness(${brightness})` : undefined }}
           />
           <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           <canvas ref={analysisCanvasRef} className="hidden" aria-hidden="true" />
