@@ -74,12 +74,14 @@ KEY (starts 4mm below separator)
     <text y="[rowCenterY + 1.5]" ...>label text</text>
   Never compute y independently for each element in the same row.
 
-  Element name format — never repeat the same information twice:
-    type, identifier (only if distinct from type), value (if present)
+  Element name format — SHORT NAMES ONLY. The key is a lookup index, not a description.
+    FORBIDDEN: parenthetical notes, location hints, function descriptions, explanations, or any text beyond the name itself.
+    Format: type, identifier (only if distinct from type), value (if present)
     Examples:
       "9V Battery" with value "9V"  →  battery, 9V
       "Resistor R1" with value "100Ω"  →  resistor, r1, 100Ω
       "Nucleus" with no value  →  nucleus
+    BAD: "nucleus (located in center, command center of cell)" — NEVER write this
 
   After the last key row, draw a separator line at [keyBottom+2].
 
