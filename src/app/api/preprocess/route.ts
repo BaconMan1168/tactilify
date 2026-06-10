@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { nanoid } from 'nanoid'
 import { fileTypeFromBuffer } from 'file-type'
 import type { SupportedMimeType } from '@/types/diagram'
+import { normalizeImage } from '@/lib/imageNormalize'
 
 const ALLOWED_TYPES = new Set<string>([
   'image/jpeg',
@@ -84,6 +85,8 @@ export async function POST(req: NextRequest) {
     imageBuffer = fileBuffer
     outputMime = originalMime as SupportedMimeType
   }
+
+  imageBuffer = normalizeImage(imageBuffer)
 
   const sharpFormat = outputMime === 'image/png' ? 'png' : 'jpeg'
   outputMime = sharpFormat === 'png' ? 'image/png' : 'image/jpeg'
