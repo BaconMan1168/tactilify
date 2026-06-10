@@ -2,8 +2,12 @@ import type { Mat, Point2 as CvPoint2 } from '@u4/opencv4nodejs'
 
 type CvModule = typeof import('@u4/opencv4nodejs')
 
-const MIN_AREA_RATIO = 0.15
+const MIN_AREA_RATIO = 0.20       // quad must cover ≥20% of image area
 const ANALYSIS_MAX_DIM = 1200
+const MIN_SKEW_DEG = 1.0          // ignore skew smaller than 1°
+const MAX_SKEW_DEG = 20.0         // skip correction if > 20° (probably intentional)
+const MIN_HOUGH_LINES = 5         // need at least 5 lines for confident angle estimate
+const BLUR_VARIANCE_THRESHOLD = 30 // Laplacian variance below this = apply gentle sharpening
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 function tryLoadCv(): CvModule | null {
@@ -22,6 +26,23 @@ function orderQuadPoints(pts: CvPoint2[]): CvPoint2[] {
   const tr = pts[diff.indexOf(Math.max(...diff))]
   const bl = pts[diff.indexOf(Math.min(...diff))]
   return [tl, tr, br, bl]
+}
+
+// Sanity-check that 4 points form a roughly rectangular shape.
+// Rejects wildly skewed quads that would produce a distorted warp.
+function isReasonableQuad(pts: CvPoint2[]): boolean {
+  const [tl, tr, br, bl] = pts
+  const w = Math.max(
+    Math.hypot(tr.x - tl.x, tr.y - tl.y),
+    Math.hypot(br.x - bl.x, br.y - bl.y),
+  )
+  const h = Math.max(
+    Math.hypot(bl.x - tl.x, bl.y - tl.y),
+    Math.hypot(br.x - tr.x, br.y - tr.y),
+  )
+  const ratio = w / h
+  // Reject extreme aspect ratios — a real diagram page is between 0.3 and 3.5
+  return ratio > 0.3 && ratio < 3.5
 }
 
 // Detect document boundary quad in `analysis` and apply perspective warp to `fullRes`
@@ -52,9 +73,11 @@ function tryPerspectiveCrop(
     const approx = contour.approxPolyDP(0.02 * peri, true)
     if (approx.length !== 4) continue
 
-    const [tl, tr, br, bl] = orderQuadPoints(approx)
+    const ordered = orderQuadPoints(approx)
+    if (!isReasonableQuad(ordered)) continue
 
-    // Output dimensions in full-res space
+    const [tl, tr, br, bl] = ordered
+
     const w = Math.round(Math.max(
       Math.hypot(br.x - bl.x, br.y - bl.y),
       Math.hypot(tr.x - tl.x, tr.y - tl.y),
@@ -66,7 +89,6 @@ function tryPerspectiveCrop(
 
     if (w < 80 || h < 80) continue
 
-    // Map quad corners from analysis-space → full-res-space
     const srcPoints = [tl, tr, br, bl].map(p =>
       new cv.Point2(p.x * toFullScale, p.y * toFullScale),
     )
@@ -91,7 +113,7 @@ function tryDeskew(cv: CvModule, analysis: Mat, fullRes: Mat): Mat | null {
   const edges = blurred.canny(50, 150)
 
   const lines = edges.houghLinesP(1, Math.PI / 180, 80, 60, 15)
-  if (!lines || lines.length < 5) return null
+  if (!lines || lines.length < MIN_HOUGH_LINES) return null
 
   const angles: number[] = []
   for (const line of lines) {
@@ -102,15 +124,31 @@ function tryDeskew(cv: CvModule, analysis: Mat, fullRes: Mat): Mat | null {
     if (Math.abs(angle) < 45) angles.push(angle)
   }
 
-  if (angles.length < 3) return null
+  if (angles.length < MIN_HOUGH_LINES) return null
 
   angles.sort((a, b) => a - b)
   const median = angles[Math.floor(angles.length / 2)]
-  if (Math.abs(median) < 0.5) return null
+
+  if (Math.abs(median) < MIN_SKEW_DEG) return null
+  if (Math.abs(median) > MAX_SKEW_DEG) return null  // too large — probably intentional
 
   const center = new cv.Point2(fullRes.cols / 2, fullRes.rows / 2)
   const M = cv.getRotationMatrix2D(center, median, 1.0)
   return fullRes.warpAffine(M, new cv.Size(fullRes.cols, fullRes.rows))
+}
+
+// Apply a very gentle unsharp mask only when the image is clearly blurry
+function trySharpening(cv: CvModule, mat: Mat): Mat | null {
+  const gray = mat.channels === 1 ? mat : mat.bgrToGray()
+  const laplacian = gray.laplacian(cv.CV_64F)
+  const { stddev } = laplacian.meanStdDev()
+  const variance = (stddev.at(0, 0) as number) ** 2
+
+  if (variance >= BLUR_VARIANCE_THRESHOLD) return null
+
+  // Subtle unsharp mask: blends 10% sharpening boost, avoids haloing
+  const softBlur = mat.gaussianBlur(new cv.Size(0, 0), 3)
+  return mat.addWeighted(1.1, softBlur, -0.1, 0)
 }
 
 export function normalizeImage(buffer: Buffer): Buffer {
@@ -128,18 +166,21 @@ export function normalizeImage(buffer: Buffer): Buffer {
           Math.round(fullRes.cols * analysisScale),
         )
       : fullRes
-
     const toFullScale = 1 / analysisScale
 
-    const cropped = tryPerspectiveCrop(cv, analysis, fullRes, toFullScale)
-    if (cropped) return cv.imencode('.jpg', cropped)
+    // Geometric correction: perspective crop takes priority over rotation-only deskew
+    const geometryResult = tryPerspectiveCrop(cv, analysis, fullRes, toFullScale)
+      ?? tryDeskew(cv, analysis, fullRes)
 
-    const deskewed = tryDeskew(cv, analysis, fullRes)
-    if (deskewed) return cv.imencode('.jpg', deskewed)
+    // Sharpening check on the geometry-corrected image (or original if no correction)
+    const target = geometryResult ?? fullRes
+    const sharpened = trySharpening(cv, target)
 
-    return buffer
+    const finalResult = sharpened ?? geometryResult
+    if (!finalResult) return buffer
+
+    return cv.imencode('.jpg', finalResult)
   } catch {
-    // Never block the upload pipeline due to CV errors
     return buffer
   }
 }
