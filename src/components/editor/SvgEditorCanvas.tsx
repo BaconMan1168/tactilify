@@ -190,7 +190,16 @@ function computeResizedBBox(pos: HandlePosition, init: BBox, dx: number, dy: num
   }
 }
 
-function applyResizeToDom(el: SVGElement, pos: HandlePosition, init: BBox, dx: number, dy: number, constrain: boolean): void {
+function applyResizeToDom(
+  el: SVGElement,
+  pos: HandlePosition,
+  init: BBox,
+  dx: number,
+  dy: number,
+  constrain: boolean,
+  initialFontSize?: number,
+  initialBaselineOffset?: number,
+): void {
   if (pos === 'p1' || pos === 'p2') return // handled separately
   const { dx: cdx, dy: cdy } = constrain ? constrainAspect(pos, dx, dy, init) : { dx, dy }
   const nb = computeResizedBBox(pos, init, cdx, cdy)
@@ -212,6 +221,17 @@ function applyResizeToDom(el: SVGElement, pos: HandlePosition, init: BBox, dx: n
     el.setAttribute('cx', (nb.x + nb.width / 2).toFixed(2))
     el.setAttribute('cy', (nb.y + nb.height / 2).toFixed(2))
     el.setAttribute('r', r.toFixed(2))
+    el.removeAttribute('transform')
+  } else if (tag === 'text' && initialFontSize !== undefined) {
+    // Scale font-size proportionally to the height change; set x/y directly.
+    // Never use a scale transform on text — bakeTranslate can't bake it cleanly,
+    // causing text to jump or vanish when the element is next clicked.
+    const heightRatio = nb.height / Math.max(0.5, init.height)
+    el.setAttribute('font-size', Math.max(0.5, initialFontSize * heightRatio).toFixed(2))
+    el.setAttribute('x', nb.x.toFixed(2))
+    // y is the baseline; preserve its offset from the visual top by scaling with height
+    const baseOff = initialBaselineOffset ?? init.height * 0.75
+    el.setAttribute('y', (nb.y + baseOff * heightRatio).toFixed(2))
     el.removeAttribute('transform')
   } else {
     // path, g, polyline, etc.: use scale transform anchored at init origin
@@ -320,6 +340,8 @@ type DragState = {
   initialBBox: BBox
   handlePos?: HandlePosition
   lineEndpoints?: LineCoords
+  initialFontSize?: number        // text elements: font-size at drag start (mm)
+  initialBaselineOffset?: number  // text elements: y_attr - bbox.top at drag start (mm)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -541,7 +563,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       const svgPos = toSvg(clientX, clientY)
 
       // For line endpoint handles, capture initial endpoint coords
-    let lineEndpoints: LineCoords | undefined
+      let lineEndpoints: LineCoords | undefined
       if (pos === 'p1' || pos === 'p2') {
         const el = sel.element
         lineEndpoints = {
@@ -550,6 +572,15 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
           x2: parseFloat(el.getAttribute('x2') || '0'),
           y2: parseFloat(el.getAttribute('y2') || '0'),
         }
+      }
+
+      // For text elements, capture font-size and baseline offset to enable transform-free resize
+      let initialFontSize: number | undefined
+      let initialBaselineOffset: number | undefined
+      if (sel.element.tagName.toLowerCase() === 'text') {
+        initialFontSize = parseFloat(sel.element.getAttribute('font-size') ?? '5')
+        const yAttr = parseFloat(sel.element.getAttribute('y') ?? '0')
+        initialBaselineOffset = yAttr - freshBBox.y
       }
 
       dragRef.current = {
@@ -561,6 +592,8 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         initialBBox: freshBBox,
         handlePos: pos,
         lineEndpoints,
+        initialFontSize,
+        initialBaselineOffset,
       }
     }, [getBBox, toSvg])
 
@@ -588,7 +621,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
               drag.element.setAttribute('y2', (drag.lineEndpoints.y2 + dy).toFixed(2))
             }
           } else {
-            applyResizeToDom(drag.element, drag.handlePos, drag.initialBBox, dx, dy, e.shiftKey)
+            applyResizeToDom(drag.element, drag.handlePos, drag.initialBBox, dx, dy, e.shiftKey, drag.initialFontSize, drag.initialBaselineOffset)
           }
         }
 
