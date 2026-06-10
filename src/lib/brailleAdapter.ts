@@ -97,9 +97,8 @@ function replaceTextWithBraille(
   })
 }
 
-// Converts diagram/key text labels to braille circles.
-// Reference page key section: all text except the "KEY" header is converted to braille
-// (both letter IDs and full label names like "mitochondria").
+// Converts text labels to braille circles.
+// Reference page: everything from the KEY header onward is converted (letter IDs + full labels).
 // Diagram pages: only single uppercase letter markers are converted.
 export function applyBraillePostProcessing(svg: string, isReferencePage: boolean): string {
   const isSingleLetter = (c: string) => /^[A-Z]$/.test(c)

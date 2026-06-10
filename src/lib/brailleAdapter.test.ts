@@ -58,10 +58,11 @@ describe('applyBraillePostProcessing — reference page key section', () => {
     <text x="48" y="175">nucleus</text>
   </svg>`
 
-  it('leaves full label text unconverted on the reference page key section', () => {
+  it('converts full label text to braille on the reference page key section', () => {
     const result = applyBraillePostProcessing(keySvg, true)
-    expect(result).toContain('cell membrane')
-    expect(result).toContain('nucleus')
+    expect(result).not.toContain('cell membrane')
+    expect(result).not.toContain('nucleus')
+    expect(result).toContain('<circle')
   })
 
   it('converts single-letter key labels to braille circles on the reference page', () => {

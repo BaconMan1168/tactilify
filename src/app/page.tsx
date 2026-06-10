@@ -34,7 +34,6 @@ export default function HomePage() {
   const [analysis, setAnalysis] = useState<DiagramAnalysis | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [debugOpen, setDebugOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('audio')
   const [tactilePages, setTactilePages] = useState<string[]>([])
 
@@ -533,38 +532,6 @@ export default function HomePage() {
         )}
 
       </AnimatePresence>
-
-      {/* Dev-only debug panel */}
-      {process.env.NODE_ENV === 'development' && analysis && appState === 'results' && (
-        <div
-          className="fixed bottom-4 left-4 z-50 w-[420px] max-h-[400px] rounded-[10px] overflow-hidden"
-          style={{ background: 'rgba(10,11,13,0.96)', border: '1px solid #23252a', backdropFilter: 'blur(12px)' }}
-        >
-          <button
-            onClick={() => setDebugOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 text-[11px] font-mono text-[#62666d] hover:text-[#8a8f98] transition-colors"
-            aria-expanded={debugOpen}
-          >
-            <span>DiagramAnalysis — {analysis.layoutHint} — {analysis.elements.length} elements</span>
-            <span>{debugOpen ? '▼' : '▶'}</span>
-          </button>
-          <AnimatePresence>
-            {debugOpen && (
-              <motion.pre
-                key="debug"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-auto text-[10px] font-mono text-[#8a8f98] px-4 pb-4"
-                style={{ maxHeight: '320px' }}
-              >
-                {JSON.stringify(analysis, null, 2)}
-              </motion.pre>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
 
       <style>{`
         .scan-line { animation: scanDown 2s ease-in-out infinite; }
