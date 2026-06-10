@@ -65,7 +65,6 @@
 | Semantic HTML                | Foundation — use correct elements (`<button>`, `<nav>`, `<main>`, etc.)                   |
 | ARIA attributes              | `aria-label`, `aria-live`, `aria-describedby`, `role` where semantic HTML is insufficient |
 | `@react-aria/live-announcer` | Announces each narration step to screen readers independently of TTS                      |
-| `@react-aria/focus`          | Focus management utilities for editor keyboard interactions                                |
 | axe-core (dev only)          | Automated accessibility testing during development                                        |
 | `@axe-core/react`            | Dev-mode accessibility violations logged to console                                       |
 
@@ -135,7 +134,7 @@ OPENAI_API_KEY=sk-...
 ## Install commands
 
 ```bash
-npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid @napi-rs/canvas @react-aria/live-announcer @react-aria/focus fabric lucide-react sonner p-retry motion gsap
+npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid @napi-rs/canvas @react-aria/live-announcer fabric lucide-react sonner p-retry motion gsap
 
 npx shadcn@latest init
 npx shadcn@latest add button card tabs alert progress dialog separator tooltip
