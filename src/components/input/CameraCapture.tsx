@@ -243,10 +243,6 @@ export function CameraCapture({
         stableCountRef.current = Math.min(stableCountRef.current + 1, STABLE_FRAMES)
         const progress = Math.round((stableCountRef.current / STABLE_FRAMES) * 100)
         setGuidance({ status: 'ready', message: 'Ready', progress })
-        if (stableCountRef.current >= STABLE_FRAMES && !isProcessingRef.current) {
-          if (rafRef.current) cancelAnimationFrame(rafRef.current)
-          captureFrameRef.current()
-        }
       } else {
         stableCountRef.current = 0
         setGuidance({ ...result, progress: 0 })
@@ -273,7 +269,7 @@ export function CameraCapture({
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-[400px] shrink-0 rounded-[10px] overflow-hidden flex flex-col"
+        className="w-[500px] shrink-0 rounded-[10px] overflow-hidden flex flex-col"
         style={cardStyle}
       >
         <div className="relative overflow-hidden bg-black">
@@ -307,7 +303,7 @@ export function CameraCapture({
             </motion.div>
           </div>
 
-          {/* Progress bar — fills while stable, fires auto-capture at 100% */}
+          {/* Progress bar — fills while stable; green = good to capture */}
           {isReady && (
             <div
               className="absolute inset-x-0 bottom-0 h-[2px]"
@@ -343,7 +339,7 @@ export function CameraCapture({
               if (!isReady) e.currentTarget.style.background = '#5e6ad2'
             }}
           >
-            {isProcessing ? 'Processing…' : isReady ? 'Capturing…' : 'Capture'}
+            {isProcessing ? 'Processing…' : 'Capture'}
           </button>
           <button
             onClick={() => {
@@ -362,11 +358,11 @@ export function CameraCapture({
 
   return (
     <div
-      className="w-[400px] shrink-0 rounded-[10px] p-[14px] flex flex-col gap-[9px]"
+      className="w-[500px] shrink-0 rounded-[10px] p-[14px] flex flex-col gap-[9px]"
       style={cardStyle}
     >
       <div
-        className="rounded-[7px] px-3 py-10 text-center border border-dashed border-[#34343a]"
+        className="rounded-[7px] px-3 py-10 min-h-[180px] flex flex-col items-center justify-center text-center border border-dashed border-[#34343a]"
         role={state === 'denied' || state === 'unavailable' ? 'alert' : undefined}
       >
         {state === 'denied' && (
