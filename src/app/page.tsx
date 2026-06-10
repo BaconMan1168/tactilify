@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { CircuitBackground } from '@/components/ui/CircuitBackground'
 import { ImageUploader } from '@/components/input/ImageUploader'
 import { CameraCapture } from '@/components/input/CameraCapture'
+import { SampleLauncher } from '@/components/input/SampleLauncher'
 import { AudioPlayer } from '@/components/output/AudioPlayer'
 import { TactileSVG } from '@/components/output/TactileSVG'
 import { TactileEditor } from '@/components/editor/TactileEditor'
@@ -66,8 +67,8 @@ export default function HomePage() {
     setInputMode('upload')
   }
 
-  const handleAnalyze = useCallback(async () => {
-    if (!image) return
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const runAnalysis = useCallback(async (img: UploadedImage, fallbackState: AppState = 'preview') => {
     setAppState('processing')
     startProgress()
 
@@ -75,7 +76,7 @@ export default function HomePage() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64: image.base64, mimeType: image.mimeType }),
+        body: JSON.stringify({ base64: img.base64, mimeType: img.mimeType }),
       })
       const data = (await res.json()) as DiagramAnalysis & { error?: string }
       if (!res.ok) throw new Error(data.error ?? `Server error ${res.status}`)
@@ -90,12 +91,21 @@ export default function HomePage() {
       }, 600)
     } catch (err) {
       stopTimer()
-      setAppState('preview')
+      setAppState(fallbackState)
       const message = err instanceof Error ? err.message : 'Something went wrong'
-      toast.error(message, { action: { label: 'Retry', onClick: handleAnalyze } })
+      toast.error(message, { action: { label: 'Retry', onClick: () => runAnalysis(img, fallbackState) } })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image])
+  }, [])
+
+  const handleAnalyze = useCallback(async () => {
+    if (!image) return
+    await runAnalysis(image)
+  }, [image, runAnalysis])
+
+  const handleSampleLaunch = useCallback((img: UploadedImage) => {
+    setImage(img)
+    runAnalysis(img, 'idle')
+  }, [runAnalysis])
 
   const handleReset = () => {
     setAppState('idle')
@@ -431,7 +441,7 @@ export default function HomePage() {
               transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}
               aria-label="Diagram input"
             >
-              <div className="relative">
+              <div className="relative flex flex-col items-end gap-3">
                 {/* Preview card floats above */}
                 <AnimatePresence>
                   {appState === 'preview' && image && (
@@ -488,6 +498,21 @@ export default function HomePage() {
                           </div>
                         </div>
                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Sample launcher */}
+                <AnimatePresence>
+                  {appState === 'idle' && (
+                    <motion.div
+                      key="samples"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.25, ease: 'easeOut' }}
+                    >
+                      <SampleLauncher onLaunch={handleSampleLaunch} />
                     </motion.div>
                   )}
                 </AnimatePresence>
