@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { applyBraillePostProcessing } from '@/lib/brailleAdapter'
 
@@ -160,6 +161,10 @@ function emit(controller: ReadableStreamDefaultController, event: object) {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
+  if (!checkRateLimit(getClientIp(req), 5, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   let base64: string
   let mimeType: string
 
@@ -239,7 +244,9 @@ export async function POST(req: NextRequest): Promise<Response> {
         emit(controller, { type: 'speech', script: speechScript })
         emit(controller, { type: 'done', totalPages: pageIndex, truncated })
       } catch (err) {
-        emit(controller, { type: 'error', message: err instanceof Error ? err.message : 'Unknown error' })
+        const detail = err instanceof Error ? err.message : 'Unknown error'
+        const clientMessage = process.env.NODE_ENV === 'production' ? 'Generation failed. Please try again.' : detail
+        emit(controller, { type: 'error', message: clientMessage })
       } finally {
         controller.close()
       }

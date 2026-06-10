@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jsonrepair } from 'jsonrepair'
 import pRetry from 'p-retry'
 import { anthropic } from '@/lib/anthropic'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 import { DiagramAnalysisSchema } from '@/types/diagram'
 import type { DiagramAnalysis } from '@/types/diagram'
 
@@ -148,6 +149,10 @@ async function analyzeWithClaude(base64: string, mimeType: string): Promise<Diag
 }
 
 export async function POST(req: NextRequest) {
+  if (!checkRateLimit(getClientIp(req), 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   let base64: string
   let mimeType: string
 
@@ -174,6 +179,7 @@ export async function POST(req: NextRequest) {
     }
     const message = err instanceof Error ? err.message : 'Analysis failed'
     console.error('[analyze] error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const clientMessage = process.env.NODE_ENV === 'production' ? 'Analysis failed. Please try again.' : message
+    return NextResponse.json({ error: clientMessage }, { status: 500 })
   }
 }
