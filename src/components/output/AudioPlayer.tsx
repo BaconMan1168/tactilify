@@ -1,7 +1,6 @@
 'use client'
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { toast } from 'sonner'
 import { useNarration } from '@/hooks/useNarration'
 import type { NarrationStep } from '@/types/diagram'
 
@@ -11,7 +10,6 @@ interface AudioPlayerProps {
 
 export function AudioPlayer({ steps }: AudioPlayerProps) {
   const { currentStep, isPlaying, isSpeechSupported, play, pause, stop } = useNarration(steps)
-  const [isDownloading, setIsDownloading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeRowRef = useRef<HTMLDivElement>(null)
 
@@ -38,34 +36,6 @@ export function AudioPlayer({ steps }: AudioPlayerProps) {
       activeRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
   }, [currentStep, isPlaying])
-
-  const handleDownloadMp3 = async () => {
-    setIsDownloading(true)
-    try {
-      const text = steps.map((s) => s.text).join('. ')
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
-      if (!res.ok) {
-        const err = (await res.json()) as { error: string }
-        throw new Error(err.error ?? 'Download failed')
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'narration.mp3'
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success('Narration downloaded')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Download failed')
-    } finally {
-      setIsDownloading(false)
-    }
-  }
 
   const progressPct = steps.length > 0 ? (Math.max(0, currentStep + 1) / steps.length) * 100 : 0
   const stepDisplay = `${currentStep < 0 ? 0 : currentStep + 1} / ${steps.length}`
@@ -143,38 +113,12 @@ export function AudioPlayer({ steps }: AudioPlayerProps) {
           <span style={{ fontSize: 14, color: '#62666d', flexShrink: 0 }}>{stepDisplay}</span>
         </div>
       ) : (
-        /* Web Speech unsupported — show download button instead */
-        <button
-          onClick={handleDownloadMp3}
-          disabled={isDownloading}
-          className="w-full flex items-center justify-center gap-2 text-white font-medium transition-opacity"
-          style={{
-            background: '#5e6ad2',
-            borderRadius: 8,
-            padding: '12px 16px',
-            fontSize: 15,
-            opacity: isDownloading ? 0.7 : 1,
-          }}
+        <p
+          role="status"
+          style={{ fontSize: 14, color: '#62666d', padding: '12px 0' }}
         >
-          {isDownloading ? (
-            <>
-              <svg
-                className="animate-spin"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-                <path d="M8 2a6 6 0 016 6" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              Downloading...
-            </>
-          ) : (
-            'Download MP3'
-          )}
-        </button>
+          Audio playback is not supported in this browser.
+        </p>
       )}
 
       {/* Current step text banner */}

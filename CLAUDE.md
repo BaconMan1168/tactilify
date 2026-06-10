@@ -45,7 +45,6 @@ The tactile renderer uses **generic shapes only** (rect, circle, diamond, arc, a
 
 ## Key APIs
 - **Claude Vision** (`claude-opus-4-8` or `claude-sonnet-4-6`) — diagram parsing, object/relationship extraction, narration generation
-- **Web Speech API** — primary TTS, in-browser, zero cost
-- **OpenAI TTS** (`tts-1`) — fallback if Web Speech API unavailable or for higher-quality export
+- **Web Speech API** — TTS, in-browser, zero cost
 - **Next.js App Router** — full-stack framework
 - **Vercel** — deployment target
