@@ -809,8 +809,8 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
             onMouseDown={handleCanvasMouseDown}
             onDoubleClick={handleCanvasDblClick}
           />
-          {/* Selection overlay — handles only have pointer events */}
-          {selection && (
+          {/* Selection overlay — hidden while inline text editing is active */}
+          {selection && !textEditState && (
             <SelectionOverlay
               bbox={selection.bbox}
               cssW={svgCss.w}
