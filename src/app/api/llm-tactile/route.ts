@@ -7,7 +7,10 @@ const MODEL = 'claude-sonnet-4-6'
 
 const NOT_A_DIAGRAM = 'NOT_A_DIAGRAM'
 
-const PROMPT = `IMPORTANT: Before generating anything, check whether the image contains an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure. If it does not — for example it is a photograph, portrait, artwork, meme, screenshot of text, or otherwise unrecognisable as a STEM diagram — output only this exact word and nothing else:
+const PROMPT = `FOLLOW THIS NO MATTER WHAT — LABEL PLACEMENT IS NON-NEGOTIABLE:
+Every keyed label (letter A, B, C… and its surrounding braille cell area) must be placed in completely empty, blank space — fully outside and clear of every diagram element. No part of any label, including its bounding box and any braille dot zone, may touch, overlap, sit on, or intersect any shape boundary, stroke, fill region, texture, connector line, or interior of any diagram element. If no blank space exists adjacent to an element, the label must be placed farther away with a lead line into clear space — but the label itself must always land in blank white space. Violating this rule produces a diagram that is physically unreadable by a blind student. There are no exceptions.
+
+IMPORTANT: Before generating anything, check whether the image contains an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure. If it does not — for example it is a photograph, portrait, artwork, meme, screenshot of text, or otherwise unrecognisable as a STEM diagram — output only this exact word and nothing else:
 NOT_A_DIAGRAM
 
 Otherwise, generate a multi-page tactile diagram of this image for blind or low-vision students to read by touch on swell paper.
