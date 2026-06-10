@@ -109,9 +109,7 @@ export function applyBraillePostProcessing(svg: string, isReferencePage: boolean
     if (keyMatch) {
       const before = svg.slice(0, keyMatch.index)
       const keySection = svg.slice(keyMatch.index)
-      // Convert everything in the key section to braille except the "KEY" header itself
-      const isNotKeyHeader = (c: string) => !/^KEY$/i.test(c)
-      return before + replaceTextWithBraille(keySection, isNotKeyHeader)
+      return before + replaceTextWithBraille(keySection, () => true)
     }
     return svg
   }
