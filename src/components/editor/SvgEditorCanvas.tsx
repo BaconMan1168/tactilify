@@ -564,25 +564,6 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       }
     }, [getBBox, toSvg])
 
-    // Initiate a move drag from the SelectionOverlay hit area (used for tiny elements like braille dots)
-    const handleMoveStart = useCallback((clientX: number, clientY: number) => {
-      const sel = selectionRef.current
-      if (!sel) return
-      bakeTranslate(sel.element)
-      const freshBBox = getBBox(sel.element)
-      const svgPos = toSvg(clientX, clientY)
-      const base = sel.element.getAttribute('transform') || ''
-      dragRef.current = {
-        type: 'move',
-        element: sel.element,
-        startSvgX: svgPos.x,
-        startSvgY: svgPos.y,
-        baseTransform: base,
-        initialBBox: freshBBox,
-      }
-      setSelection({ element: sel.element, bbox: freshBBox })
-    }, [getBBox, toSvg])
-
     // ── Global mouse move / up ────────────────────────────────────────────────
 
     useEffect(() => {
@@ -754,7 +735,6 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
               vbW={svgVb.w}
               vbH={svgVb.h}
               onResizeStart={handleResizeStart}
-              onMoveStart={handleMoveStart}
               lineCoords={lineCoords}
             />
           )}

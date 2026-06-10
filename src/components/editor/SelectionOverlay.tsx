@@ -49,11 +49,10 @@ interface SelectionOverlayProps {
   vbW: number
   vbH: number
   onResizeStart: (pos: HandlePosition, clientX: number, clientY: number) => void
-  onMoveStart?: (clientX: number, clientY: number) => void
   lineCoords?: { x1: number; y1: number; x2: number; y2: number }
 }
 
-export function SelectionOverlay({ bbox, cssW, cssH, vbW, vbH, onResizeStart, onMoveStart, lineCoords }: SelectionOverlayProps) {
+export function SelectionOverlay({ bbox, cssW, cssH, vbW, vbH, onResizeStart, lineCoords }: SelectionOverlayProps) {
   // Pad the display bbox for tiny elements so handles are visible and grabable
   const isTiny = bbox.width < MIN_DISPLAY && bbox.height < MIN_DISPLAY
   const displayBbox = isTiny
@@ -108,16 +107,6 @@ export function SelectionOverlay({ bbox, cssW, cssH, vbW, vbH, onResizeStart, on
         strokeDasharray="2 1"
         style={{ pointerEvents: 'none' }}
       />
-      {/* For tiny elements, fill the padded display area with a transparent drag target
-          so the user doesn't have to hit the sub-pixel circles to initiate a move */}
-      {isTiny && onMoveStart && (
-        <rect
-          x={x} y={y} width={width} height={height}
-          fill="transparent"
-          style={{ pointerEvents: 'all', cursor: 'move' }}
-          onMouseDown={e => { e.stopPropagation(); onMoveStart(e.clientX, e.clientY) }}
-        />
-      )}
       {handlesToRender.map(h => (
         <Handle key={h.pos} cx={h.cx} cy={h.cy} pos={h.pos} onDragStart={onResizeStart} />
       ))}
