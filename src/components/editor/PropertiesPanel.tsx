@@ -76,7 +76,14 @@ function applyBBoxField(
 
 export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanelProps>(
   function PropertiesPanel({ selectedElement, selectionBbox, onCommit, onDelete, onPatternChange }, ref) {
-    const textInputRef = useRef<HTMLInputElement>(null)
+    const textInputRef = useRef<HTMLTextAreaElement>(null)
+
+    const autoResize = () => {
+      const ta = textInputRef.current
+      if (!ta) return
+      ta.style.height = 'auto'
+      ta.style.height = `${ta.scrollHeight}px`
+    }
 
     useImperativeHandle(ref, () => ({
       focusTextInput: () => {
@@ -87,11 +94,15 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
       },
     }))
 
-    // Ensure text input is visible after element changes to a text node
+    // Auto-resize whenever the selected element changes
+    useEffect(() => {
+      autoResize()
+    }, [selectedElement])
+
+    // Ensure text textarea is visible after element changes to a text node
     useEffect(() => {
       if (selectedElement?.tagName.toLowerCase() === 'text') {
-        // slight delay so the input has rendered
-        const t = setTimeout(() => textInputRef.current?.focus(), 50)
+        const t = setTimeout(() => { textInputRef.current?.focus(); autoResize() }, 50)
         return () => clearTimeout(t)
       }
     }, [selectedElement])
@@ -121,11 +132,12 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
     const isLine = tag === 'line'
     const hasSimpleGeometry = ['rect', 'ellipse', 'circle', 'text', 'line'].includes(tag)
 
-    const stopAndHandle = (next: (e: React.KeyboardEvent<HTMLInputElement>) => void) =>
-      (e: React.KeyboardEvent<HTMLInputElement>) => {
-        e.stopPropagation()
-        next(e)
-      }
+    const stopAndHandle = <T extends HTMLInputElement | HTMLTextAreaElement>(
+      next: (e: React.KeyboardEvent<T>) => void
+    ) => (e: React.KeyboardEvent<T>) => {
+      e.stopPropagation()
+      next(e)
+    }
 
     const makeGeomHandler = (field: 'x' | 'y' | 'w' | 'h') =>
       (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,18 +160,29 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
 
         {isText && (
           <Field label="Text">
-            <input
+            <textarea
               ref={textInputRef}
-              type="text"
               defaultValue={selectedElement.textContent ?? ''}
               key={selectedElement.textContent ?? ''}
-              style={inputStyle}
+              rows={1}
+              style={{
+                ...inputStyle,
+                resize: 'none',
+                overflow: 'hidden',
+                lineHeight: 1.5,
+                minHeight: 28,
+              }}
               aria-label="Text content"
+              onChange={e => {
+                autoResize()
+                selectedElement.textContent = e.target.value
+              }}
               onKeyDown={stopAndHandle(e => {
-                if (e.key === 'Enter') {
-                  selectedElement.textContent = (e.target as HTMLInputElement).value
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  selectedElement.textContent = (e.target as HTMLTextAreaElement).value
                   onCommit()
-                  ;(e.target as HTMLInputElement).blur()
+                  ;(e.target as HTMLTextAreaElement).blur()
                 }
               })}
               onBlur={e => {
