@@ -76,7 +76,7 @@ export function ImageUploader({
         aria-label="Upload diagram — drag and drop or click to browse. Accepts JPEG, PNG, WebP, PDF."
         aria-disabled={isProcessing}
         className={[
-          'rounded-[7px] px-3 py-16 min-h-[300px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-150 outline-none mb-[9px]',
+          'rounded-[7px] px-3 py-10 min-h-[180px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-150 outline-none mb-[9px]',
           'focus-visible:ring-2 focus-visible:ring-[#5e6ad2]',
           isProcessing ? 'pointer-events-none opacity-60' : '',
           isDragActive && !isError

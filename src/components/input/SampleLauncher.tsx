@@ -33,48 +33,53 @@ export function SampleLauncher({ onLaunch }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-[5px]">
-      <span className="text-[9px] font-medium uppercase tracking-[0.3px]" style={{ color: '#62666d' }}>
+    <div className="flex flex-col gap-2" style={{ width: 500 }}>
+      <span className="text-[11px] font-medium uppercase tracking-[0.4px]" style={{ color: '#62666d' }}>
         Try a sample
       </span>
-      {SAMPLES.map((sample) => {
-        const isLoading = loading === sample.path
-        const isDisabled = loading !== null
-        return (
-          <button
-            key={sample.path}
-            onClick={() => launch(sample)}
-            disabled={isDisabled}
-            aria-label={`Analyze ${sample.label} sample`}
-            className="flex items-center gap-[5px] rounded-[6px] px-[7px] py-[5px] border border-[#23252a] hover:border-[#34343a] transition-colors"
-            style={{
-              width: 190,
-              background: '#0f1011',
-              cursor: isDisabled ? 'default' : 'pointer',
-              opacity: isDisabled && !isLoading ? 0.5 : 1,
-            }}
-          >
-            <div
-              className="flex-shrink-0 rounded-[3px] overflow-hidden border border-[#23252a]"
-              style={{ width: 28, height: 20, background: 'linear-gradient(135deg,#1a1d28,#0f1016)' }}
+      <div className="flex gap-2">
+        {SAMPLES.map((sample) => {
+          const isLoading = loading === sample.path
+          const isDisabled = loading !== null
+          return (
+            <button
+              key={sample.path}
+              onClick={() => launch(sample)}
+              disabled={isDisabled}
+              aria-label={`Analyze ${sample.label} sample`}
+              className="flex items-center rounded-[8px] border border-[#23252a] hover:border-[#34343a] transition-colors overflow-hidden"
+              style={{
+                flex: 1,
+                height: 60,
+                background: '#0f1011',
+                cursor: isDisabled ? 'default' : 'pointer',
+                opacity: isDisabled && !isLoading ? 0.5 : 1,
+              }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={sample.path} alt="" aria-hidden="true" className="w-full h-full object-cover opacity-80" />
-            </div>
-            <span className="flex-1 text-left text-[9px] font-medium" style={{ color: '#d0d6e0' }}>
-              {sample.label}
-            </span>
-            {isLoading ? (
-              <svg className="animate-spin" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                <circle cx="5" cy="5" r="3.5" stroke="#3e3e44" strokeWidth="1.5" />
-                <path d="M 5 1.5 A 3.5 3.5 0 0 1 8.5 5" stroke="#5e6ad2" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <span aria-hidden="true" style={{ fontSize: 9, color: '#5e6ad2', fontWeight: 600 }}>→</span>
-            )}
-          </button>
-        )
-      })}
+              {/* Full-height thumbnail */}
+              <div className="flex-shrink-0 overflow-hidden" style={{ width: 80, height: 60, background: '#f5f6f6' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sample.path} alt="" aria-hidden="true" className="w-full h-full object-cover" style={{ opacity: 0.95 }} />
+              </div>
+              {/* Label */}
+              <span className="flex-1 text-left text-[14px] font-medium px-4" style={{ color: '#d0d6e0' }}>
+                {sample.label}
+              </span>
+              {/* Status */}
+              <div className="pr-4 flex-shrink-0">
+                {isLoading ? (
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <circle cx="7" cy="7" r="5" stroke="#3e3e44" strokeWidth="2" />
+                    <path d="M 7 2 A 5 5 0 0 1 12 7" stroke="#5e6ad2" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <span aria-hidden="true" className="text-[14px] font-semibold" style={{ color: '#5e6ad2' }}>→</span>
+                )}
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
