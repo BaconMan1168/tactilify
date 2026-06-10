@@ -41,6 +41,9 @@ async function pdfToImageBuffer(pdfBuffer: Buffer): Promise<Buffer> {
 }
 
 export async function POST(req: NextRequest) {
+  const rawBrightness = parseFloat(new URL(req.url).searchParams.get('brightness') ?? '1')
+  const brightness = isNaN(rawBrightness) ? 1 : Math.max(0.5, Math.min(2, rawBrightness))
+
   let fileBuffer: Buffer
   let originalMime: string
 
@@ -93,15 +96,14 @@ export async function POST(req: NextRequest) {
 
   let processedBuffer: Buffer
   try {
-    processedBuffer = await sharp(imageBuffer)
-      .resize({
-        width: MAX_DIMENSION,
-        height: MAX_DIMENSION,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .toFormat(sharpFormat, { quality: 92 })
-      .toBuffer()
+    let pipeline = sharp(imageBuffer).resize({
+      width: MAX_DIMENSION,
+      height: MAX_DIMENSION,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    if (brightness !== 1) pipeline = pipeline.modulate({ brightness })
+    processedBuffer = await pipeline.toFormat(sharpFormat, { quality: 92 }).toBuffer()
   } catch {
     return NextResponse.json(
       { error: 'Failed to process image.' },

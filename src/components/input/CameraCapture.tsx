@@ -113,6 +113,7 @@ export function CameraCapture({
   const captureFrameRef = useRef<() => void>(() => {})
 
   const [state, setCameraState] = useState<CameraState>('idle')
+  const [brightness, setBrightness] = useState(1)
   const [guidance, setGuidance] = useState<Guidance>({
     status: 'analyzing',
     message: 'Analyzing…',
@@ -184,7 +185,10 @@ export function CameraCapture({
         formData.append('file', new File([blob], 'capture.jpg', { type: 'image/jpeg' }))
 
         try {
-          const res = await fetch('/api/preprocess', { method: 'POST', body: formData })
+          const url = brightness !== 1
+          ? `/api/preprocess?brightness=${brightness}`
+          : '/api/preprocess'
+        const res = await fetch(url, { method: 'POST', body: formData })
           const data = await res.json()
           if (!res.ok) {
             toast.error(data.error ?? 'Capture failed.')
@@ -321,7 +325,24 @@ export function CameraCapture({
           )}
         </div>
 
-        <div className="flex gap-1.5 p-2">
+        <div className="flex items-center gap-2 px-2 pt-2">
+          <span className="text-[10px] text-[#62666d] w-16 shrink-0">Brightness</span>
+          <input
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.05"
+            value={brightness}
+            onChange={(e) => setBrightness(parseFloat(e.target.value))}
+            aria-label="Brightness adjustment"
+            className="flex-1 accent-[#5e6ad2] h-1 cursor-pointer"
+          />
+          <span className="text-[10px] text-[#8a8f98] w-8 text-right tabular-nums">
+            {Math.round(brightness * 100)}%
+          </span>
+        </div>
+
+        <div className="flex gap-1.5 p-2 pt-1.5">
           <button
             onClick={captureFrame}
             disabled={isProcessing}
