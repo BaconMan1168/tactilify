@@ -2,12 +2,12 @@ import type { Mat, Point2 as CvPoint2 } from '@u4/opencv4nodejs'
 
 type CvModule = typeof import('@u4/opencv4nodejs')
 
-const MIN_AREA_RATIO = 0.20       // quad must cover ≥20% of image area
+const MIN_AREA_RATIO = 0.10       // quad must cover ≥10% of image area
 const ANALYSIS_MAX_DIM = 1200
-const MIN_SKEW_DEG = 1.0          // ignore skew smaller than 1°
-const MAX_SKEW_DEG = 20.0         // skip correction if > 20° (probably intentional)
-const MIN_HOUGH_LINES = 5         // need at least 5 lines for confident angle estimate
-const BLUR_VARIANCE_THRESHOLD = 30 // Laplacian variance below this = apply gentle sharpening
+const MIN_SKEW_DEG = 0.5          // correct skew down to 0.5°
+const MAX_SKEW_DEG = 30.0         // skip correction if > 30° (probably intentional)
+const MIN_HOUGH_LINES = 3         // need at least 3 lines for angle estimate
+const BLUR_VARIANCE_THRESHOLD = 100 // Laplacian variance below this = apply sharpening
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 function tryLoadCv(): CvModule | null {
@@ -146,9 +146,9 @@ function trySharpening(cv: CvModule, mat: Mat): Mat | null {
 
   if (variance >= BLUR_VARIANCE_THRESHOLD) return null
 
-  // Subtle unsharp mask: blends 10% sharpening boost, avoids haloing
+  // Unsharp mask: 30% sharpening boost
   const softBlur = mat.gaussianBlur(new cv.Size(0, 0), 3)
-  return mat.addWeighted(1.1, softBlur, -0.1, 0)
+  return mat.addWeighted(1.3, softBlur, -0.3, 0)
 }
 
 export function normalizeImage(buffer: Buffer): Buffer {
