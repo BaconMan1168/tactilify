@@ -331,6 +331,16 @@ interface SvgEditorCanvasProps {
 
 type LineCoords = { x1: number; y1: number; x2: number; y2: number }
 
+type TextEditState = {
+  element: SVGElement
+  left: number    // px from container left
+  top: number     // px from container top
+  width: number   // px — initial width, may be narrower than typed text
+  height: number  // px — visual height of the text element
+  fontSizePx: number
+  value: string   // original text, for Escape cancellation
+}
+
 type DragState = {
   type: 'move' | 'resize'
   element: SVGElement
@@ -349,6 +359,7 @@ type DragState = {
 export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvasProps>(
   function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest }, ref) {
     const wrapperRef    = useRef<HTMLDivElement>(null)
+    const containerRef  = useRef<HTMLDivElement>(null)
     const activeToolRef = useRef(activeTool)
     activeToolRef.current = activeTool
 
@@ -359,11 +370,16 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
 
     // CSS pixel dims (for the container div and overlay physical size)
     const [svgCss, setSvgCss] = useState({ w: 794, h: 1123 })
+    const svgCssRef = useRef({ w: 794, h: 1123 })
     // ViewBox dims in SVG user units (mm) — used for all coordinate math
     const [svgVb, setSvgVb] = useState({ w: 210, h: 297 })
     const svgVbRef = useRef({ w: 210, h: 297 })
 
     const dragRef = useRef<DragState | null>(null)
+
+    // In-place text editing
+    const [textEditState, setTextEditState] = useState<TextEditState | null>(null)
+    const textEditInputRef = useRef<HTMLInputElement>(null)
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -409,6 +425,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       if (svgEl) {
         const dims = normalizeSvgDimensions(svgEl)
         setSvgCss({ w: dims.cssW, h: dims.cssH })
+        svgCssRef.current = { w: dims.cssW, h: dims.cssH }
         setSvgVb({ w: dims.vbW, h: dims.vbH })
         svgVbRef.current = { w: dims.vbW, h: dims.vbH }
         scopePatternIds(svgEl, pageIndex)
@@ -487,16 +504,48 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       onSelectionChange(selectable, bbox)
     }, [getSvgEl, getBBox, toSvg, onSelectionChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Double-click: enter text edit mode ───────────────────────────────────
+    // ── In-place text editing ─────────────────────────────────────────────────
+
+    const commitTextEdit = useCallback((value: string) => {
+      const s = textEditState
+      if (!s) return
+      s.element.textContent = value
+      ;(s.element as SVGElement & { style: CSSStyleDeclaration }).style.opacity = ''
+      setTextEditState(null)
+      const bbox = getBBox(s.element)
+      setSelection({ element: s.element, bbox })
+      onSelectionChange(s.element, bbox)
+      takeSnapshot()
+    }, [textEditState, getBBox, onSelectionChange, takeSnapshot])
 
     const handleCanvasDblClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
       const svgEl = getSvgEl()
       if (!svgEl) return
       const selectable = findSelectableAncestor(e.target as Element, svgEl)
       if (!selectable) return
-      if (selectable.tagName.toLowerCase() === 'text') {
-        onTextEditRequest?.()
-      }
+      if (selectable.tagName.toLowerCase() !== 'text') return
+
+      const cont = containerRef.current
+      if (!cont) { onTextEditRequest?.(); return }
+
+      const textRect = selectable.getBoundingClientRect()
+      const contRect = cont.getBoundingClientRect()
+      const mmToPx = svgCssRef.current.w / svgVbRef.current.w
+      const rawFs = parseFloat(selectable.getAttribute('font-size') ?? '5')
+      const fontSizePx = Math.max(8, rawFs * mmToPx)
+
+      ;(selectable as SVGElement & { style: CSSStyleDeclaration }).style.opacity = '0'
+      const originalText = selectable.textContent ?? ''
+      setTextEditState({
+        element: selectable,
+        left: textRect.left - contRect.left,
+        top: textRect.top - contRect.top,
+        width: Math.max(textRect.width + 32, 100),
+        height: textRect.height,
+        fontSizePx,
+        value: originalText,
+      })
+      setTimeout(() => { textEditInputRef.current?.select() }, 10)
     }, [getSvgEl, onTextEditRequest])
 
     function placeShape(tool: EditorTool, x: number, y: number, svgEl: SVGSVGElement) {
@@ -666,6 +715,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         if (svgEl) {
           const dims = normalizeSvgDimensions(svgEl)
           setSvgCss({ w: dims.cssW, h: dims.cssH })
+          svgCssRef.current = { w: dims.cssW, h: dims.cssH }
           setSvgVb({ w: dims.vbW, h: dims.vbH })
           svgVbRef.current = { w: dims.vbW, h: dims.vbH }
           scopePatternIds(svgEl, pageIndex)
@@ -751,7 +801,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         role="application"
         aria-label="Tactile diagram editor"
       >
-        <div style={{ position: 'relative', flexShrink: 0, boxShadow: '0 0 0 1px #23252a', background: '#ffffff', width: svgCss.w, height: svgCss.h }}>
+        <div ref={containerRef} style={{ position: 'relative', flexShrink: 0, boxShadow: '0 0 0 1px #23252a', background: '#ffffff', width: svgCss.w, height: svgCss.h }}>
           {/* Injected live SVG */}
           <div
             ref={wrapperRef}
@@ -769,6 +819,43 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
               vbH={svgVb.h}
               onResizeStart={handleResizeStart}
               lineCoords={lineCoords}
+            />
+          )}
+          {/* In-place text edit overlay */}
+          {textEditState && (
+            <input
+              ref={textEditInputRef}
+              defaultValue={textEditState.value}
+              onBlur={e => commitTextEdit(e.target.value)}
+              onKeyDown={e => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  commitTextEdit(e.currentTarget.value)
+                } else if (e.key === 'Escape') {
+                  textEditState.element.textContent = textEditState.value
+                  ;(textEditState.element as SVGElement & { style: CSSStyleDeclaration }).style.opacity = ''
+                  setTextEditState(null)
+                }
+              }}
+              style={{
+                position: 'absolute',
+                left: textEditState.left,
+                top: textEditState.top,
+                width: textEditState.width,
+                height: textEditState.height * 1.25,
+                fontSize: textEditState.fontSizePx,
+                lineHeight: 1,
+                padding: '0 3px',
+                margin: 0,
+                border: '1px solid #5e6ad2',
+                borderRadius: 2,
+                background: 'rgba(255,255,255,0.92)',
+                color: '#000000',
+                outline: 'none',
+                fontFamily: 'sans-serif',
+                boxSizing: 'border-box',
+                zIndex: 10,
+              }}
             />
           )}
         </div>
