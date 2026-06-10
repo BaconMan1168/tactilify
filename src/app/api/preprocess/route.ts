@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
         fit: 'inside',
         withoutEnlargement: true,
       })
-      .normalize({ lower: 5, upper: 95 })
       .toFormat(sharpFormat, { quality: 92 })
       .toBuffer()
   } catch {
