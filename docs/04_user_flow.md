@@ -7,7 +7,7 @@
 │                     LANDING PAGE                        │
 │                                                         │
 │  Title: Tactilify                                       │
-│  Tagline: STEM diagrams, made accessible                │
+│  Tagline: Make any diagram accessible                   │
 │  [Motion staggered entrance on load]                    │
 │                                                         │
 │  [ Upload a diagram ]   [ Use camera ]                  │
@@ -39,14 +39,13 @@
           │   [Motion fade-in]  │
           │   [Analyze diagram] │ ← primary CTA button
           └──────────┬──────────┘
-                     │ POST preprocessed base64
+                     │ POST base64 + mimeType
                      │ to /api/analyze
                      ▼
           ┌─────────────────────┐
           │   Loading state     │
-          │   sonner toast:     │
-          │   "Analyzing your   │
-          │    diagram..."      │
+          │   Progress bar +    │
+          │   animated steps    │
           └──────────┬──────────┘
                      │
             ┌────────┴────────┐
@@ -72,17 +71,17 @@
                      ▼
           ┌─────────────────────────────────────────────┐
           │              RESULTS PAGE                   │
-          │  [Motion stagger: panels appear in sequence]│
+          │  [Motion fade-in]                           │
           │                                             │
-          │  Diagram type: "Circuit diagram"            │
-          │  Summary: "A series circuit with..."        │
+          │  Left: diagram image                        │
+          │  Right: output tabs                         │
           │                                             │
-          │  ┌─────────────┬──────────────┐ │
-          │  │  Audio      │  Tactile SVG │ │
-          │  │  Walkthrough│              │ │
-          │  └──────┬──────┴──────┬───────┘ │
-          │         │             │          │
-          └─────────┼─────────────┼──────────┘
+          │  ┌─────────────┬──────────────┐             │
+          │  │  Audio      │  Tactile SVG │             │
+          │  │  Walkthrough│              │             │
+          │  └──────┬──────┴──────┬───────┘             │
+          │         │             │                     │
+          └─────────┼─────────────┼─────────────────────┘
                     │             │
     ┌───────────────┘             └────────────────┐
     ▼                                              ▼
@@ -93,23 +92,39 @@
 │ Step 1/6:  │                          │  POST        │
 │ "Starting  │                          │  /api/       │
 │  at the    │                          │  llm-tactile │
-│  battery"  │                          │              │
-│            │                          │  Claude      │
-│ [▶][⏸][⏹] │                          │  Vision      │
-│            │                          │  → A4 SVG    │
-│ Web Speech │                          │  pages       │
-│ API (or    │                          │              │
-│ /api/tts   │                          │  Braille dot │
-│ fallback)  │                          │  post-proc   │
-│            │                          │  (braille.ts)│
-│ Motion:    │                          │              │
-│ step high- │                          │ [Download    │
-│ light anim │                          │  Tactile SVG]│
+│  battery"  │                          │  (streaming) │
 │            │                          │              │
-│ @react-    │                          │  "Print on   │
-│ aria live  │                          │  swell paper"│
-│ announcer  │                          │              │
-└────────────┘                          └──────────────┘
+│ [▶][⏸][⏹] │                          │  Claude      │
+│            │                          │  Vision      │
+│ Web Speech │                          │  → A4 SVG    │
+│ API (or    │                          │  pages       │
+│ /api/tts   │                          │              │
+│ fallback)  │                          │  Braille dot │
+│            │                          │  post-proc   │
+│ Motion:    │                          │              │
+│ step high- │                          │ [Edit SVG]   │
+│ light anim │                          │ [Download    │
+│            │                          │  Tactile SVG]│
+│ @react-    │                          │              │
+│ aria live  │                          │  "Print on   │
+│ announcer  │                          │  swell paper"│
+│            │                          │              │
+└────────────┘                          └──────┬───────┘
+                                               │ user clicks Edit
+                                               ▼
+                                    ┌──────────────────┐
+                                    │  TACTILE EDITOR  │
+                                    │                  │
+                                    │  Fabric.js canvas│
+                                    │  per page        │
+                                    │  Shape tools,    │
+                                    │  texture picker, │
+                                    │  undo/redo       │
+                                    │                  │
+                                    │  [Done] → back   │
+                                    │  to results with │
+                                    │  edited pages    │
+                                    └──────────────────┘
 ```
 
 ## Data flow
@@ -125,10 +140,10 @@ POST /api/preprocess
   sharp: resize max 2048px, normalize to JPEG
   nanoid: assign upload ID
       │
-      │ preprocessed base64 + upload ID
+      │ preprocessed base64 + mimeType
       ▼
 POST /api/analyze
-  body: { image: "data:image/jpeg;base64,..." }
+  body: { base64, mimeType }
       │
       │ [server] Anthropic SDK, claude-sonnet-4-6
       │ p-retry: 3 attempts, exponential backoff
@@ -152,18 +167,24 @@ DiagramAnalysis (fully typed, validated)
   }
       │
       │ [client] stored in React state
-      │ sonner: dismiss loading toast, show success
       │
-      ├──────────────────────────────────────────────────────────┐
-      │                                                          │
-      ▼                                                          ▼
- AudioPlayer                                               TactileSVG
- reads narration[]                                         POST /api/llm-tactile
- → Web Speech API                                          → Claude Vision generates
-   (+ @react-aria/live-announcer)                            A4 SVG pages directly
-   or /api/tts → OpenAI TTS                                → Braille dot post-processing
- Motion: step highlight animation                          → SVG pages for display + download
-      └──────────────────────────────────────────────────────────┘
+      ├────────────────────────────────────────────────────────────┐
+      │                                                            │
+      ▼                                                            ▼
+ AudioPlayer                                                 TactileSVG
+ reads narration[]                                           POST /api/llm-tactile (streaming)
+ → Web Speech API                                            → Claude Vision generates A4 SVG pages
+   (+ @react-aria/live-announcer)                            → speechScript extracted from ref page
+   or /api/tts → OpenAI TTS                                  → Braille dot post-processing
+ Motion: step highlight animation                            → SVG pages for display + download
+                                                             → optional: open TactileEditor
+      └────────────────────────────────────────────────────────────┘
+
+/api/llm-tactile streaming SSE events:
+  { type: 'page', index: N, svg: '...' }   — one event per SVG page as Claude finishes it
+  { type: 'speech', script: '...' }        — speech script extracted from reference page
+  { type: 'done' }
+  { type: 'error', message: '...' }
 ```
 
 ## TTS fallback flow

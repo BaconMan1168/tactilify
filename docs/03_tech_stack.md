@@ -19,7 +19,7 @@
 | Technology   | Version                          | Purpose                                           |
 | ------------ | -------------------------------- | ------------------------------------------------- |
 | Next.js      | 16+ (App Router) (latest stable) | Full-stack framework: React frontend + API routes |
-| TypeScript   | 6+ (latest stable)               | Type safety throughout                            |
+| TypeScript   | 5+ (latest stable)               | Type safety throughout                            |
 | React        | 19+ (latest stable)              | UI layer                                          |
 | Tailwind CSS | 4+ (latest stable)               | Styling                                           |
 
@@ -56,6 +56,7 @@
 | Technology                            | Purpose                                                                            |
 | ------------------------------------- | ---------------------------------------------------------------------------------- |
 | Unicode Braille block (U+2800–U+28FF) | Braille dot post-processing in tactile SVG. Implemented in `src/lib/braille.ts`.   |
+| `fabric` (Fabric.js)                  | Interactive canvas editor for tactile SVG pages. Loaded dynamically in `EditorCanvas.tsx`. |
 
 ## Accessibility
 
@@ -64,16 +65,18 @@
 | Semantic HTML                | Foundation — use correct elements (`<button>`, `<nav>`, `<main>`, etc.)                   |
 | ARIA attributes              | `aria-label`, `aria-live`, `aria-describedby`, `role` where semantic HTML is insufficient |
 | `@react-aria/live-announcer` | Announces each narration step to screen readers independently of TTS                      |
+| `@react-aria/focus`          | Focus management utilities for editor keyboard interactions                                |
 | axe-core (dev only)          | Automated accessibility testing during development                                        |
 | `@axe-core/react`            | Dev-mode accessibility violations logged to console                                       |
 
 ## UI
 
-| Technology  | Purpose                                                                          |
-| ----------- | -------------------------------------------------------------------------------- |
-| shadcn/ui   | Accessible UI primitives: buttons, cards, tabs, alerts, progress states, dialogs |
-| `radix-ui`  | Low-level headless primitives used by shadcn/ui internally                       |
-| `sonner`    | Toast notifications for analysis status, download success, and errors            |
+| Technology      | Purpose                                                                          |
+| --------------- | -------------------------------------------------------------------------------- |
+| shadcn/ui       | Accessible UI primitives: buttons, cards, tabs, alerts, progress states, dialogs |
+| `radix-ui`      | Low-level headless primitives used by shadcn/ui internally                       |
+| `lucide-react`  | Icon library used for editor toolbar and UI chrome                               |
+| `sonner`        | Toast notifications for analysis status, download success, and errors            |
 
 ## Animation
 
@@ -91,7 +94,7 @@
 | ESLint + `eslint-config-next` | Linting                                                                             |
 | Prettier                      | Formatting                                                                          |
 | `eslint-plugin-jsx-a11y`      | Accessibility linting rules for JSX                                                 |
-| Vitest                        | Unit testing for schemas and braille encoding                                       |
+| Vitest                        | Unit testing for braille encoding, SVG round-trips, and pipeline helpers            |
 | `@testing-library/react`      | React component testing                                                             |
 | `@testing-library/user-event` | Keyboard interaction testing for accessible UI components                           |
 | `vitest-axe`                  | Automated accessibility assertions in tests                                         |
@@ -109,12 +112,6 @@
 | Vercel       | Hosting and deployment. Connect GitHub repo for auto-deploy on push.                         |
 | `vercel.json`| Set `maxDuration: 60` on `/api/analyze` and `/api/tts` routes (AI calls can be slow)        |
 
-## In question
-
-| Item                         | Notes                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| Separate graph layout engine | Not needed for v1; add later only if manual SVG layout becomes too brittle.         |
-
 ## Environment variables required
 
 ```bash
@@ -130,19 +127,18 @@ OPENAI_API_KEY=sk-...
   "dev": "next dev",
   "build": "next build",
   "start": "next start",
-  "lint": "next lint",
-  "test": "vitest",
-  "test:a11y": "vitest"
+  "lint": "eslint",
+  "test": "vitest"
 }
 ```
 
 ## Install commands
 
 ```bash
-npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid @react-aria/live-announcer sonner p-retry motion gsap
+npm install @anthropic-ai/sdk openai zod jsonrepair react-dropzone file-type sharp pdfjs-dist nanoid @napi-rs/canvas @react-aria/live-announcer @react-aria/focus fabric lucide-react sonner p-retry motion gsap
 
 npx shadcn@latest init
-npx shadcn@latest add button card tabs alert progress dialog
+npx shadcn@latest add button card tabs alert progress dialog separator tooltip
 
 npm install -D vitest @testing-library/react @testing-library/user-event vitest-axe eslint-plugin-jsx-a11y
 ```

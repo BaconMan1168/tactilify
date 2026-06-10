@@ -38,13 +38,23 @@ tactilify/
 │   │           └── route.ts           # POST: narration text → MP3 (OpenAI TTS fallback)
 │   │
 │   ├── components/
+│   │   ├── editor/
+│   │   │   ├── TactileEditor.tsx      # Top-level editor shell: page list, canvas, toolbar, done/cancel
+│   │   │   ├── EditorCanvas.tsx       # Fabric.js canvas per page: shape tools, selection, delete
+│   │   │   ├── SvgEditorCanvas.tsx    # SVG-native canvas for pages that don't need Fabric (export path)
+│   │   │   ├── EditorToolbar.tsx      # Toolbar: shape type picker, texture picker, undo/redo
+│   │   │   ├── PropertiesPanel.tsx    # Sidebar: selected-object properties (size, position, texture)
+│   │   │   ├── SelectionOverlay.tsx   # Absolute-positioned selection handles over the SVG canvas
+│   │   │   ├── PageNav.tsx            # Page strip at top: thumbnails + add/remove page controls
+│   │   │   └── TexturePicker.tsx      # Fill pattern selector (none / diagonal / horizontal / crosshatch)
+│   │   │
 │   │   ├── input/
 │   │   │   ├── ImageUploader.tsx      # Drag-and-drop + click-to-browse file upload
 │   │   │   └── CameraCapture.tsx      # getUserMedia live feed + capture button
 │   │   │
 │   │   ├── output/
 │   │   │   ├── AudioPlayer.tsx        # TTS narration: play/pause/stop, step list, Web Speech + OAI fallback
-│   │   │   └── TactileSVG.tsx         # Calls /api/llm-tactile; multi-page SVG preview, zoom, download
+│   │   │   └── TactileSVG.tsx         # Calls /api/llm-tactile; multi-page SVG preview, zoom, download, edit
 │   │   │
 │   │   └── ui/
 │   │       ├── AxeCore.tsx            # Dev-mode axe-core/react accessibility scanner
@@ -54,20 +64,38 @@ tactilify/
 │   │       ├── card.tsx               # shadcn card primitive
 │   │       ├── dialog.tsx             # shadcn dialog primitive
 │   │       ├── progress.tsx           # shadcn progress primitive
-│   │       └── tabs.tsx               # shadcn tabs primitive
+│   │       ├── separator.tsx          # shadcn separator primitive
+│   │       ├── tabs.tsx               # shadcn tabs primitive
+│   │       └── tooltip.tsx            # shadcn tooltip primitive
 │   │
 │   ├── hooks/
-│   │   └── useNarration.ts            # Hook: drives AudioPlayer step state + Web Speech API
+│   │   ├── useNarration.ts            # Drives AudioPlayer step state + Web Speech API
+│   │   ├── useEditorHistory.ts        # Undo/redo stack for Fabric.js canvas state
+│   │   └── useSvgHistory.ts           # Undo/redo stack for raw SVG string state
 │   │
 │   ├── lib/
 │   │   ├── anthropic.ts               # Anthropic client initialisation (server-only)
 │   │   ├── openai.ts                  # OpenAI client initialisation (server-only)
 │   │   ├── braille.ts                 # ASCII → Unicode Grade 1 Braille encoder
 │   │   ├── braille.test.ts            # Vitest: encodeBraille unit tests
+│   │   ├── brailleAdapter.ts          # SVG post-processor: replaces text markers with Braille dot circles
+│   │   ├── brailleAdapter.test.ts     # Vitest: applyBraillePostProcessing unit tests
+│   │   ├── editorPages.ts             # Exports Fabric.js canvas pages back to SVG strings
+│   │   ├── editorPages.test.ts        # Vitest: exportEditorPages unit tests
+│   │   ├── patternAdapter.ts          # Fabric.js fill pattern helpers (diagonal, crosshatch, etc.)
+│   │   ├── patternAdapter.test.ts     # Vitest: pattern round-trip tests
+│   │   ├── speechScript.ts            # Extracts human-readable speech script from reference SVG page
+│   │   ├── speechScript.test.ts       # Vitest: extractSpeechScript unit tests
+│   │   ├── svgDomExport.ts            # DOM-based SVG serialiser for SvgEditorCanvas export
+│   │   ├── svgExporter.ts             # Fabric.js canvas → clean tactile SVG string
+│   │   ├── svgExporter.test.ts        # Vitest: svgExporter unit tests
+│   │   ├── svgLoader.ts               # Loads a tactile SVG string into a Fabric.js canvas
+│   │   ├── svgLoader.test.ts          # Vitest: svgLoader unit tests
 │   │   └── utils.ts                   # shadcn cn() helper
 │   │
 │   └── types/
-│       └── diagram.ts                 # DiagramAnalysis, DiagramElement, NarrationStep, etc. (Zod schemas)
+│       ├── diagram.ts                 # DiagramAnalysis, DiagramElement, NarrationStep, etc. (Zod schemas)
+│       └── editor.ts                  # PatternType, BBox — shared editor types
 │
 ├── .env.local                         # ANTHROPIC_API_KEY, OPENAI_API_KEY (never committed)
 ├── .env.example                       # Template showing required env vars
@@ -94,15 +122,25 @@ All AI calls go through `/api/` routes. The client never calls Anthropic or Open
 | `/api/tts` | OpenAI TTS fallback — returns MP3 for download |
 
 ### Component naming
+- `editor/` — interactive tactile SVG editor (Fabric.js canvas per page)
 - `input/` — components that accept user input
 - `output/` — components that render accessible outputs
 - `ui/` — reusable generic UI primitives
 
 ### lib/braille.ts
-Hand-rolled ASCII → Unicode Grade 1 Braille (U+2800–U+28FF) encoder. Used by `/api/llm-tactile` to post-process letter markers and KEY entries into raised-dot Braille geometry in the SVG output.
+Hand-rolled ASCII → Unicode Grade 1 Braille (U+2800–U+28FF) encoder.
+
+### lib/brailleAdapter.ts
+SVG post-processor used by `/api/llm-tactile`. Replaces single-letter diagram markers (diagram pages) and the entire KEY section (reference page) with Braille dot `<circle>` geometry. Title and description text remains in English.
+
+### lib/svgLoader.ts + lib/svgExporter.ts
+Round-trip helpers: `svgLoader` parses a tactile SVG string into a Fabric.js canvas; `svgExporter` serialises it back to a clean SVG string, preserving mm coordinates and Braille dot circles.
 
 ### types/diagram.ts
-Single source of truth for all TypeScript types. Both the API routes and client components import from here. Uses Zod schemas for runtime validation of Claude-generated JSON.
+Single source of truth for all TypeScript types used in the main pipeline (upload → analysis → narration → tactile SVG). Both API routes and client components import from here. Uses Zod schemas for runtime validation of Claude-generated JSON.
+
+### types/editor.ts
+Types used only by the editor subsystem (`PatternType`, `BBox`).
 
 ### Environment variables
 | Variable | Used in | Purpose |
