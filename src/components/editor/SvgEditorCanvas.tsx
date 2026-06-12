@@ -816,11 +816,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       insertBrailleGroup: (groupSvg: string) => {
         const svgEl = getSvgEl()
         if (!svgEl) return
-        const tmp = document.createElement('div')
-        tmp.innerHTML = groupSvg
-        const groupEl = tmp.firstElementChild as SVGElement | null
-        if (!groupEl) return
-        svgEl.appendChild(groupEl)
+        svgEl.insertAdjacentHTML('beforeend', groupSvg)
         const inserted = svgEl.lastElementChild as SVGElement
         const bbox = getBBox(inserted)
         setSelection({ element: inserted, bbox })
