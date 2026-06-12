@@ -129,6 +129,33 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
 
     const showBrailleComposer = activeTool === 'braille' || isBrailleGroup
 
+    // ── AI Fix instructions ───────────────────────────────────────────────────
+
+    if (activeTool === 'ai-fix') {
+      return (
+        <div
+          className="flex flex-col gap-3 p-3"
+          style={{ width: 200, background: '#0f1011', borderLeft: '1px solid #23252a', height: '100%' }}
+          role="complementary"
+          aria-label="AI Fix instructions"
+        >
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#5e6ad2', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            AI Fix
+          </span>
+          <div style={{ fontSize: 12, color: '#8a8f98', lineHeight: 1.6 }}>
+            <strong style={{ color: '#c8ccd3', display: 'block', marginBottom: 6 }}>How to use:</strong>
+            <ol style={{ paddingLeft: 14, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Click and drag on the canvas to select the region you want to fix.</li>
+              <li>Describe the fix in the popup that appears.</li>
+            </ol>
+          </div>
+          <div style={{ marginTop: 4, padding: '8px 10px', background: '#141516', borderRadius: 6, border: '1px solid #23252a', fontSize: 11, color: '#62666d', lineHeight: 1.5 }}>
+            Tip: drag at least a few mm in each direction for the selection to register.
+          </div>
+        </div>
+      )
+    }
+
     // ── Braille composer ─────────────────────────────────────────────────────
 
     if (showBrailleComposer) {
