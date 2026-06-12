@@ -312,6 +312,7 @@ export interface SvgEditorCanvasHandle {
   clearAiRegion: () => void
   deleteSelected: () => void
   applyPatternToSelected: (type: PatternType) => void
+  insertBrailleGroup: (groupSvg: string) => void
   commitMutation: () => void
   undo: () => void
   redo: () => void
@@ -330,6 +331,7 @@ interface SvgEditorCanvasProps {
   onShapePlaced?: () => void
   onTextEditRequest?: () => void
   onAiRegionSelected?: (bbox: BBox, anchorX: number, anchorY: number) => void
+  onBraillePlaceAt?: (x: number, y: number) => void
 }
 
 type RubberBand = { startX: number; startY: number; curX: number; curY: number }
@@ -362,7 +364,7 @@ type DragState = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvasProps>(
-  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest, onAiRegionSelected }, ref) {
+  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest, onAiRegionSelected, onBraillePlaceAt }, ref) {
     const wrapperRef    = useRef<HTMLDivElement>(null)
     const containerRef  = useRef<HTMLDivElement>(null)
     const activeToolRef = useRef(activeTool)
@@ -486,6 +488,12 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         rubberBandRef.current = rb
         setRubberBand(rb)
         setConfirmedAiRegion(null)
+        return
+      }
+
+      if (tool === 'braille') {
+        const pos = toSvg(e.clientX, e.clientY)
+        onBraillePlaceAt?.(pos.x, pos.y)
         return
       }
 
@@ -805,6 +813,20 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         }
         takeSnapshot()
       },
+      insertBrailleGroup: (groupSvg: string) => {
+        const svgEl = getSvgEl()
+        if (!svgEl) return
+        const tmp = document.createElement('div')
+        tmp.innerHTML = groupSvg
+        const groupEl = tmp.firstElementChild as SVGElement | null
+        if (!groupEl) return
+        svgEl.appendChild(groupEl)
+        const inserted = svgEl.lastElementChild as SVGElement
+        const bbox = getBBox(inserted)
+        setSelection({ element: inserted, bbox })
+        onSelectionChange(inserted, bbox)
+        takeSnapshot()
+      },
       commitMutation: () => {
         const sel = selectionRef.current
         const w = wrapperRef.current
@@ -866,7 +888,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
           {/* Injected live SVG */}
           <div
             ref={wrapperRef}
-            style={{ position: 'absolute', inset: 0, lineHeight: 0, cursor: activeTool === 'ai-fix' ? 'crosshair' : 'default' }}
+            style={{ position: 'absolute', inset: 0, lineHeight: 0, cursor: (activeTool === 'ai-fix' || activeTool === 'braille') ? 'crosshair' : 'default' }}
             onMouseDown={handleCanvasMouseDown}
             onDoubleClick={handleCanvasDblClick}
           />
