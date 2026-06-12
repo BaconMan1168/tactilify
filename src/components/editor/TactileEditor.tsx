@@ -171,11 +171,13 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
     const tx = tm ? parseFloat(tm[1]) : 0
     const maxW = Math.max(20, 210 - (x + tx) - 5)
     const newGroupSvg = renderBrailleGroupSvg(trimmed, x, y, maxW)
-    const tmp = document.createElement('div')
-    tmp.innerHTML = newGroupSvg
-    const newGroup = tmp.firstElementChild
-    if (!newGroup) return
-    selectedElement.innerHTML = newGroup.innerHTML
+    // Assign inner content on the SVG element directly so the SVG fragment
+    // parser handles circles — the HTML parser would nest them (circle is
+    // not a void element in HTML), collapsing everything to one dot.
+    selectedElement.innerHTML = newGroupSvg.slice(
+      newGroupSvg.indexOf('>') + 1,
+      newGroupSvg.lastIndexOf('</g>'),
+    )
     selectedElement.setAttribute('data-braille-source', trimmed)
     canvas.commitMutation()
   }, [selectedElement])
