@@ -393,6 +393,8 @@ export default function HomePage() {
           <TactileEditor
             key="editing"
             pages={tactilePages}
+            imageBase64={image?.base64}
+            imageMimeType={image?.mimeType}
             onDone={handleEditorDone}
             onCancel={handleEditorCancel}
           />

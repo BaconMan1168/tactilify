@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text'
+export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text' | 'ai-fix'
 
 interface ToolButtonProps {
   tool: EditorTool | 'undo' | 'redo' | 'delete'
+  isAi?: boolean
   label: string
   shortcut: string
   isActive?: boolean
@@ -15,14 +16,14 @@ interface ToolButtonProps {
   children: React.ReactNode
 }
 
-function ToolButton({ label, shortcut, isActive, disabled, onClick, children }: ToolButtonProps) {
+function ToolButton({ label, shortcut, isActive, isAi, disabled, onClick, children }: ToolButtonProps) {
   const [hovered, setHovered] = useState(false)
   const [pressed, setPressed] = useState(false)
 
   const bg = isActive
-    ? '#18191a'
+    ? (isAi ? '#1e2030' : '#18191a')
     : hovered
-      ? '#1c1d1f'
+      ? (isAi ? '#1a1b28' : '#1c1d1f')
       : 'transparent'
   const border = isActive
     ? '1px solid #5e6ad2'
@@ -30,10 +31,10 @@ function ToolButton({ label, shortcut, isActive, disabled, onClick, children }: 
       ? '1px solid #3a3d44'
       : '1px solid transparent'
   const color = isActive
-    ? '#f7f8f8'
+    ? (isAi ? '#828fff' : '#f7f8f8')
     : hovered
-      ? '#c8ccd3'
-      : '#8a8f98'
+      ? (isAi ? '#828fff' : '#c8ccd3')
+      : (isAi ? '#5e6ad2' : '#8a8f98')
 
   return (
     <Tooltip>
@@ -143,6 +144,14 @@ export function EditorToolbar({
             <polyline points="4,7 4,4 20,4 20,7"/>
             <line x1="9" y1="20" x2="15" y2="20"/>
             <line x1="12" y1="4" x2="12" y2="20"/>
+          </svg>
+        </ToolButton>
+
+        <Separator style={{ background: '#23252a', margin: '4px 0', width: 24 }} />
+
+        <ToolButton tool="ai-fix" label="AI Fix region" shortcut="I" isActive={activeTool === 'ai-fix'} isAi onClick={() => onToolChange('ai-fix')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
           </svg>
         </ToolButton>
 

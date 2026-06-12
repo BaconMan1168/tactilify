@@ -1,22 +1,26 @@
 'use client'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { SvgEditorCanvas, type SvgEditorCanvasHandle } from './SvgEditorCanvas'
 import { EditorToolbar, type EditorTool } from './EditorToolbar'
 import { PageNav } from './PageNav'
 import { PropertiesPanel, type PropertiesPanelHandle } from './PropertiesPanel'
+import { AIFixPopover } from './AIFixPopover'
 import type { BBox, PatternType } from '@/types/editor'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { exportEditorPages } from '@/lib/editorPages'
 
 interface TactileEditorProps {
   pages: string[]
+  imageBase64?: string
+  imageMimeType?: string
   onDone: (result: { pages: string[]; speechScript: string | null }) => void
   onCancel: () => void
 }
 
-export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
+export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCancel }: TactileEditorProps) {
   const originalPages = useRef<string[]>([...pages])
   const [currentPage, setCurrentPage] = useState(0)
   const [activeTool, setActiveTool] = useState<EditorTool>('select')
@@ -25,6 +29,9 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [dirtyPages, setDirtyPages] = useState<Set<number>>(new Set())
+
+  const [aiAnchor, setAiAnchor] = useState<{ x: number; y: number; bbox: BBox } | null>(null)
+  const [aiFixLoading, setAiFixLoading] = useState(false)
 
   const canvasRefs = useRef<Array<SvgEditorCanvasHandle | null>>(pages.map(() => null))
   const propertiesPanelRef = useRef<PropertiesPanelHandle>(null)
@@ -74,6 +81,54 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
     const speechScript = exportedPages[0] ? extractSpeechScript(exportedPages[0]) : null
     onDone({ pages: exportedPages, speechScript })
   }, [pages, onDone])
+
+  const handleAiRegionSelected = useCallback((bbox: BBox, anchorX: number, anchorY: number) => {
+    setAiAnchor({ x: anchorX, y: anchorY, bbox })
+  }, [])
+
+  const handleAiFixDismiss = useCallback(() => {
+    setAiAnchor(null)
+    canvasRefs.current[currentPageRef.current]?.clearAiRegion()
+    setActiveTool('select')
+  }, [])
+
+  const handleAiFixSubmit = useCallback(async (prompt: string) => {
+    if (!aiAnchor || !imageBase64 || !imageMimeType) {
+      toast.error('Original image not available for AI fix')
+      return
+    }
+    setAiFixLoading(true)
+    try {
+      const canvas = canvasRefs.current[currentPageRef.current]
+      const currentSvg = canvas?.exportSVG() ?? ''
+      const res = await fetch('/api/region-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          svg: currentSvg,
+          imageBase64,
+          imageMimeType,
+          bbox: aiAnchor.bbox,
+          prompt,
+        }),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `Server error ${res.status}`)
+      }
+      const { svg } = (await res.json()) as { svg: string }
+      canvas?.applySvgUpdate(svg)
+      canvas?.clearAiRegion()
+      setAiAnchor(null)
+      setAiFixLoading(false)
+      setActiveTool('select')
+      syncHistoryState()
+      toast.success('Region updated')
+    } catch (err) {
+      setAiFixLoading(false)
+      toast.error(err instanceof Error ? err.message : 'AI fix failed')
+    }
+  }, [aiAnchor, imageBase64, imageMimeType, syncHistoryState])
 
   // After placing a shape, auto-return to select so the user can move/resize it
   const handleShapePlaced = useCallback(() => {
@@ -166,6 +221,7 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
                 onHistoryChange={handleHistoryChange}
                 onShapePlaced={handleShapePlaced}
                 onTextEditRequest={handleTextEditRequest}
+                onAiRegionSelected={handleAiRegionSelected}
               />
             ))}
           </div>
@@ -179,6 +235,17 @@ export function TactileEditor({ pages, onDone, onCancel }: TactileEditorProps) {
             onPatternChange={(type: PatternType) => activeCanvas?.applyPatternToSelected(type)}
           />
         </div>
+
+        {/* AI Fix popover — rendered fixed over the whole editor */}
+        {aiAnchor && (
+          <AIFixPopover
+            anchorX={aiAnchor.x}
+            anchorY={aiAnchor.y}
+            status={aiFixLoading ? 'loading' : 'idle'}
+            onFix={handleAiFixSubmit}
+            onDismiss={handleAiFixDismiss}
+          />
+        )}
 
         <PageNav
           pages={pages}

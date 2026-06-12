@@ -308,6 +308,8 @@ function scopePatternIds(svgEl: SVGSVGElement, pageIndex: number): void {
 export interface SvgEditorCanvasHandle {
   exportSVG: () => string
   revert: (svgString: string) => void
+  applySvgUpdate: (svgString: string) => void
+  clearAiRegion: () => void
   deleteSelected: () => void
   applyPatternToSelected: (type: PatternType) => void
   commitMutation: () => void
@@ -327,7 +329,10 @@ interface SvgEditorCanvasProps {
   onHistoryChange: () => void
   onShapePlaced?: () => void
   onTextEditRequest?: () => void
+  onAiRegionSelected?: (bbox: BBox, anchorX: number, anchorY: number) => void
 }
+
+type RubberBand = { startX: number; startY: number; curX: number; curY: number }
 
 type LineCoords = { x1: number; y1: number; x2: number; y2: number }
 
@@ -357,7 +362,7 @@ type DragState = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvasProps>(
-  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest }, ref) {
+  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest, onAiRegionSelected }, ref) {
     const wrapperRef    = useRef<HTMLDivElement>(null)
     const containerRef  = useRef<HTMLDivElement>(null)
     const activeToolRef = useRef(activeTool)
@@ -376,6 +381,11 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
     const svgVbRef = useRef({ w: 210, h: 297 })
 
     const dragRef = useRef<DragState | null>(null)
+
+    // Rubber-band selection for AI fix tool
+    const rubberBandRef = useRef<RubberBand | null>(null)
+    const [rubberBand, setRubberBand] = useState<RubberBand | null>(null)
+    const [confirmedAiRegion, setConfirmedAiRegion] = useState<BBox | null>(null)
 
     // In-place text editing
     const [textEditState, setTextEditState] = useState<TextEditState | null>(null)
@@ -469,6 +479,15 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       const svgEl = getSvgEl()
       if (!svgEl) return
       const tool = activeToolRef.current
+
+      if (tool === 'ai-fix') {
+        const pos = toSvg(e.clientX, e.clientY)
+        const rb: RubberBand = { startX: pos.x, startY: pos.y, curX: pos.x, curY: pos.y }
+        rubberBandRef.current = rb
+        setRubberBand(rb)
+        setConfirmedAiRegion(null)
+        return
+      }
 
       if (tool !== 'select') {
         const pos = toSvg(e.clientX, e.clientY)
@@ -639,6 +658,15 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
 
     useEffect(() => {
       const onMove = (e: MouseEvent) => {
+        // Rubber-band for AI fix
+        if (rubberBandRef.current) {
+          const pos = toSvg(e.clientX, e.clientY)
+          const rb = { ...rubberBandRef.current, curX: pos.x, curY: pos.y }
+          rubberBandRef.current = rb
+          setRubberBand({ ...rb })
+          return
+        }
+
         const drag = dragRef.current
         if (!drag) return
         const svgPos = toSvg(e.clientX, e.clientY)
@@ -668,6 +696,30 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       }
 
       const onUp = () => {
+        // Rubber-band finalize for AI fix
+        if (rubberBandRef.current) {
+          const rb = rubberBandRef.current
+          rubberBandRef.current = null
+          setRubberBand(null)
+          const bbox: BBox = {
+            x: Math.min(rb.startX, rb.curX),
+            y: Math.min(rb.startY, rb.curY),
+            width: Math.abs(rb.curX - rb.startX),
+            height: Math.abs(rb.curY - rb.startY),
+          }
+          // Only emit if selection is meaningful (at least 3mm each side)
+          if (bbox.width >= 3 && bbox.height >= 3 && containerRef.current && onAiRegionSelected) {
+            setConfirmedAiRegion(bbox)
+            const rect = containerRef.current.getBoundingClientRect()
+            const scaleX = rect.width / svgVbRef.current.w
+            const scaleY = rect.height / svgVbRef.current.h
+            const anchorX = rect.left + (bbox.x + bbox.width) * scaleX
+            const anchorY = rect.top + (bbox.y + bbox.height) * scaleY
+            onAiRegionSelected(bbox, anchorX, anchorY)
+          }
+          return
+        }
+
         const drag = dragRef.current
         if (!drag) return
         if (drag.type === 'move') {
@@ -687,7 +739,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
         window.removeEventListener('mousemove', onMove)
         window.removeEventListener('mouseup', onUp)
       }
-    }, [toSvg, getBBox, takeSnapshot, onHistoryChange])
+    }, [toSvg, getBBox, takeSnapshot, onHistoryChange, onAiRegionSelected])
 
     // ── Imperative handle ─────────────────────────────────────────────────────
 
@@ -695,6 +747,26 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       exportSVG: () => {
         const w = wrapperRef.current
         return w ? exportSvgFromContainer(w) : ''
+      },
+      // Apply an AI-generated SVG update — pushes to undo stack so it can be undone
+      applySvgUpdate: (newSvg: string) => {
+        const w = wrapperRef.current
+        if (!w) return
+        w.innerHTML = newSvg
+        const svgEl = getSvgEl()
+        if (svgEl) {
+          const dims = normalizeSvgDimensions(svgEl)
+          setSvgCss({ w: dims.cssW, h: dims.cssH })
+          svgCssRef.current = { w: dims.cssW, h: dims.cssH }
+          setSvgVb({ w: dims.vbW, h: dims.vbH })
+          svgVbRef.current = { w: dims.vbW, h: dims.vbH }
+          scopePatternIds(svgEl, pageIndex)
+        }
+        history.commitMutation(w)
+        setSelection(null); onSelectionChange(null, null); onHistoryChange()
+      },
+      clearAiRegion: () => {
+        setConfirmedAiRegion(null)
       },
       revert: (newSvg: string) => {
         const w = wrapperRef.current
@@ -794,7 +866,7 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
           {/* Injected live SVG */}
           <div
             ref={wrapperRef}
-            style={{ position: 'absolute', inset: 0, lineHeight: 0 }}
+            style={{ position: 'absolute', inset: 0, lineHeight: 0, cursor: activeTool === 'ai-fix' ? 'crosshair' : 'default' }}
             onMouseDown={handleCanvasMouseDown}
             onDoubleClick={handleCanvasDblClick}
           />
@@ -810,6 +882,58 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
               lineCoords={lineCoords}
             />
           )}
+          {/* Rubber-band overlay while dragging in ai-fix mode */}
+          {rubberBand && (() => {
+            const sx = svgCss.w / svgVb.w
+            const sy = svgCss.h / svgVb.h
+            return (
+              <div style={{
+                position: 'absolute',
+                left: Math.min(rubberBand.startX, rubberBand.curX) * sx,
+                top: Math.min(rubberBand.startY, rubberBand.curY) * sy,
+                width: Math.abs(rubberBand.curX - rubberBand.startX) * sx,
+                height: Math.abs(rubberBand.curY - rubberBand.startY) * sy,
+                border: '1.5px dashed #5e6ad2',
+                background: 'rgba(94,106,210,0.08)',
+                borderRadius: 2,
+                pointerEvents: 'none',
+                zIndex: 20,
+              }} />
+            )
+          })()}
+          {/* Confirmed AI region selection */}
+          {confirmedAiRegion && (() => {
+            const sx = svgCss.w / svgVb.w
+            const sy = svgCss.h / svgVb.h
+            const corners = ['nw','ne','sw','se'] as const
+            return (
+              <div style={{
+                position: 'absolute',
+                left: confirmedAiRegion.x * sx,
+                top: confirmedAiRegion.y * sy,
+                width: confirmedAiRegion.width * sx,
+                height: confirmedAiRegion.height * sy,
+                border: '1.5px solid #828fff',
+                background: 'rgba(130,143,255,0.06)',
+                borderRadius: 2,
+                pointerEvents: 'none',
+                zIndex: 20,
+              }}>
+                {corners.map(c => (
+                  <div key={c} style={{
+                    position: 'absolute',
+                    width: 6, height: 6,
+                    borderRadius: 1,
+                    background: '#828fff',
+                    left: c.endsWith('e') ? undefined : -3,
+                    right: c.endsWith('e') ? -3 : undefined,
+                    top: c.startsWith('n') ? -3 : undefined,
+                    bottom: c.startsWith('s') ? -3 : undefined,
+                  }} />
+                ))}
+              </div>
+            )
+          })()}
           {/* In-place text edit overlay */}
           {textEditState && (
             <input
