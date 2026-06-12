@@ -11,7 +11,7 @@ import { AIFixPopover } from './AIFixPopover'
 import type { BBox, PatternType } from '@/types/editor'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { exportEditorPages } from '@/lib/editorPages'
-import { renderBrailleGroupSvg } from '@/lib/brailleGeometry'
+import { renderBrailleGroupSvg, braillePreviewLines } from '@/lib/brailleGeometry'
 
 interface TactileEditorProps {
   pages: string[]
@@ -34,6 +34,8 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
   const [aiAnchor, setAiAnchor] = useState<{ x: number; y: number; bbox: BBox } | null>(null)
   const [aiFixLoading, setAiFixLoading] = useState(false)
   const [brailleOrigin, setBrailleOrigin] = useState<{ x: number; y: number } | null>(null)
+  const [brailleText, setBrailleText] = useState('')
+  const braillePreview = braillePreviewLines(brailleText).join('\n')
 
   const canvasRefs = useRef<Array<SvgEditorCanvasHandle | null>>(pages.map(() => null))
   const propertiesPanelRef = useRef<PropertiesPanelHandle>(null)
@@ -249,7 +251,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
             activeTool={activeTool}
             canUndo={canUndo}
             canRedo={canRedo}
-            onToolChange={tool => { setActiveTool(tool); setSelectedElement(null); setSelectionBbox(null); setBrailleOrigin(null) }}
+            onToolChange={tool => { setActiveTool(tool); setSelectedElement(null); setSelectionBbox(null); setBrailleOrigin(null); if (tool !== 'braille') setBrailleText('') }}
             onUndo={() => activeCanvas?.undo()}
             onRedo={() => activeCanvas?.redo()}
             onDelete={() => activeCanvas?.deleteSelected()}
@@ -271,6 +273,8 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
                 onTextEditRequest={handleTextEditRequest}
                 onAiRegionSelected={handleAiRegionSelected}
                 onBraillePlaceAt={handleBraillePlaceAt}
+                brailleOrigin={activeTool === 'braille' ? brailleOrigin : null}
+                braillePreview={braillePreview}
               />
             ))}
           </div>
@@ -286,6 +290,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
             onPatternChange={(type: PatternType) => activeCanvas?.applyPatternToSelected(type)}
             onBraillePlace={handleBraillePlace}
             onBrailleUpdate={handleBrailleUpdate}
+            onBrailleTextChange={setBrailleText}
           />
         </div>
 

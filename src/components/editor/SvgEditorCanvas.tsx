@@ -338,6 +338,8 @@ interface SvgEditorCanvasProps {
   onTextEditRequest?: () => void
   onAiRegionSelected?: (bbox: BBox, anchorX: number, anchorY: number) => void
   onBraillePlaceAt?: (x: number, y: number) => void
+  brailleOrigin?: { x: number; y: number } | null
+  braillePreview?: string
 }
 
 type RubberBand = { startX: number; startY: number; curX: number; curY: number }
@@ -370,7 +372,7 @@ type DragState = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvasProps>(
-  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest, onAiRegionSelected, onBraillePlaceAt }, ref) {
+  function SvgEditorCanvas({ svgString, pageIndex, activeTool, isVisible, onSelectionChange, onHistoryChange, onShapePlaced, onTextEditRequest, onAiRegionSelected, onBraillePlaceAt, brailleOrigin, braillePreview }, ref) {
     const wrapperRef    = useRef<HTMLDivElement>(null)
     const containerRef  = useRef<HTMLDivElement>(null)
     const activeToolRef = useRef(activeTool)
@@ -956,6 +958,53 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
                   }} />
                 ))}
               </div>
+            )
+          })()}
+          {/* Braille origin marker + placement ghost */}
+          {activeTool === 'braille' && brailleOrigin && (() => {
+            const sx = svgCss.w / svgVb.w
+            const sy = svgCss.h / svgVb.h
+            const px = brailleOrigin.x * sx
+            const py = brailleOrigin.y * sy
+            return (
+              <>
+                <div
+                  className="braille-origin-marker"
+                  style={{
+                    position: 'absolute',
+                    left: px - 5,
+                    top: py - 5,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: '#5e6ad2',
+                    pointerEvents: 'none',
+                    zIndex: 26,
+                    transformOrigin: 'center',
+                  }}
+                />
+                {braillePreview && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: px,
+                      top: py,
+                      opacity: 0.35,
+                      pointerEvents: 'none',
+                      zIndex: 25,
+                      fontFamily: 'monospace',
+                      fontSize: Math.round(6 * sx),
+                      lineHeight: `${Math.round(10 * sy)}px`,
+                      letterSpacing: 0,
+                      color: '#000000',
+                      whiteSpace: 'pre',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {braillePreview}
+                  </div>
+                )}
+              </>
             )
           })()}
           {/* In-place text edit overlay */}

@@ -89,6 +89,14 @@
   --color-success: #27a644;
 }
 
+@keyframes braille-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(2.4); }
+}
+.braille-origin-marker {
+  animation: braille-pulse 1s ease-in-out infinite;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

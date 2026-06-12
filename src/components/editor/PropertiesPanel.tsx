@@ -16,6 +16,7 @@ interface PropertiesPanelProps {
   onPatternChange: (type: PatternType) => void
   onBraillePlace: (text: string) => void
   onBrailleUpdate: (text: string) => void
+  onBrailleTextChange?: (text: string) => void
 }
 
 export interface PropertiesPanelHandle {
@@ -81,7 +82,7 @@ function applyBBoxField(
 
 export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanelProps>(
   function PropertiesPanel(
-    { activeTool, selectedElement, selectionBbox, brailleOrigin, onCommit, onDelete, onPatternChange, onBraillePlace, onBrailleUpdate },
+    { activeTool, selectedElement, selectionBbox, brailleOrigin, onCommit, onDelete, onPatternChange, onBraillePlace, onBrailleUpdate, onBrailleTextChange },
     ref
   ) {
     const textInputRef = useRef<HTMLTextAreaElement>(null)
@@ -180,7 +181,7 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
               ref={brailleInputRef}
               type="text"
               value={brailleText}
-              onChange={e => setBrailleText(e.target.value)}
+              onChange={e => { setBrailleText(e.target.value); onBrailleTextChange?.(e.target.value) }}
               placeholder="Type English text..."
               aria-label="Braille source text"
               onKeyDown={e => {
