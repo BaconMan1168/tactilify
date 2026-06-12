@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@napi-rs/canvas', 'pdfjs-dist', 'sharp', '@u4/opencv4nodejs'],
+  serverExternalPackages: ['@napi-rs/canvas', 'pdfjs-dist', 'sharp'],
 }
 
 export default nextConfig
