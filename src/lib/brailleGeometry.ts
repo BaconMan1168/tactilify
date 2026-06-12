@@ -56,11 +56,19 @@ export function renderBrailleGroupSvg(text: string, x: number, y: number, maxWid
   const trimmed = text.trim()
   const lines = wrapWords(trimmed, maxWidthMm)
   const circles: string[] = []
+  let maxLineCells = 0
   lines.forEach((line, i) => {
     circles.push(...lineToCircles(line, x, y + i * LINE_H))
+    const cellCount = [...encodeBraille(line)].length
+    if (cellCount > maxLineCells) maxLineCells = cellCount
   })
+  // Transparent hit-target rect so clicks anywhere in the cell area (not just
+  // on individual dots) select this group.
+  const hitW = maxLineCells > 0 ? maxLineCells * CELL_W + DOT_R : CELL_W
+  const hitH = lines.length > 0 ? (lines.length - 1) * LINE_H + 5.0 + DOT_R : LINE_H
+  const hitRect = `<rect x="${f(x - DOT_R)}" y="${f(y - DOT_R)}" width="${f(hitW)}" height="${f(hitH)}" fill="transparent" pointer-events="all" stroke="none"/>`
   const escaped = trimmed.replace(/"/g, '&quot;')
-  return `<g data-braille-source="${escaped}" data-type="braille-label">${circles.join('')}</g>`
+  return `<g data-braille-source="${escaped}" data-type="braille-label">${hitRect}${circles.join('')}</g>`
 }
 
 /** Returns Unicode braille preview lines for the given English text (for the composer panel). */
