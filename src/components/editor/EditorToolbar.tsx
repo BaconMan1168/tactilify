@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text' | 'ai-fix'
+export type EditorTool = 'select' | 'rect' | 'circle' | 'arrow' | 'line' | 'text' | 'braille' | 'ai-fix'
 
 interface ToolButtonProps {
   tool: EditorTool | 'undo' | 'redo' | 'delete'
@@ -145,6 +145,10 @@ export function EditorToolbar({
             <line x1="9" y1="20" x2="15" y2="20"/>
             <line x1="12" y1="4" x2="12" y2="20"/>
           </svg>
+        </ToolButton>
+
+        <ToolButton tool="braille" label="Braille text" shortcut="B" isActive={activeTool === 'braille'} onClick={() => onToolChange('braille')}>
+          <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, fontFamily: 'serif' }} aria-hidden="true">⠃</span>
         </ToolButton>
 
         <Separator style={{ background: '#23252a', margin: '4px 0', width: 24 }} />
