@@ -3,6 +3,8 @@ import { encodeBraille } from './braille'
 const BRAILLE_DOT_R = 0.7
 const BRAILLE_DOT_R_TOL = 0.01
 const CLUSTER_THRESHOLD_MM = 15
+const BRAILLE_LINE_HEIGHT = 10.0
+const MAX_CHARS_PER_BRAILLE_ROW = 30
 
 export interface DotCircle {
   cx: number
@@ -97,12 +99,77 @@ function replaceTextWithBraille(
   })
 }
 
+function wordWrapBraille(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length <= maxChars) {
+      current = candidate
+    } else {
+      if (current) lines.push(current)
+      if (word.length > maxChars) {
+        let w = word
+        while (w.length > maxChars) { lines.push(w.slice(0, maxChars)); w = w.slice(maxChars) }
+        current = w
+      } else {
+        current = word
+      }
+    }
+  }
+  if (current) lines.push(current)
+  return lines
+}
+
+// Used for description and exploration-guide sections: wraps each text element's content
+// to MAX_CHARS_PER_BRAILLE_ROW, stacking overflow rows at BRAILLE_LINE_HEIGHT intervals.
+function replaceTextWithBrailleWrapped(sectionContent: string): string {
+  return sectionContent.replace(/<text\b([^>]*)>([^<]*)<\/text>/g, (match, attrs: string, content: string) => {
+    const trimmed = content.trim()
+    if (!trimmed) return match
+    const xVal = /\bx="([^"]*)"/.exec(attrs)?.[1]
+    const yVal = /\by="([^"]*)"/.exec(attrs)?.[1]
+    if (!xVal || !yVal) return match
+    const x = parseFloat(xVal)
+    const y = parseFloat(yVal) - 5
+    if (isNaN(x) || isNaN(y)) return match
+    const lines = wordWrapBraille(trimmed, MAX_CHARS_PER_BRAILLE_ROW)
+    return lines.map((line, i) => textToBrailleCircles(line, x, y + i * BRAILLE_LINE_HEIGHT)).join('')
+  })
+}
+
 // Converts text labels to braille circles.
-// Reference page: everything from the KEY header onward is converted (letter IDs + full labels).
+// Pages with <g data-section> groups: title kept in English; description, exploration-guide,
+// and key sections converted to braille (description/exploration with line-wrapping).
+// Legacy reference page (no section groups): everything from KEY header onward is converted.
 // Diagram pages: only single uppercase letter markers are converted.
 export function applyBraillePostProcessing(svg: string, isReferencePage: boolean): string {
   const isSingleLetter = (c: string) => /^[A-Z]$/.test(c)
 
+  // Section-group path: any page that carries data-section markers (reference page or
+  // reference continuation pages).  Title section stays English; description and
+  // exploration-guide get braille with line-wrapping; key section uses full conversion.
+  if (/\bdata-section="/.test(svg)) {
+    return svg.replace(
+      /<g\b([^>]*\bdata-section="([^"]+)"[^>]*)>([\s\S]*?)<\/g>/g,
+      (match, _fullAttrs: string, sectionName: string, sectionContent: string) => {
+        switch (sectionName) {
+          case 'title':
+            return match
+          case 'description':
+          case 'exploration-guide':
+            return `<g data-section="${sectionName}">${replaceTextWithBrailleWrapped(sectionContent)}</g>`
+          case 'key':
+            return `<g data-section="${sectionName}">${replaceTextWithBraille(sectionContent, () => true)}</g>`
+          default:
+            return match
+        }
+      }
+    )
+  }
+
+  // Legacy path: no section groups.
   if (isReferencePage) {
     const keyMatch = /<text\b[^>]*>\s*KEY\s*<\/text>/i.exec(svg)
     if (keyMatch) {

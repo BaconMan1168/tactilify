@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import type { DiagramAnalysis } from '@/types/diagram'
-import { extractSpeechScript } from '@/lib/speechScript'
 
 const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200]
 const DEFAULT_ZOOM_IDX = 2
@@ -41,8 +40,8 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesP
     /* eslint-disable react-hooks/set-state-in-effect */
     if (pagesProp && pagesProp.length > 0) {
       setPages(pagesProp)
-      // Re-extract speech script from the updated reference page so read-aloud reflects any edits
-      setSpeechScript(extractSpeechScript(pagesProp[0]))
+      // Description and exploration-guide are now braille-only in the SVG; keep the
+      // speech script captured from the original generation (still in state).
       setIsStreaming(false)
       setStreamingPageIndex(null)
       setError(null)

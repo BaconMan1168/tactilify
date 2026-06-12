@@ -88,3 +88,58 @@ describe('applyBraillePostProcessing — reference page key section', () => {
     expect(result).toContain('cell')  // multi-char text stays as-is on diagram pages
   })
 })
+
+describe('applyBraillePostProcessing — data-section groups', () => {
+  const sectionSvg = `<svg viewBox="0 0 210 297">
+    <g data-section="title"><text x="105" y="20">Animal Cell</text><line x1="15" y1="25" x2="195" y2="25"/></g>
+    <g data-section="description"><text x="15" y="35">A eukaryotic cell diagram.</text><line x1="15" y1="50" x2="195" y2="50"/></g>
+    <g data-section="exploration-guide"><text x="15" y="60">Nucleus in center, B left.</text><line x1="15" y1="75" x2="195" y2="75"/></g>
+    <g data-section="key"><text x="20" y="85" font-weight="bold">KEY</text><text x="20" y="100">A</text><text x="48" y="100">cell membrane</text></g>
+  </svg>`
+
+  it('preserves title text in English', () => {
+    const result = applyBraillePostProcessing(sectionSvg, true)
+    expect(result).toContain('Animal Cell')
+  })
+
+  it('converts description text to braille', () => {
+    const result = applyBraillePostProcessing(sectionSvg, true)
+    expect(result).not.toMatch(/<text[^>]*>A eukaryotic cell diagram\.<\/text>/)
+    expect(result).toContain('data-braille-source="A eukaryotic cell diagram."')
+  })
+
+  it('converts exploration-guide text to braille', () => {
+    const result = applyBraillePostProcessing(sectionSvg, true)
+    expect(result).not.toMatch(/<text[^>]*>Nucleus in center, B left\.<\/text>/)
+    expect(result).toContain('data-braille-source="Nucleus in center, B left."')
+  })
+
+  it('converts key entries to braille', () => {
+    const result = applyBraillePostProcessing(sectionSvg, true)
+    expect(result).not.toMatch(/<text[^>]*>cell membrane<\/text>/)
+    expect(result).toContain('data-braille-source="cell membrane"')
+  })
+
+  it('wraps long description lines into multiple braille rows', () => {
+    const longSvg = `<svg viewBox="0 0 210 297">
+      <g data-section="description">
+        <text x="15" y="40">This is a very long description line that exceeds thirty characters easily.</text>
+      </g>
+    </svg>`
+    const result = applyBraillePostProcessing(longSvg, true)
+    // Should produce multiple braille groups (one per wrapped line)
+    const matches = result.match(/data-braille-source/g) ?? []
+    expect(matches.length).toBeGreaterThan(1)
+  })
+
+  it('also processes section groups on non-reference pages (continuations)', () => {
+    const contSvg = `<svg viewBox="0 0 210 297">
+      <g data-section="title"><text x="105" y="20">Cell (reference continued)</text></g>
+      <g data-section="key"><text x="20" y="40">B</text><text x="48" y="40">nucleus</text></g>
+    </svg>`
+    const result = applyBraillePostProcessing(contSvg, false)
+    expect(result).toContain('Cell (reference continued)')
+    expect(result).not.toMatch(/<text[^>]*>nucleus<\/text>/)
+    expect(result).toContain('data-braille-source="nucleus"')
+  })
+})

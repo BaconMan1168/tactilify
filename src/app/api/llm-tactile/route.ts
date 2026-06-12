@@ -44,23 +44,35 @@ Emit as many pages as needed. There is no maximum. Add a <<<PAGE_BREAK>>> betwee
 PAGE 1 — REFERENCE PAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+CRITICAL: Wrap every section on the reference page in a <g data-section="..."> group exactly as shown below. Do NOT nest any <g> elements inside a section group.
+
 Layout top-to-bottom (all x between 15mm and 195mm):
 
+<g data-section="title">
 TITLE (y starts at 15mm)
   Bold, centered text. The diagram's name.
   After the title block, draw a full-width separator line:
   <line x1="15" y1="[titleBottom+2]" x2="195" y2="[titleBottom+2]" stroke="#000000" stroke-width="0.3"/>
+</g>
 
+<g data-section="description">
 SHORT DESCRIPTION (starts 4mm below separator)
-  Plain text. Describes what the diagram shows. Be succinct; match length to diagram complexity.
-  After the description block, draw a separator line at [descBottom+2].
+  BRAILLE LAYOUT: this section is post-processed into Grade 1 Braille at 6mm/cell, 10mm/line height.
+    * Each <text> element must be ≤28 characters (count every character including spaces — split longer phrases across multiple elements).
+    * Vertical spacing between successive <text> elements: exactly 10mm.
+    * After the last text line draw a separator line at [lastTextY + 12].
+  Content: describes what the diagram shows. Match length to diagram complexity.
+</g>
 
+<g data-section="exploration-guide">
 EXPLORATION GUIDE (starts 4mm below separator)
-  Plain text. Tactile navigation instructions referencing the letter labels. For each element, state: (1) where the element is in the diagram (e.g. "top-left", "center", "right side"), and (2) which direction its letter label is placed relative to the element (e.g. "label A is above it", "label B is to its right"). This tells tactile readers both where to navigate to the element and where to feel for its braille marker.
-  Example: "Start at the battery on the left — label A is above the battery. Trace right along the top wire to the resistor at the top center — label B is to its right. The lightbulb is on the right side — label C is to its right."
-  Be succinct; match length to diagram complexity.
-  After the exploration guide block, draw a separator line at [guideBottom+2].
+  BRAILLE LAYOUT: same as description — ≤28 chars per <text>, 10mm vertical spacing, separator at [lastTextY + 12].
+  Content: tactile navigation instructions. For each element state (1) its location in the diagram and (2) where its letter label sits relative to it. Use short phrases that fit the 28-char limit.
+  Example: "Battery on left, label A above." or "Nucleus in center, label B left."
+  Match length to diagram complexity.
+</g>
 
+<g data-section="key">
 KEY (starts 4mm below separator)
   Header: "KEY" in bold.
   One row per labeled element, in letter order (A, B, C…):
@@ -84,8 +96,13 @@ KEY (starts 4mm below separator)
     BAD: "nucleus (located in center, command center of cell)" — NEVER write this
 
   After the last key row, draw a separator line at [keyBottom+2].
+</g>
 
-  If all key entries do not fit on this page, continue them on key continuation page(s) titled "[Diagram name] (key continued)".
+OVERFLOW: if any section extends past y=282mm, continue on a new page titled "[Diagram name] (reference continued)".
+  Wrap the continuing content in the same <g data-section="[section-name]"> group.
+  Begin each continuation page with a <g data-section="title"> containing the continuation title + separator.
+  Description and exploration-guide continuation pages follow the same braille layout constraints.
+  Key continuation pages follow the same key row rules.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PAGE 2+ — DIAGRAM PAGE(S)
