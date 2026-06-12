@@ -9,9 +9,9 @@ const MAX_SKEW_DEG = 30.0         // skip correction if > 30° (probably intenti
 const MIN_HOUGH_LINES = 3         // need at least 3 lines for angle estimate
 const BLUR_VARIANCE_THRESHOLD = 100 // Laplacian variance below this = apply sharpening
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 function tryLoadCv(): CvModule | null {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('@u4/opencv4nodejs') as CvModule
   } catch {
     return null

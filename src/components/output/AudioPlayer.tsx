@@ -20,7 +20,7 @@ export function AudioPlayer({ steps }: AudioPlayerProps) {
     const handler = (e: KeyboardEvent) => {
       if (e.key === ' ' || e.key === 'p' || e.key === 'P') {
         e.preventDefault()
-        isPlaying ? pause() : play()
+        if (isPlaying) { pause() } else { play() }
       } else if (e.key === 's' || e.key === 'S' || e.key === 'Escape') {
         e.preventDefault()
         stop()

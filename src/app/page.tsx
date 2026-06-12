@@ -67,7 +67,6 @@ export default function HomePage() {
     setInputMode('upload')
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const runAnalysis = useCallback(async (img: UploadedImage, fallbackState: AppState = 'preview') => {
     setAppState('processing')
     startProgress()
@@ -93,6 +92,7 @@ export default function HomePage() {
       stopTimer()
       setAppState(fallbackState)
       const message = err instanceof Error ? err.message : 'Something went wrong'
+      // eslint-disable-next-line react-hooks/immutability
       toast.error(message, { action: { label: 'Retry', onClick: () => runAnalysis(img, fallbackState) } })
     }
   }, [])

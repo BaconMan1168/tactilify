@@ -45,7 +45,6 @@ export async function POST(req: NextRequest) {
   const brightness = isNaN(rawBrightness) ? 1 : Math.max(0.5, Math.min(2, rawBrightness))
 
   let fileBuffer: Buffer
-  let originalMime: string
 
   try {
     const formData = await req.formData()
@@ -62,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const detected = await fileTypeFromBuffer(fileBuffer)
-  originalMime = detected?.mime ?? ''
+  const originalMime = detected?.mime ?? ''
 
   if (!ALLOWED_TYPES.has(originalMime)) {
     return NextResponse.json(

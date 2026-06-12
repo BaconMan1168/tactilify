@@ -25,11 +25,14 @@ export function useNarration(steps: NarrationStep[], speechScriptOverride?: stri
   const isPlayingRef = useRef(false)
   const isPausedRef = useRef(false)
   const stepsRef = useRef(steps)
+  // eslint-disable-next-line react-hooks/refs
   stepsRef.current = steps
   const speechScriptOverrideRef = useRef(speechScriptOverride)
+  // eslint-disable-next-line react-hooks/refs
   speechScriptOverrideRef.current = speechScriptOverride
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSpeechSupported('speechSynthesis' in window)
     return () => { window.speechSynthesis?.cancel() }
   }, [])
@@ -52,6 +55,7 @@ export function useNarration(steps: NarrationStep[], speechScriptOverride?: stri
     announce(currentSteps[index].text, 'polite')
 
     const utterance = new SpeechSynthesisUtterance(currentSteps[index].text)
+    // eslint-disable-next-line react-hooks/immutability
     utterance.onend = () => playStep(index + 1)
     utterance.onerror = (e) => {
       // 'interrupted'/'canceled' fires when stop() or unmount cancels — not an error

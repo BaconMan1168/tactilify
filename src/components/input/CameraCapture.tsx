@@ -204,7 +204,7 @@ export function CameraCapture({
       'image/jpeg',
       0.92,
     )
-  }, [stopStream, onCapture, onProcessingChange])
+  }, [stopStream, onCapture, onProcessingChange, brightness])
 
   useEffect(() => {
     captureFrameRef.current = captureFrame
@@ -253,6 +253,7 @@ export function CameraCapture({
       }
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGuidance({ status: 'analyzing', message: 'Analyzing…', progress: 0 })
     rafRef.current = requestAnimationFrame(loop)
 

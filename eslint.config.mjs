@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Git worktrees contain generated files that should not be linted
+    ".worktrees/**",
   ]),
 ]);
 

@@ -33,12 +33,12 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesP
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingPageIndex, setStreamingPageIndex] = useState<number | null>(null)
   const [truncated, setTruncated] = useState(false)
-  const [statusMsg, setStatusMsg] = useState('Generating tactile SVG, please wait.')
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const speakBtnRef = useRef<HTMLButtonElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (pagesProp && pagesProp.length > 0) {
       setPages(pagesProp)
       // Re-extract speech script from the updated reference page so read-aloud reflects any edits
@@ -47,6 +47,7 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesP
       setStreamingPageIndex(null)
       setError(null)
       setTruncated(false)
+      /* eslint-enable react-hooks/set-state-in-effect */
       return
     }
 
@@ -161,22 +162,21 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesP
   const totalPages = pages.length
   const isReady = !isStreaming && pages.length > 0
 
+  const statusMsg = isReady
+    ? 'Tactile SVG ready. Use the Read aloud button to hear the title, description, and exploration guide.'
+    : error
+    ? 'Could not generate tactile SVG.'
+    : isStreaming && streamingPageIndex !== null
+    ? `Generating page ${streamingPageIndex + 1} of approximately 3.`
+    : 'Generating tactile SVG, please wait.'
+
   useEffect(() => {
     return () => { window.speechSynthesis?.cancel() }
   }, [])
 
   useEffect(() => {
-    if (isReady) {
-      setStatusMsg('Tactile SVG ready. Use the Read aloud button to hear the title, description, and exploration guide.')
-      speakBtnRef.current?.focus()
-    } else if (error) {
-      setStatusMsg('Could not generate tactile SVG.')
-    } else if (isStreaming && streamingPageIndex !== null) {
-      setStatusMsg(`Generating page ${streamingPageIndex + 1} of approximately 3.`)
-    } else {
-      setStatusMsg('Generating tactile SVG, please wait.')
-    }
-  }, [isReady, error, isStreaming, streamingPageIndex])
+    if (isReady) speakBtnRef.current?.focus()
+  }, [isReady])
 
   const handleSpeak = useCallback(() => {
     if (!window.speechSynthesis) return

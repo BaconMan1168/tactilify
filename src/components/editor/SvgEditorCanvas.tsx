@@ -398,17 +398,6 @@ export const SvgEditorCanvas = forwardRef<SvgEditorCanvasHandle, SvgEditorCanvas
       return getRenderedBBox(el, svgEl, svgVbRef.current.w, svgVbRef.current.h)
     }, [getSvgEl])
 
-    const selectEl = useCallback((el: SVGElement | null) => {
-      if (!el) {
-        setSelection(null)
-        onSelectionChange(null, null)
-        return
-      }
-      const bbox = getBBox(el)
-      setSelection({ element: el, bbox })
-      onSelectionChange(el, bbox)
-    }, [getBBox, onSelectionChange])
-
     const takeSnapshot = useCallback(() => {
       const w = wrapperRef.current
       if (w) history.commitMutation(w)

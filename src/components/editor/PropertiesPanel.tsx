@@ -175,17 +175,20 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
               aria-label="Text content"
               onChange={e => {
                 autoResize()
+                // eslint-disable-next-line react-hooks/immutability
                 selectedElement.textContent = e.target.value
               }}
               onKeyDown={stopAndHandle(e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
+                  // eslint-disable-next-line react-hooks/immutability
                   selectedElement.textContent = (e.target as HTMLTextAreaElement).value
                   onCommit()
                   ;(e.target as HTMLTextAreaElement).blur()
                 }
               })}
               onBlur={e => {
+                // eslint-disable-next-line react-hooks/immutability
                 selectedElement.textContent = e.target.value
                 onCommit()
               }}
