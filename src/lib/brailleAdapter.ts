@@ -160,5 +160,6 @@ function textToBrailleCircles(text: string, x: number, y: number): string {
     }
     curX += BRAILLE_CELL_W
   }
-  return `<g>${circles.join('')}</g>`
+  const escaped = text.replace(/"/g, '&quot;')
+  return `<g data-braille-source="${escaped}" data-type="braille-label">${circles.join('')}</g>`
 }

@@ -60,8 +60,11 @@ describe('applyBraillePostProcessing — reference page key section', () => {
 
   it('converts full label text to braille on the reference page key section', () => {
     const result = applyBraillePostProcessing(keySvg, true)
-    expect(result).not.toContain('cell membrane')
-    expect(result).not.toContain('nucleus')
+    // Source text must not remain as <text> element content, but IS stored as data-braille-source metadata
+    expect(result).not.toMatch(/<text[^>]*>cell membrane<\/text>/)
+    expect(result).not.toMatch(/<text[^>]*>nucleus<\/text>/)
+    expect(result).toContain('data-braille-source="cell membrane"')
+    expect(result).toContain('data-braille-source="nucleus"')
     expect(result).toContain('<circle')
   })
 
