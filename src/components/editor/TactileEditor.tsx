@@ -146,6 +146,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
     const groupSvg = renderBrailleGroupSvg(text, x, y, maxW)
     canvas.insertBrailleGroup(groupSvg)
     setBrailleOrigin(null)
+    setBrailleText('')
     syncHistoryState()
   }, [brailleOrigin, syncHistoryState])
 
@@ -179,6 +180,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
       newGroupSvg.lastIndexOf('</g>'),
     )
     selectedElement.setAttribute('data-braille-source', trimmed)
+    setBrailleText('')
     canvas.commitMutation()
   }, [selectedElement])
 
@@ -286,6 +288,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
             activeTool={activeTool}
             selectedElement={selectedElement}
             selectionBbox={selectionBbox}
+            brailleText={brailleText}
             brailleOrigin={brailleOrigin}
             onCommit={() => activeCanvas?.commitMutation()}
             onDelete={() => activeCanvas?.deleteSelected()}

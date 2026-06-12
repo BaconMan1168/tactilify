@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react'
+import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { TexturePicker } from './TexturePicker'
 import { braillePreviewLines } from '@/lib/brailleGeometry'
@@ -10,13 +10,14 @@ interface PropertiesPanelProps {
   activeTool: EditorTool
   selectedElement: SVGElement | null
   selectionBbox: BBox | null
+  brailleText: string
   brailleOrigin: { x: number; y: number } | null
   onCommit: () => void
   onDelete: () => void
   onPatternChange: (type: PatternType) => void
   onBraillePlace: (text: string) => void
   onBrailleUpdate: (text: string) => void
-  onBrailleTextChange?: (text: string) => void
+  onBrailleTextChange: (text: string) => void
 }
 
 export interface PropertiesPanelHandle {
@@ -82,12 +83,11 @@ function applyBBoxField(
 
 export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanelProps>(
   function PropertiesPanel(
-    { activeTool, selectedElement, selectionBbox, brailleOrigin, onCommit, onDelete, onPatternChange, onBraillePlace, onBrailleUpdate, onBrailleTextChange },
+    { activeTool, selectedElement, selectionBbox, brailleText, brailleOrigin, onCommit, onDelete, onPatternChange, onBraillePlace, onBrailleUpdate, onBrailleTextChange },
     ref
   ) {
     const textInputRef = useRef<HTMLTextAreaElement>(null)
     const brailleInputRef = useRef<HTMLInputElement>(null)
-    const [brailleText, setBrailleText] = useState('')
 
     const isBrailleGroup = selectedElement?.tagName.toLowerCase() === 'g'
       && selectedElement?.hasAttribute('data-braille-source')
@@ -95,9 +95,9 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
     // Pre-fill braille composer when a braille group is selected
     useEffect(() => {
       if (isBrailleGroup && selectedElement) {
-        setBrailleText(selectedElement.getAttribute('data-braille-source') ?? '')
+        onBrailleTextChange(selectedElement.getAttribute('data-braille-source') ?? '')
       }
-    }, [isBrailleGroup, selectedElement])
+    }, [isBrailleGroup, selectedElement]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const autoResize = () => {
       const ta = textInputRef.current
@@ -181,7 +181,7 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
               ref={brailleInputRef}
               type="text"
               value={brailleText}
-              onChange={e => { setBrailleText(e.target.value); onBrailleTextChange?.(e.target.value) }}
+              onChange={e => onBrailleTextChange(e.target.value)}
               placeholder="Type English text..."
               aria-label="Braille source text"
               onKeyDown={e => {
@@ -269,7 +269,7 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setBrailleText('')}
+              onClick={() => onBrailleTextChange('')}
               aria-label="Clear braille text input"
               style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6, cursor: 'pointer', width: '100%' }}
             >
