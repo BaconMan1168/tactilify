@@ -69,13 +69,19 @@ function isPageBackgroundRect(el: Element): boolean {
   return x <= 1 && y <= 1 && w >= 200 && h >= 280
 }
 
-// Walk from clicked element up to the first direct child of the SVG root
+// Walk from clicked element up to the first direct child of the SVG root.
+// If any ancestor along the way has data-braille-source, prefer it — this
+// ensures braille label groups nested inside key-section containers (and any
+// future braille-tagged element at any depth) are individually selectable.
 function findSelectableAncestor(target: Element, svgEl: SVGSVGElement): SVGElement | null {
   let el: Element | null = target
+  let brailleCandidate: SVGElement | null = null
   while (el && el !== svgEl) {
+    if (!brailleCandidate && (el as SVGElement).hasAttribute?.('data-braille-source'))
+      brailleCandidate = el as SVGElement
     if (el.parentNode === (svgEl as Node) && !NON_SELECTABLE.has(el.tagName.toLowerCase())) {
       if (isPageBackgroundRect(el)) return null
-      return el as SVGElement
+      return brailleCandidate ?? (el as SVGElement)
     }
     el = el.parentElement
   }
