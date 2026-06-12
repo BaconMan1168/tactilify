@@ -12,6 +12,7 @@ type SSEEvent =
   | { type: 'speech'; script: string }
   | { type: 'done'; totalPages: number; truncated: boolean }
   | { type: 'not_a_diagram' }
+  | { type: 'too_complex' }
   | { type: 'error'; message: string }
 
 interface TactileSVGProps {
@@ -107,6 +108,10 @@ export function TactileSVG({ analysis, imageBase64, imageMimeType, pages: pagesP
             case 'not_a_diagram':
               setIsStreaming(false)
               setError('This image does not appear to be a STEM diagram. Please upload a diagram, chart, or scientific illustration.')
+              break
+            case 'too_complex':
+              setIsStreaming(false)
+              setError('This diagram is too complex to render as a tactile output. Try uploading a simpler or less detailed diagram.')
               break
             case 'error':
               setIsStreaming(false)

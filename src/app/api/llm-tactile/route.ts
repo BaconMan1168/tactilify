@@ -7,12 +7,26 @@ import { applyBraillePostProcessing } from '@/lib/brailleAdapter'
 const MODEL = 'claude-sonnet-4-6'
 
 const NOT_A_DIAGRAM = 'NOT_A_DIAGRAM'
+const TOO_COMPLEX = 'TOO_COMPLEX'
 
 const PROMPT = `FOLLOW THIS NO MATTER WHAT — LABEL PLACEMENT IS NON-NEGOTIABLE:
 Every keyed label (letter A, B, C… and its surrounding braille cell area) must be placed in completely empty, blank space — fully outside the boundary of the element it labels, and not touching or overlapping any other shape boundary, stroke, fill region, texture, or connector line. A label for an interior element (e.g. an organelle inside a cell) may sit inside an enclosing container as long as it lands in blank, untextured space within that container — it does NOT need to be placed outside the outermost diagram boundary. If no blank space exists immediately adjacent to an element, the label may be offset further using a straight lead line (15mm max), but it must remain as close as possible to its element and must always land in blank white space. Violating this rule produces a diagram that is physically unreadable by a blind student. There are no exceptions.
 
-IMPORTANT: Before generating anything, check whether the image contains an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure. If it does not — for example it is a photograph, portrait, artwork, meme, screenshot of text, or otherwise unrecognisable as a STEM diagram — output only this exact word and nothing else:
+IMPORTANT: Before generating anything, perform these two checks in order:
+
+CHECK 1 — Is this a STEM diagram?
+If the image does not contain an educational diagram, technical drawing, chart, scientific illustration, or mathematical figure — for example it is a photograph, portrait, artwork, meme, screenshot of text, or otherwise unrecognisable as a STEM diagram — output only this exact word and nothing else:
 NOT_A_DIAGRAM
+
+CHECK 2 — Is this too complex to render as a tactile diagram?
+If the image passes CHECK 1, evaluate whether it can produce a legible tactile output. Output only this exact word and nothing else if ANY of the following are true:
+* Non-planar connector density: the diagram has so many crossing arrows, wires, or flow lines that no simplification can produce a near-non-crossing tactile layout (e.g. a dense circuit mesh with 15+ crossing wires, a flowchart where every branch intersects another).
+* Irreducibly fine detail: the educational content IS the fine detail and cannot be abstracted without losing the concept (e.g. a PCB trace layout, a dense phylogenetic tree with 40+ species, a protein folding diagram, a detailed topographic contour map).
+* Overcrowded spatial region: elements are so tightly packed that even after simplification, the required 3mm gap between adjacent tactile elements cannot be maintained for more than half the elements on a single A4 page.
+* Heavily detailed illustration or drawing: a realistic or highly detailed pictorial rendering (e.g. a detailed drawing of a shark, a photorealistic anatomical illustration) where the visual complexity cannot be reduced to clean tactile outlines without losing educational meaning.
+TOO_COMPLEX
+
+This check does NOT trigger for: a complex diagram that can be cleanly split across 2–3 pages; a diagram with many visually repetitive or groupable elements; a diagram that looks busy but has a clear, sparse underlying structure.
 
 Otherwise, generate a multi-page tactile diagram of this image for blind or low-vision students to read by touch on swell paper.
 
@@ -231,6 +245,11 @@ export async function POST(req: NextRequest): Promise<Response> {
 
             if (buffer.includes(NOT_A_DIAGRAM) && pageIndex === 0) {
               emit(controller, { type: 'not_a_diagram' })
+              return
+            }
+
+            if (buffer.includes(TOO_COMPLEX) && pageIndex === 0) {
+              emit(controller, { type: 'too_complex' })
               return
             }
 
