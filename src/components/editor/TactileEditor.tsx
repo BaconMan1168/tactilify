@@ -11,6 +11,7 @@ import { AIFixPopover } from './AIFixPopover'
 import type { BBox, PatternType } from '@/types/editor'
 import { extractSpeechScript } from '@/lib/speechScript'
 import { exportEditorPages } from '@/lib/editorPages'
+import { renderBrailleGroupSvg } from '@/lib/brailleGeometry'
 
 interface TactileEditorProps {
   pages: string[]
@@ -32,6 +33,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
 
   const [aiAnchor, setAiAnchor] = useState<{ x: number; y: number; bbox: BBox } | null>(null)
   const [aiFixLoading, setAiFixLoading] = useState(false)
+  const [brailleOrigin, setBrailleOrigin] = useState<{ x: number; y: number } | null>(null)
 
   const canvasRefs = useRef<Array<SvgEditorCanvasHandle | null>>(pages.map(() => null))
   const propertiesPanelRef = useRef<PropertiesPanelHandle>(null)
@@ -130,6 +132,52 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
     }
   }, [aiAnchor, imageBase64, imageMimeType, syncHistoryState])
 
+  const handleBraillePlaceAt = useCallback((x: number, y: number) => {
+    setBrailleOrigin({ x, y })
+  }, [])
+
+  const handleBraillePlace = useCallback((text: string) => {
+    const canvas = canvasRefs.current[currentPageRef.current]
+    if (!canvas || !brailleOrigin) return
+    const { x, y } = brailleOrigin
+    const maxW = Math.max(20, 210 - x - 5)
+    const groupSvg = renderBrailleGroupSvg(text, x, y, maxW)
+    canvas.insertBrailleGroup(groupSvg)
+    setBrailleOrigin(null)
+    syncHistoryState()
+  }, [brailleOrigin, syncHistoryState])
+
+  const handleBrailleUpdate = useCallback((text: string) => {
+    if (!selectedElement) return
+    const canvas = canvasRefs.current[currentPageRef.current]
+    if (!canvas) return
+    const trimmed = text.trim()
+    if (!trimmed) return
+    // Determine local-space origin from the group's circles
+    let minCx = Infinity, minCy = Infinity
+    selectedElement.querySelectorAll('circle').forEach(c => {
+      const cx = parseFloat(c.getAttribute('cx') ?? 'NaN')
+      const cy = parseFloat(c.getAttribute('cy') ?? 'NaN')
+      if (!isNaN(cx)) minCx = Math.min(minCx, cx)
+      if (!isNaN(cy)) minCy = Math.min(minCy, cy)
+    })
+    const x = isFinite(minCx) ? minCx : 0
+    const y = isFinite(minCy) ? minCy : 0
+    // Account for group translate transform when computing available width
+    const t = selectedElement.getAttribute('transform') ?? ''
+    const tm = /translate\(\s*([+-]?\d*\.?\d+)/.exec(t)
+    const tx = tm ? parseFloat(tm[1]) : 0
+    const maxW = Math.max(20, 210 - (x + tx) - 5)
+    const newGroupSvg = renderBrailleGroupSvg(trimmed, x, y, maxW)
+    const tmp = document.createElement('div')
+    tmp.innerHTML = newGroupSvg
+    const newGroup = tmp.firstElementChild
+    if (!newGroup) return
+    selectedElement.innerHTML = newGroup.innerHTML
+    selectedElement.setAttribute('data-braille-source', trimmed)
+    canvas.commitMutation()
+  }, [selectedElement])
+
   // After placing a shape, auto-return to select so the user can move/resize it
   const handleShapePlaced = useCallback(() => {
     setActiveTool('select')
@@ -201,7 +249,7 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
             activeTool={activeTool}
             canUndo={canUndo}
             canRedo={canRedo}
-            onToolChange={tool => { setActiveTool(tool); setSelectedElement(null); setSelectionBbox(null) }}
+            onToolChange={tool => { setActiveTool(tool); setSelectedElement(null); setSelectionBbox(null); setBrailleOrigin(null) }}
             onUndo={() => activeCanvas?.undo()}
             onRedo={() => activeCanvas?.redo()}
             onDelete={() => activeCanvas?.deleteSelected()}
@@ -222,17 +270,22 @@ export function TactileEditor({ pages, imageBase64, imageMimeType, onDone, onCan
                 onShapePlaced={handleShapePlaced}
                 onTextEditRequest={handleTextEditRequest}
                 onAiRegionSelected={handleAiRegionSelected}
+                onBraillePlaceAt={handleBraillePlaceAt}
               />
             ))}
           </div>
 
           <PropertiesPanel
             ref={propertiesPanelRef}
+            activeTool={activeTool}
             selectedElement={selectedElement}
             selectionBbox={selectionBbox}
+            brailleOrigin={brailleOrigin}
             onCommit={() => activeCanvas?.commitMutation()}
             onDelete={() => activeCanvas?.deleteSelected()}
             onPatternChange={(type: PatternType) => activeCanvas?.applyPatternToSelected(type)}
+            onBraillePlace={handleBraillePlace}
+            onBrailleUpdate={handleBrailleUpdate}
           />
         </div>
 

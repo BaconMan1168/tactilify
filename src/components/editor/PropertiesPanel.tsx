@@ -1,15 +1,21 @@
 'use client'
-import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { TexturePicker } from './TexturePicker'
+import { braillePreviewLines } from '@/lib/brailleGeometry'
 import type { BBox, PatternType } from '@/types/editor'
+import type { EditorTool } from './EditorToolbar'
 
 interface PropertiesPanelProps {
+  activeTool: EditorTool
   selectedElement: SVGElement | null
   selectionBbox: BBox | null
+  brailleOrigin: { x: number; y: number } | null
   onCommit: () => void
   onDelete: () => void
   onPatternChange: (type: PatternType) => void
+  onBraillePlace: (text: string) => void
+  onBrailleUpdate: (text: string) => void
 }
 
 export interface PropertiesPanelHandle {
@@ -39,7 +45,6 @@ const inputStyle: React.CSSProperties = {
   cursor: 'text',
 }
 
-// Apply a single bbox field change to the underlying SVG element.
 function applyBBoxField(
   el: SVGElement,
   field: 'x' | 'y' | 'w' | 'h',
@@ -75,8 +80,23 @@ function applyBBoxField(
 }
 
 export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanelProps>(
-  function PropertiesPanel({ selectedElement, selectionBbox, onCommit, onDelete, onPatternChange }, ref) {
+  function PropertiesPanel(
+    { activeTool, selectedElement, selectionBbox, brailleOrigin, onCommit, onDelete, onPatternChange, onBraillePlace, onBrailleUpdate },
+    ref
+  ) {
     const textInputRef = useRef<HTMLTextAreaElement>(null)
+    const brailleInputRef = useRef<HTMLInputElement>(null)
+    const [brailleText, setBrailleText] = useState('')
+
+    const isBrailleGroup = selectedElement?.tagName.toLowerCase() === 'g'
+      && selectedElement?.hasAttribute('data-braille-source')
+
+    // Pre-fill braille composer when a braille group is selected
+    useEffect(() => {
+      if (isBrailleGroup && selectedElement) {
+        setBrailleText(selectedElement.getAttribute('data-braille-source') ?? '')
+      }
+    }, [isBrailleGroup, selectedElement])
 
     const autoResize = () => {
       const ta = textInputRef.current
@@ -87,6 +107,10 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
 
     useImperativeHandle(ref, () => ({
       focusTextInput: () => {
+        if (brailleInputRef.current && (activeTool === 'braille' || isBrailleGroup)) {
+          brailleInputRef.current.focus()
+          return
+        }
         if (textInputRef.current) {
           textInputRef.current.focus()
           textInputRef.current.select()
@@ -94,18 +118,141 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
       },
     }))
 
-    // Auto-resize whenever the selected element changes
-    useEffect(() => {
-      autoResize()
-    }, [selectedElement])
+    useEffect(() => { autoResize() }, [selectedElement])
 
-    // Ensure text textarea is visible after element changes to a text node
     useEffect(() => {
       if (selectedElement?.tagName.toLowerCase() === 'text') {
         const t = setTimeout(() => { textInputRef.current?.focus(); autoResize() }, 50)
         return () => clearTimeout(t)
       }
     }, [selectedElement])
+
+    const showBrailleComposer = activeTool === 'braille' || isBrailleGroup
+
+    // ── Braille composer ─────────────────────────────────────────────────────
+
+    if (showBrailleComposer) {
+      const isEditMode = isBrailleGroup
+      const preview = braillePreviewLines(brailleText)
+      const canPlace = !!brailleText.trim() && !!brailleOrigin
+      const canUpdate = !!brailleText.trim()
+
+      return (
+        <div
+          className="flex flex-col gap-3 p-3 overflow-y-auto"
+          style={{ width: 200, background: '#0f1011', borderLeft: '1px solid #23252a', height: '100%' }}
+          role="complementary"
+          aria-label="Braille text composer"
+        >
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#5e6ad2', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            {isEditMode ? 'Edit braille' : 'Braille text'}
+          </span>
+
+          <Field label="Text">
+            <input
+              ref={brailleInputRef}
+              type="text"
+              value={brailleText}
+              onChange={e => setBrailleText(e.target.value)}
+              placeholder="Type English text..."
+              aria-label="Braille source text"
+              onKeyDown={e => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  if (isEditMode && canUpdate) onBrailleUpdate(brailleText)
+                  else if (!isEditMode && canPlace) onBraillePlace(brailleText)
+                }
+              }}
+              style={inputStyle}
+            />
+          </Field>
+
+          {/* Live braille preview */}
+          <div style={{ background: '#18191a', borderRadius: 4, padding: 8, border: '1px solid #23252a', minHeight: 52 }}>
+            <div style={{ fontSize: 10, color: '#62666d', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Preview</div>
+            {preview.length > 0 ? (
+              <>
+                <div style={{ fontSize: 18, color: '#f7f8f8', letterSpacing: '2px', lineHeight: 2 }}>
+                  {preview.map((line, i) => <div key={i}>{line}</div>)}
+                </div>
+                <div style={{ fontSize: 9, color: '#5e6ad2', marginTop: 4 }}>
+                  {preview.length} {preview.length === 1 ? 'row' : 'rows'} · Grade 1
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#3e4046', fontStyle: 'italic' }}>—</div>
+            )}
+          </div>
+
+          {!isEditMode && !brailleOrigin && (
+            <div style={{ fontSize: 11, color: '#3e4046', textAlign: 'center', lineHeight: 1.5 }}>
+              Click canvas to set<br />placement point
+            </div>
+          )}
+          {!isEditMode && brailleOrigin && (
+            <div style={{ fontSize: 11, color: '#5e6ad2', textAlign: 'center' }}>
+              Ready to place
+            </div>
+          )}
+
+          {isEditMode ? (
+            <Button
+              size="sm"
+              onClick={() => onBrailleUpdate(brailleText)}
+              disabled={!canUpdate}
+              aria-label="Update braille group with new text"
+              style={{
+                background: canUpdate ? '#5e6ad2' : '#23252a',
+                color: canUpdate ? '#ffffff' : '#3e4046',
+                fontSize: 13, borderRadius: 6, border: 'none', cursor: canUpdate ? 'pointer' : 'not-allowed', width: '100%',
+              }}
+            >
+              Update
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => { if (canPlace) onBraillePlace(brailleText) }}
+              disabled={!canPlace}
+              aria-label="Place braille text on canvas"
+              style={{
+                background: canPlace ? '#5e6ad2' : '#23252a',
+                color: canPlace ? '#ffffff' : '#3e4046',
+                fontSize: 13, borderRadius: 6, border: 'none', cursor: canPlace ? 'pointer' : 'not-allowed', width: '100%',
+              }}
+            >
+              Place
+            </Button>
+          )}
+
+          <div style={{ width: '100%', height: 1, background: '#23252a' }} />
+
+          {isEditMode ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onDelete}
+              aria-label="Delete selected braille group"
+              style={{ background: '#2a1515', color: '#e07070', border: '1px solid #4a2020', borderRadius: 6, fontSize: 13, cursor: 'pointer', width: '100%' }}
+            >
+              Delete
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setBrailleText('')}
+              aria-label="Clear braille text input"
+              style={{ color: '#8a8f98', fontSize: 13, background: 'transparent', border: '1px solid #23252a', borderRadius: 6, cursor: 'pointer', width: '100%' }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    // ── No selection ─────────────────────────────────────────────────────────
 
     if (!selectedElement) {
       return (
@@ -118,6 +265,8 @@ export const PropertiesPanel = forwardRef<PropertiesPanelHandle, PropertiesPanel
         </div>
       )
     }
+
+    // ── Normal element properties ─────────────────────────────────────────────
 
     const bbox = selectionBbox ?? { x: 0, y: 0, width: 0, height: 0 }
     const x = parseFloat(bbox.x.toFixed(1))
